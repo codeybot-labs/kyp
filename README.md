@@ -2,7 +2,7 @@
 
 An optional, invite-only presale layer for NEAR meme launches. Launchers sell a public slice of supply (max 50%) to hand-picked wallets for up to 7 days before launch. Every fill settles at **one price inside the launch transaction**, the tokens go **straight into a lock**, and they unlock only at **public, ambitious market-cap milestones** measured as a TWAP. Presalers are revealed in waves after launch, smallest first.
 
-> **Status: testnet MVP.** Nothing here is deployed to mainnet, and nothing should be without an explicit go-ahead. The site runs in a browser-only demo mode by default.
+> **Status: testnet MVP.** Contracts are live on NEAR **testnet** with a mock pool ([docs/TESTNET.md](docs/TESTNET.md)). Nothing is deployed to mainnet, and nothing should be without an explicit go-ahead. The site opens in a browser-only demo mode; **Use testnet** switches to live testnet reads.
 
 - Concept and research: [docs/SPEC.md](docs/SPEC.md) · approved plan: [docs/PLAN.md](docs/PLAN.md)
 - Architecture, contract flows, what's mocked and open risks: [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md)
@@ -18,7 +18,7 @@ An optional, invite-only presale layer for NEAR meme launches. Launchers sell a 
 | `contracts/mock-pool` | **Mock** of the RHEA DCL methods KYP calls (tests + demo only) |
 | `integration-tests` | near-workspaces sandbox test of the whole flow |
 | `web` | Astro + Solid site: launches, create, status, terms, deposit, reveal, claim |
-| `scripts` | `build.sh` (wasm), `test.sh` (everything), `deploy-testnet.sh` (not run yet) |
+| `scripts` | `build.sh` (wasm), `test.sh` (everything), `deploy-testnet.sh`, `smoke-testnet.sh` (testnet) |
 
 ## Defaults (all configurable per launch unless noted)
 
@@ -67,8 +67,9 @@ The connected account fills the account fields. The UI is gated by account: only
 
 ### Deploy
 
-- Contracts: not deployed yet. `PREFIX=kyp-<name> ./scripts/deploy-testnet.sh` creates faucet-funded **testnet** accounts (keys saved by near-cli-rs to your keychain, never printed) and deploys with the mock pool. `POOL=dcl` targets `dclv2.ref-dev.testnet` instead (unverified).
-- Site: live at https://kyp-web.sushmitsarmah.workers.dev as a Cloudflare Worker **static assets only** (Worker name `kyp-web`; `web/wrangler.jsonc`: no Worker script, no bindings, no KV/R2/D1). This build is the default **testnet demo** (no contract IDs, no WalletConnect ID). Static asset requests are free on the Workers Paid plan. Redeploy from the Mac mini with `cd web && npm run deploy`.
+- Contracts: **live on NEAR testnet** with the **mock** pool: coordinator [`kyp-sushmit.testnet`](https://testnet.nearblocks.io/address/kyp-sushmit.testnet), lock [`kyp-sushmit-lock.testnet`](https://testnet.nearblocks.io/address/kyp-sushmit-lock.testnet), mock pool [`kyp-sushmit-pool.testnet`](https://testnet.nearblocks.io/address/kyp-sushmit-pool.testnet). The end-to-end smoke test passed on-chain (one-tx launch, lock, TWAP, qualify, claim, reveal). The real RHEA testnet DCL creates the pool but its deposit costs ~920 Tgas, so seeding is blocked there. Details, tx links and what's mock vs real: [docs/TESTNET.md](docs/TESTNET.md).
+- Redeploy: `PREFIX=kyp-<name> KEYCHAIN=legacy ./scripts/deploy-testnet.sh` creates faucet-funded **testnet** accounts (keys saved by near-cli-rs to `~/.near-credentials` with `KEYCHAIN=legacy`, or the OS keychain by default; output is redacted) and deploys with the mock pool. `POOL=dcl` targets `dclv2.ref-dev.testnet` (0.5 NEAR storage, no deposit on `add_liquidity`, `"Deposit"` msg). `./scripts/smoke-testnet.sh` runs the on-chain smoke test.
+- Site: live at https://kyp-web.sushmitsarmah.workers.dev as a Cloudflare Worker **static assets only** (Worker name `kyp-web`; `web/wrangler.jsonc`: no Worker script, no bindings, no KV/R2/D1). The build reads the testnet contract IDs from the committed `web/.env.production` (public account IDs only). It opens in demo mode; click **Use testnet** in the header to read live testnet state. No WalletConnect ID. Static asset requests are free on the Workers Paid plan. Redeploy from the Mac mini with `cd web && npm run deploy`.
 
 ## Test results (local)
 

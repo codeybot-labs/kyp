@@ -27,7 +27,8 @@ function buildAndServe(env) {
   }).listen(0);
   return { server, base: `http://localhost:${server.address().port}` };
 }
-const NO_NET = { PUBLIC_NEAR_NETWORK: "", PUBLIC_WALLETCONNECT_PROJECT_ID: "" };
+// blank the committed .env.production testnet IDs so the e2e builds use the mocked RPC + test IDs
+const NO_NET = { PUBLIC_NEAR_NETWORK: "", PUBLIC_WALLETCONNECT_PROJECT_ID: "", PUBLIC_KYP_TESTNET_COORDINATOR: "", PUBLIC_KYP_TESTNET_LOCK: "", PUBLIC_KYP_TESTNET_POOL: "", PUBLIC_NEAR_TESTNET_RPC: "" };
 const { server, base } = buildAndServe({ ...NO_NET, PUBLIC_KYP_COORDINATOR: COORD, PUBLIC_KYP_LOCK: LOCK });
 
 const N = (n) => (BigInt(Math.round(n * 1000)) * 10n ** 21n).toString();

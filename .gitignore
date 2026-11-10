@@ -12,3 +12,4 @@ neardev/
 res/*.wasm
 !res/.gitkeep
 .DS_Store
+!web/.env.production

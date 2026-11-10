@@ -60,11 +60,11 @@ Plain NEP-141 + metadata. The full supply is minted once in `new`. `ft_burn` low
 
 | Area | Status |
 | --- | --- |
-| Pool | Coordinator targets RHEA DCL's method names and JSON (`storage_deposit`, `create_pool`, `ft_transfer_call` msg `""`, `add_liquidity`, `get_pool`). All tests use `contracts/mock-pool`, which implements exactly those methods with no swaps or concentrated-liquidity math. Price moves are simulated with `mock_set_point`. **Not yet verified against `dclv2.ref-dev.testnet`** (deposit amounts, registration and range rules may differ). |
+| Pool | Coordinator targets RHEA DCL's method names and JSON (`storage_deposit`, `create_pool`, `ft_transfer_call` msg `""`, `add_liquidity`, `get_pool`). All tests use `contracts/mock-pool`, which implements exactly those methods with no swaps or concentrated-liquidity math. Price moves are simulated with `mock_set_point`. Checked against `dclv2.ref-dev.testnet` on 2026-11-10 (see [TESTNET.md](TESTNET.md)): storage min 0.5 NEAR, `add_liquidity` takes no deposit, deposit msg must be `"Deposit"`, `create_pool` and `get_pool` work. Seeding is blocked on testnet because a DCL deposit burns ~920 Tgas there. The live testnet deployment uses the mock. |
 | USD | Milestones are stored in wNEAR. USD is a display-only reference (`PUBLIC_NEAR_USD`). There is no on-chain quote/USD oracle yet. |
 | LP fee collection | The coordinator owns the LP but has no method to claim DCL fees yet. `Fees` deposits + `distribute_fees` route whatever is sent in. |
 | Holder rewards | The "holders" share goes to one account. Per-holder distribution is off-chain/later. |
-| Wallet | Real NEAR login via NEAR Connect on the configured network (testnet default) (see "Wallet login" below). Signing is only exercised against mocked RPC + a mock injected wallet in `web/tests/wallet.e2e.mjs`; no real testnet transaction has been sent yet because the contracts are not deployed. |
+| Wallet | Real NEAR login via NEAR Connect on the configured network (testnet default) (see "Wallet login" below). Signing is only exercised against mocked RPC + a mock injected wallet in `web/tests/wallet.e2e.mjs`; the contracts are now live on testnet (see [TESTNET.md](TESTNET.md)), but no real wallet has signed through the site yet; the on-chain smoke test used near-cli-rs. |
 | Advisor group | Off-chain (e.g. a private chat). Not built. |
 | Testnet deploy | `scripts/deploy-testnet.sh` written, not run. |
 | Frontend deploy | Live at https://kyp-web.sushmitsarmah.workers.dev (Worker `kyp-web`, static assets only, no bindings). Testnet demo mode: no contract IDs, no WalletConnect ID. |
@@ -95,8 +95,8 @@ Plain NEP-141 + metadata. The full supply is minted once in `new`. `ft_burn` low
 1. **Pool front-running / DoS**: the pool id is deterministic. Someone could create the DCL pool first at a bad price. Our `create_pool` then fails and the launch pauses (safe, but stuck). They can't add token-side liquidity because the coordinator holds all supply. Fix ideas: create the token in the launch transaction, or handle an existing empty pool.
 2. **TWAP manipulation**: sustained buying for a full window can still lift the average. Ambitious targets, min liquidity, a claim delay, and future checks (e.g. liquidity-weighted TWAP, a max point jump per observation) reduce but don't remove this.
 3. **Observer liveness**: milestones need someone to poke `record` regularly. A keeper or cron is needed, otherwise samples go stale.
-4. **Gas**: the full launch used ~41 Tgas against the mock. Real DCL calls cost more. The chain is resumable, but real gas figures still need testnet measurement.
-5. **DCL specifics**: the range layout (one-delta gap), deposits needed for `add_liquidity`, and whether DCL needs token whitelisting on testnet are unverified.
+4. **Gas**: the full launch used ~42.6 Tgas on testnet against the mock. On the testnet DCL a single deposit burns ~920 Tgas, which no single launch tx can fit twice; mainnet DCL gas is unmeasured. Per-step gas for the pool deposits is fixed at 50 Tgas in code.
+5. **DCL specifics**: storage, deposit msg, no-deposit `add_liquidity` and no pool whitelist are verified on testnet; the range layout (one-delta gap) is still unverified because seeding never reached `add_liquidity` on the real DCL.
 6. **Compliance**: an invite-only sale to named wallets may face securities or promotion rules in some places. Needs legal review before mainnet.
 7. **Upgrades**: the contracts have no upgrade path by design (immutability). For mainnet, remove full-access keys after deploy and get an audit.
 8. **Coordinator storage**: deposits add a few bytes per presaler on the coordinator's balance (the launch record itself is paid by the launcher).
