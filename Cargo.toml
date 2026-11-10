@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = ["integration-tests"]
 members = [
   "contracts/common",
   "contracts/token",
