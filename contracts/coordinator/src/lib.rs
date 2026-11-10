@@ -131,6 +131,7 @@ impl Contract {
         let launcher = env::predecessor_account_id();
         let attached = env::attached_deposit();
         require!(attached >= self.config.token_account_deposit, "attach token_account_deposit");
+        let before = env::storage_usage();
         let launch = self.build_launch(launcher.clone(), params);
         let id = launch.id;
         let token_id = launch.token_id.clone();
@@ -151,16 +152,24 @@ impl Contract {
             "auto_register_senders": [env::current_account_id(), self.config.lock_contract],
         });
         self.launches.insert(id, launch);
+        self.launches.flush();
+        // launcher pays for the launch record's storage on the coordinator
+        let storage_cost = env::storage_byte_cost().as_yoctonear() * (env::storage_usage().saturating_sub(before)) as u128;
+        require!(
+            attached.as_yoctonear() >= self.config.token_account_deposit.as_yoctonear() + storage_cost,
+            format!("attach token_account_deposit + {} yocto for launch storage", storage_cost)
+        );
+        let to_token = NearToken::from_yoctonear(attached.as_yoctonear() - storage_cost);
         emit("launch_created", json!({"launch_id": id, "token_id": token_id, "launcher": launcher}));
         Promise::new(token_id)
             .create_account()
-            .transfer(attached)
+            .transfer(to_token)
             .deploy_contract(code)
             .function_call("new", init.to_string().into_bytes(), NearToken::from_yoctonear(0), GAS_TOKEN_INIT)
             .then(
                 Self::ext(env::current_account_id())
                     .with_static_gas(GAS_CB)
-                    .on_token_deployed(id, launcher, U128(attached.as_yoctonear())),
+                    .on_token_deployed(id, launcher, U128(to_token.as_yoctonear())),
             )
     }
 

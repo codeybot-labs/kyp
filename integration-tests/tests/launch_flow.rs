@@ -147,7 +147,7 @@ async fn full_launch_flow() -> anyhow::Result<()> {
             {"target_fdv_quote": (10_000 * NEAR).to_string(), "unlock_bps": 2500},
             {"target_fdv_quote": (1_000_000 * NEAR).to_string(), "unlock_bps": 7500}
         ],
-        "twap": {"window_sec": 60, "min_observations": 3, "min_liquidity": "1", "claim_delay_sec": 5, "min_obs_interval_sec": 5},
+        "twap": {"window_sec": 60, "min_observations": 3, "min_liquidity": "1", "claim_delay_sec": 5, "min_obs_interval_sec": 2},
         "reveal": {"waves": 3, "interval_sec": 60},
         "fee_split": {"holders_bps": 5000, "liquidity_bps": 3000, "community_bps": 2000,
             "holders_account": holders.id(), "liquidity_account": lpacct.id(), "community_account": bounties.id()}
@@ -155,7 +155,7 @@ async fn full_launch_flow() -> anyhow::Result<()> {
     let r = launcher
         .call(coord.id(), "create_launch")
         .args_json(json!({"params": params}))
-        .deposit(NearToken::from_millinear(2500))
+        .deposit(NearToken::from_millinear(2600))
         .gas(Gas::from_tgas(300))
         .transact()
         .await?;
@@ -233,6 +233,7 @@ async fn full_launch_flow() -> anyhow::Result<()> {
     poke(&carol).await?.into_result()?;
     let q = carol.call(lock.id(), "qualify").args_json(json!({"launch_id": 1})).transact().await?;
     assert!(q.is_failure(), "qualify must fail without a full TWAP window");
+    assert!(format!("{:?}", q.failures()).contains("no observation at or before window start"), "panic message should surface");
     for _ in 0..14 {
         worker.fast_forward(15).await?;
         poke(&carol).await?.into_result()?;

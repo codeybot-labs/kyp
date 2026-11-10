@@ -1,0 +1,15 @@
+// Cloudflare Workers static-assets deploy. Assets-only: no Worker script, no bindings,
+// no KV/R2/D1/DO. Static asset requests are free on the $5 Workers Paid plan and do not
+// count toward Worker request limits. Do not add bindings without checking cost first.
+{
+  "$schema": "./node_modules/wrangler/config-schema.json",
+  "name": "kyp-web",
+  "compatibility_date": "2026-11-01",
+  "assets": {
+    "directory": "./dist",
+    "html_handling": "auto-trailing-slash",
+    "not_found_handling": "404-page"
+  },
+  "workers_dev": true,
+  "preview_urls": false
+}

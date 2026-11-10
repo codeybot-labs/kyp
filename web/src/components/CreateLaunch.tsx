@@ -203,7 +203,7 @@ export default function CreateLaunch() {
             <Show when={errors().length} fallback={<div class="notice ok">Terms look valid. Same checks run on-chain.</div>}>
               <div class="notice bad"><For each={errors()}>{(e) => <div>• {e}</div>}</For></div>
             </Show>
-            <Show when={isDemo} fallback={<Cli title="Create on testnet (attach 2.5 NEAR for token storage)" cmd={cliCall(CONFIG.coordinator, "create_launch", { params: params() }, { deposit: "2.5 NEAR", signer: launcher() })} />}>
+            <Show when={isDemo} fallback={<Cli title="Create on testnet (attach 2.6 NEAR: token account + launch storage)" cmd={cliCall(CONFIG.coordinator, "create_launch", { params: params() }, { deposit: "2.6 NEAR", signer: launcher() })} />}>
               <button class="btn primary" disabled={errors().length > 0} onClick={async () => {
                 const id = await act(() => demo.create(launcher(), params(), invites()), "Launch created (demo)");
                 if (id) location.href = `/launch?id=${id}`;
