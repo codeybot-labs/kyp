@@ -9,11 +9,31 @@
     "preview": "astro preview",
     "check": "astro check",
     "test": "node --test src/lib/*.test.mjs",
-    "deploy": "npm run build && npx -y wrangler@4 deploy"
+    "deploy": "npm run build && npx -y wrangler@4 deploy",
+    "test:e2e": "node tests/wallet.e2e.mjs"
   },
   "dependencies": {
     "@astrojs/solid-js": "^7.1.2",
+    "@hot-labs/near-connect": "^0.12.0",
+    "@near-js/transactions": "^2.5.1",
+    "@near-wallet-selector/arepa-wallet": "^10.1.4",
+    "@near-wallet-selector/bitget-wallet": "^10.1.4",
+    "@near-wallet-selector/bitte-wallet": "^10.1.4",
+    "@near-wallet-selector/coin98-wallet": "^10.1.4",
+    "@near-wallet-selector/core": "^10.1.4",
+    "@near-wallet-selector/here-wallet": "^10.1.4",
+    "@near-wallet-selector/math-wallet": "^10.1.4",
+    "@near-wallet-selector/narwallets": "^10.1.4",
+    "@near-wallet-selector/near-mobile-wallet": "^10.1.4",
+    "@near-wallet-selector/ramper-wallet": "^10.1.4",
+    "@near-wallet-selector/sender": "^10.1.4",
+    "@near-wallet-selector/welldone-wallet": "^10.1.4",
+    "@near-wallet-selector/xdefi": "^10.1.4",
     "astro": "^7.4.8",
+    "buffer": "^6.0.3",
     "solid-js": "^1.9.18"
+  },
+  "devDependencies": {
+    "playwright-core": "^1.65.0"
   }
 }

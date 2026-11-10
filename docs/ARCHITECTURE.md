@@ -64,10 +64,29 @@ Plain NEP-141 + metadata. The full supply is minted once in `new`. `ft_burn` low
 | USD | Milestones are stored in wNEAR. USD is a display-only reference (`PUBLIC_NEAR_USD`). There is no on-chain quote/USD oracle yet. |
 | LP fee collection | The coordinator owns the LP but has no method to claim DCL fees yet. `Fees` deposits + `distribute_fees` route whatever is sent in. |
 | Holder rewards | The "holders" share goes to one account. Per-holder distribution is off-chain/later. |
-| Wallet | No wallet selector. The site is demo mode or testnet-read with near-cli-rs commands. |
+| Wallet | Real NEAR testnet login via NEAR Connect (see "Wallet login" below). Signing is only exercised against mocked RPC + a mock injected wallet in `web/tests/wallet.e2e.mjs`; no real testnet transaction has been sent yet because the contracts are not deployed. |
 | Advisor group | Off-chain (e.g. a private chat). Not built. |
 | Testnet deploy | `scripts/deploy-testnet.sh` written, not run. |
 | Frontend deploy | `web/wrangler.jsonc` ready (static assets only), not deployed: wrangler is not logged in on the build box. |
+
+## Wallet login (frontend)
+
+- **Connector:** NEAR Connect (`@hot-labs/near-connect`), which NEAR's docs now recommend over Wallet Selector. Network is fixed to `testnet` (`web/src/lib/config.ts`). The session survives reloads (NEAR Connect storage).
+- **Wallets in the one connect modal (testnet only):**
+  - From the NEAR Connect manifest: Meteor, Intear, MyNearWallet, Ledger, Nightly, Ethereum wallets (MetaMask etc. via the EVM-on-NEAR module), NEAR CLI. MyNearWallet's manifest doesn't flag testnet, but its executor ships a testnet connector, so `wallet.ts` enables it and allows `https://testnet.mynearwallet.com`.
+  - Bridged from `@near-wallet-selector/*` modules (`web/src/lib/wallet-bridge.ts`, announced through NEAR Connect's standard `near-wallet-injected` event): Sender, HERE, Bitget, Coin98, Math, NEAR Mobile, Bitte, WELLDONE, Narwallets, Ramper, XDEFI, Arepa. Extensions that aren't installed still show, and point to their install page.
+  - Any other wallet extension that announces itself to NEAR Connect shows automatically.
+  - **Left out:** HOT and OKX (mainnet only; HOT's executor rejects testnet), Hana, Trezu (not flagged for testnet), and WalletConnect and Unity Wallet, which need a Reown/WalletConnect `projectId` (a keyed third-party account).
+- **Writes** (`web/src/lib/actions.mjs` builds them, `wallet.ts` signs them):
+  - `create_launch`: attaches `token_account_deposit` from `get_config`, plus 0.1 NEAR for storage. The launcher must download the invite codes first.
+  - Deposit or `BuyReserved`: one transaction to wNEAR. It runs `storage_deposit` for the signer and the coordinator if either isn't registered, `near_deposit` for any wNEAR shortfall, then `ft_transfer_call` (1 yocto).
+  - Also: `withdraw`, `launch` (attaches the pool NEAR from `get_config`), `cancel_launch`, `resume_launch`, `record`, `qualify`, `claim` and `reveal_next_wave`.
+- **Gating (UI only; the contracts enforce the same rules):**
+  - Launch and cancel are shown only to the launcher.
+  - Deposit is shown only when `sha256(account:code)` matches a slot.
+  - Claim is shown only to the position owner.
+  - Withdraw is shown only when the deposit is refundable.
+- **Fallbacks:** in demo mode, nothing is signed. In testnet mode with no wallet connected, every write shows a "Connect wallet" prompt and the near-cli-rs command.
 
 ## Open risks
 

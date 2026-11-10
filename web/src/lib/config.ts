@@ -7,4 +7,6 @@ export const CONFIG = {
   rpc: (env.PUBLIC_NEAR_RPC as string) || "https://rpc.testnet.near.org",
   nearUsd: Number(env.PUBLIC_NEAR_USD || "2.0"),
 };
+/** Testnet only. Mainnet is deliberately not configurable in this MVP. */
+export const NETWORK = "testnet" as const;
 export const TESTNET_CONFIGURED = Boolean(CONFIG.coordinator && CONFIG.lock);

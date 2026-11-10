@@ -1,17 +1,21 @@
-import { createEffect, createResource, createSignal, For, Show } from "solid-js";
+import { createEffect, createResource, createSignal, For, Match, Show, Switch } from "solid-js";
 import { api } from "../lib/source";
 import { demo } from "../lib/demo";
 import { cliCall } from "../lib/near";
 import { CONFIG } from "../lib/config";
 import { slotHash, tokensForQuote, toRaw } from "../lib/math.mjs";
 import { isReserved, type LaunchView } from "../lib/model";
-import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, dur, act, Cli, quote } from "./ui";
+import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, dur, act, Cli, quote, Signable, sendTx } from "./ui";
+import { account as wallet, buildDeposit } from "../lib/wallet";
+import { depositGate, depositMsg, canWithdraw, withdrawTx } from "../lib/actions.mjs";
 
 function Body(p: { l: LaunchView }) {
   const l = () => p.l;
   const now = useNow();
   const isDemo = api.mode() === "demo";
-  const [account, setAccount] = createSignal("");
+  const [accountInput, setAccount] = createSignal("");
+  // Testnet + connected wallet: you act as the wallet account. Demo: any account (simulated).
+  const account = () => (!isDemo && wallet() ? wallet()! : accountInput());
   const [salt, setSalt] = createSignal("");
   const [amount, setAmount] = createSignal("10");
   const [hash, setHash] = createSignal("");
@@ -30,13 +34,57 @@ function Body(p: { l: LaunchView }) {
   const roomCap = () => BigInt(l().open_cap_quote) - BigInt(l().total_raised);
   const msg = (kind: "Deposit" | "BuyReserved") => JSON.stringify({ [kind]: { launch_id: l().id, salt: salt().trim() } });
 
+
+  const cli = () => (
+    <>
+            <Cli title="1. Wrap NEAR (if needed)" cmd={cliCall(CONFIG.quote, "near_deposit", {}, { deposit: `${amount() || "0"} NEAR`, gas: "30 Tgas", signer: account() || undefined })} />
+            <Cli title={`2. ${reserved() ? "Buy reserved slot" : "Deposit"} (ft_transfer_call)`} cmd={cliCall(CONFIG.quote, "ft_transfer_call", {
+              receiver_id: CONFIG.coordinator,
+              amount: reserved() ? (slot()!.kind as any).Reserved.quote_amount : amountRaw().toString(),
+              msg: msg(reserved() ? "BuyReserved" : "Deposit"),
+            }, { deposit: "1 yoctoNEAR", gas: "150 Tgas", signer: account() || undefined })} />
+      <Show when={refundable()}>
+        <Cli title="Withdraw refund" cmd={cliCall(CONFIG.coordinator, "withdraw", { launch_id: l().id }, { gas: "60 Tgas", signer: account() || undefined })} />
+      </Show>
+    </>
+  );
+
+  const gate = () => depositGate({ account: wallet(), slot: slot() ?? null, launch: l(), now: now() });
+  const WalletActions = () => (
+    <div class="stack">
+      <Show when={salt().trim()} fallback={<div class="notice">Enter the invite code the launcher sent you. Only invited wallets can deposit.</div>}>
+        <Show when={!slot.loading}>
+          <Switch>
+            <Match when={gate().reason === "not-allowlisted"}><div class="notice bad">This wallet is not on the presale list with that code.</div></Match>
+            <Match when={gate().reason === "closed"}><div class="notice">The presale is not taking deposits right now.</div></Match>
+            <Match when={gate().reason === "reserved-after-launch"}><div class="notice">Your reserved slot opens after launch.</div></Match>
+            <Match when={gate().reason === "filled"}><div class="notice ok">Your reserved slot is filled.</div></Match>
+            <Match when={gate().reason === "deposit"}>
+              <div class="stack">
+              <button class="btn primary" data-testid="deposit-sign" disabled={amountRaw() <= 0n} onClick={() => sendTx(() => buildDeposit(wallet()!, amountRaw(), depositMsg("Deposit", l().id, salt().trim())), `Deposited up to ${fmtQ(amountRaw())}`, () => refetch())}>Deposit {fmtQ(amountRaw())}</button>
+              <small class="sub">One wallet transaction to wNEAR: registers storage and wraps NEAR if needed, then <code>ft_transfer_call</code> to the coordinator. Any excess is refunded.</small>
+              </div>
+            </Match>
+            <Match when={gate().reason === "buy-reserved"}>
+              <button class="btn primary" onClick={() => sendTx(() => buildDeposit(wallet()!, BigInt((slot()!.kind as any).Reserved.quote_amount), depositMsg("BuyReserved", l().id, salt().trim())), "Reserved slot bought; tokens locked", () => refetch())}>Buy reserved slot ({fmtQ((slot()!.kind as any).Reserved.quote_amount)})</button>
+            </Match>
+          </Switch>
+        </Show>
+      </Show>
+      <Show when={canWithdraw({ account: wallet(), launch: l(), now: now(), deposited: !!slot() && BigInt(slot()!.deposit) > 0n })}>
+        <button class="btn" onClick={() => sendTx(() => withdrawTx(CONFIG.coordinator, l().id), "Refund requested", () => refetch())}>Withdraw refund ({fmtQ(slot()!.deposit)})</button>
+      </Show>
+    </div>
+  );
+
   return (
     <div class="grid g2" style={{ "align-items": "start" }}>
       <div class="card stack">
         <div class="card-title"><h2>{reserved() && l().status === "Live" ? "Buy your reserved slot" : "Presale deposit"}</h2>
           <span class={`pill ${open() ? "open" : ""}`}>{open() ? `closes in ${dur(l().sale_end - now())}` : l().status === "Live" ? "Live — reserved slots only" : l().status}</span>
         </div>
-        <label class="field"><span>Your NEAR account</span><input placeholder="you.testnet" value={account()} onInput={(e) => setAccount(e.currentTarget.value)} /></label>
+        <label class="field"><span>Your NEAR account</span><input placeholder="you.testnet" value={account()} disabled={!isDemo && !!wallet()} onInput={(e) => setAccount(e.currentTarget.value)} />
+          <Show when={!isDemo && wallet()}><small>From your connected wallet.</small></Show></label>
         <label class="field"><span>Invite code</span><input placeholder="from the launcher, sent privately" value={salt()} onInput={(e) => setSalt(e.currentTarget.value)} />
           <small>Your slot is <code>sha256("account:code")</code>. The code never goes on-chain until you deposit, so nobody can tell who is invited.</small>
         </label>
@@ -52,7 +100,7 @@ function Body(p: { l: LaunchView }) {
             </Show>
           </Show>
         </Show>
-        <Show when={!reserved()}>
+        <Show when={!reserved() && (isDemo || !wallet() || gate().ok)}>
           <label class="field"><span>Amount</span>
             <div class="input-suffix"><input inputmode="decimal" value={amount()} onInput={(e) => setAmount(e.currentTarget.value)} /><em>wNEAR</em></div>
             <small>Per wallet {fmtQ(l().wallet_min, 0)} – {fmtQ(l().wallet_max, 0)} · {fmtQ(roomCap() > 0n ? roomCap() : 0n, 0)} left under the cap. Any excess is refunded automatically.</small>
@@ -65,14 +113,9 @@ function Body(p: { l: LaunchView }) {
           </div>
         </Show>
         <Show when={isDemo} fallback={
-          <>
-            <Cli title="1. Wrap NEAR (if needed)" cmd={cliCall(CONFIG.quote, "near_deposit", {}, { deposit: `${amount() || "0"} NEAR`, gas: "30 Tgas", signer: account() || undefined })} />
-            <Cli title={`2. ${reserved() ? "Buy reserved slot" : "Deposit"} (ft_transfer_call)`} cmd={cliCall(CONFIG.quote, "ft_transfer_call", {
-              receiver_id: CONFIG.coordinator,
-              amount: reserved() ? (slot()!.kind as any).Reserved.quote_amount : amountRaw().toString(),
-              msg: msg(reserved() ? "BuyReserved" : "Deposit"),
-            }, { deposit: "1 yoctoNEAR", gas: "150 Tgas", signer: account() || undefined })} />
-          </>
+          <Signable note="Connect the wallet you were invited with to deposit." cli={cli()}>
+            <WalletActions />
+          </Signable>
         }>
           <div class="row">
             <Show when={!reserved()} fallback={
@@ -84,9 +127,6 @@ function Body(p: { l: LaunchView }) {
               <button class="btn" onClick={() => act(() => demo.withdraw(l().id, account().trim()), (a) => `Refunded ${fmtQ(a)}`).then(() => refetch())}>Withdraw refund</button>
             </Show>
           </div>
-        </Show>
-        <Show when={refundable() && !isDemo}>
-          <Cli title="Withdraw refund" cmd={cliCall(CONFIG.coordinator, "withdraw", { launch_id: l().id }, { gas: "50 Tgas", signer: account() || undefined })} />
         </Show>
       </div>
 

@@ -5,7 +5,9 @@ import { cliCall } from "../lib/near";
 import { CONFIG } from "../lib/config";
 import { toRaw } from "../lib/math.mjs";
 import { MilestoneLadder } from "./Terms";
-import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, fdvAt, Stat, Spark, act, Cli } from "./ui";
+import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, fdvAt, Stat, Spark, act, Cli, Signable, sendTx } from "./ui";
+import { account as wallet } from "../lib/wallet";
+import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx } from "../lib/actions.mjs";
 import type { LaunchView } from "../lib/model";
 
 const STEPS: [keyof LaunchView["progress"], string, string][] = [
@@ -143,20 +145,48 @@ function Body(p: { l: LaunchView }) {
 }
 
 function TestnetActions(p: { l: LaunchView }) {
-  return (
-    <div class="card">
-      <div class="card-title"><h3>Sign these yourself (NEAR CLI)</h3><span class="pill">testnet</span></div>
-      <p class="muted">This MVP has no wallet connection. Writes are shown as near-cli-rs commands you run with your own testnet key.</p>
+  const now = useNow();
+  const me = () => wallet();
+  const launcher = () => isLauncher(me(), p.l);
+  const cli = (
+    <>
       <Show when={p.l.status === "Open"}>
-        <Cli title="Launch (launcher only)" cmd={cliCall(CONFIG.coordinator, "launch", { launch_id: p.l.id }, { deposit: "1 NEAR", signer: p.l.launcher })} />
+        <Cli title="Launch (launcher only)" cmd={cliCall(CONFIG.coordinator, "launch", { launch_id: p.l.id }, { deposit: "0.3 NEAR", signer: p.l.launcher })} />
       </Show>
       <Show when={p.l.status === "Launching"}>
-        <Cli title="Resume launch" cmd={cliCall(CONFIG.coordinator, "resume_launch", { launch_id: p.l.id }, { deposit: "0.5 NEAR" })} />
+        <Cli title="Resume launch" cmd={cliCall(CONFIG.coordinator, "resume_launch", { launch_id: p.l.id }, { deposit: "0.2 NEAR" })} />
       </Show>
       <Show when={p.l.status === "Live"}>
-        <Cli title="Poke the TWAP observer" cmd={cliCall(CONFIG.lock, "record", { launch_id: p.l.id }, { gas: "60 Tgas" })} />
-        <Cli title="Qualify milestones" cmd={cliCall(CONFIG.lock, "qualify", { launch_id: p.l.id }, { gas: "30 Tgas" })} />
+        <Cli title="Poke the TWAP observer" cmd={cliCall(CONFIG.lock, "record", { launch_id: p.l.id }, { gas: "100 Tgas" })} />
+        <Cli title="Qualify milestones" cmd={cliCall(CONFIG.lock, "qualify", { launch_id: p.l.id }, { gas: "50 Tgas" })} />
       </Show>
+    </>
+  );
+  return (
+    <div class="card stack">
+      <div class="card-title"><h3>Actions</h3><span class="pill">testnet{me() ? ` · ${me()}` : ""}</span></div>
+      <Signable note="Connect a NEAR testnet wallet to launch, poke the observer or qualify milestones." cli={cli}>
+        <Show when={p.l.status === "Open"}>
+          <Show when={launcher()} fallback={<div class="notice">Only the launcher ({p.l.launcher}) can launch or cancel this presale.</div>}>
+            <div class="row">
+              <button class="btn primary" data-testid="launch-sign" disabled={!canLaunch({ account: me(), launch: p.l, now: now() })} onClick={() => sendTx(async () => launchTx(CONFIG.coordinator, p.l.id, launchNearNeeded(await api.config())), "Launch sent: settling fills, funding the lock, seeding the pool")}>Launch now</button>
+              <button class="btn" onClick={() => sendTx(() => cancelLaunchTx(CONFIG.coordinator, p.l.id), "Presale cancelled; deposits refundable")}>Cancel presale</button>
+            </div>
+            <div class="sub">Launch attaches the pool storage NEAR from the coordinator config. Needs the minimum raise and must happen before the window closes.</div>
+          </Show>
+        </Show>
+        <Show when={p.l.status === "Launching"}>
+          <button class="btn primary" onClick={() => sendTx(() => resumeLaunchTx(CONFIG.coordinator, p.l.id, (2n * 10n ** 23n).toString()), "Resume sent")}>Resume launch (attach 0.2 NEAR)</button>
+        </Show>
+        <Show when={p.l.status === "Live"}>
+          <div class="row">
+            <button class="btn" onClick={() => sendTx(() => recordTx(CONFIG.lock, p.l.id), "Observation recorded")}>Poke observer</button>
+            <button class="btn primary" onClick={() => sendTx(() => qualifyTx(CONFIG.lock, p.l.id), "Milestones checked")}>Qualify milestones</button>
+            <a class="btn ghost" href={`/claim?id=${p.l.id}`}>Go to claim →</a>
+          </div>
+          <div class="sub">Anyone can poke and qualify. Each call is a small gas-only transaction.</div>
+        </Show>
+      </Signable>
     </div>
   );
 }

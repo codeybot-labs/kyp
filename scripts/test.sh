@@ -6,3 +6,4 @@ echo "== contract unit tests"; cargo test --workspace -q
 echo "== wasm build"; ./scripts/build.sh
 echo "== sandbox integration test"; (cd integration-tests && cargo test -q)
 echo "== web"; (cd web && npm ci --no-audit --no-fund -q && npm test && npm run build >/dev/null && echo "web build ok")
+if [ -x "${CHROME_PATH:-/usr/bin/google-chrome}" ]; then echo "== web wallet e2e"; (cd web && npm run test:e2e); else echo "== web wallet e2e skipped (no Chrome)"; fi

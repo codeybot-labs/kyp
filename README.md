@@ -38,6 +38,7 @@ cargo test --workspace            # 51 contract unit tests
 ./scripts/build.sh                # wasm into res/
 cd integration-tests && cargo test -- --nocapture   # sandbox e2e (downloads near-sandbox)
 cd web && npm install && npm test && npm run dev    # site on http://localhost:4321
+cd web && npm run test:e2e        # headless wallet-flow check (Chrome)
 ./scripts/test.sh                 # all of the above
 ```
 
@@ -46,7 +47,16 @@ If `openssl-sys` can't find OpenSSL (no `pkg-config`), set `OPENSSL_LIB_DIR=/usr
 ### Site modes
 
 - **Demo** (default): a simulated chain in `localStorage` that follows the contract rules. Use the demo invites, launch, move the price, advance time, qualify, claim, reveal. "Reset" restores the seed data.
-- **Testnet read**: set `PUBLIC_KYP_COORDINATOR` / `PUBLIC_KYP_LOCK` (see `web/.env.example`) and rebuild. The site reads live state over RPC and shows near-cli-rs commands for every write. There is no wallet connection yet.
+- **Testnet**: set `PUBLIC_KYP_COORDINATOR` / `PUBLIC_KYP_LOCK` (see `web/.env.example`) and rebuild. The site reads live state over RPC. Writes are signed with the connected wallet, and the near-cli-rs command is still shown as a fallback when no wallet is connected.
+
+### Wallet login (NEAR testnet)
+
+The **Connect wallet** button in the header uses [NEAR Connect](https://docs.near.org/web3-apps/tutorials/wallet-login) (`@hot-labs/near-connect`), the connector NEAR's docs currently recommend. The network is fixed to testnet, and the session persists across reloads. The connect modal shows every wallet that works on testnet:
+
+- Meteor, Intear, MyNearWallet, Ledger, Nightly, Ethereum wallets and NEAR CLI, from the NEAR Connect manifest.
+- Sender, HERE, Bitget, Coin98, Math, NEAR Mobile, Bitte, WELLDONE, Narwallets, Ramper, XDEFI and Arepa, bridged from `@near-wallet-selector/*` modules.
+
+Not included: HOT and OKX (mainnet only), and WalletConnect and Unity (they need a Reown `projectId`). The connected account fills the account fields. The UI is gated by account: only invited wallets see deposit, only the launcher sees launch and cancel, and only the owner can claim. Details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#wallet-login-frontend).
 
 ### Deploy (not done yet)
 
@@ -57,4 +67,4 @@ If `openssl-sys` can't find OpenSSL (no `pkg-config`), set `OPENSSL_LIB_DIR=/usr
 
 - `cargo test --workspace`: 51 passed (common 12, token 4, lock 9, coordinator 25, mock-pool 1).
 - `integration-tests`: 1 passed. One `launch` transaction settles 3 presalers at one price, funds the lock, creates and seeds the pool (33 receipts, ~41 Tgas burnt). Then a TWAP-qualified milestone, a 25% claim, wave-1 reveal, a reserved slot on the same terms and the fee split are all checked on the sandbox.
-- `web`: 6 math tests pass. Headless browser run of every page and the full demo flow had no console errors.
+- `web`: `npm test` runs 12 unit tests: math, plus transaction builders and gating in `src/lib/actions.mjs`. `npm run test:e2e` builds a testnet-mode site with mocked RPC and a mock injected wallet. It checks the connect modal, connecting through the modal, session persistence, launcher-only controls and the exact deposit and launch transactions handed to the wallet: 6 steps pass, with no console errors. It needs Chrome (`CHROME_PATH`). Headless browser run of every page and the full demo flow had no console errors.

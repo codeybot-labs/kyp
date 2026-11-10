@@ -2,6 +2,7 @@
 import "../styles/global.css";
 import ModeBadge from "../components/ModeBadge.tsx";
 import ToastHost from "../components/ToastHost.tsx";
+import WalletButton from "../components/WalletButton.tsx";
 interface Props { title: string; active?: string; description?: string }
 const { title, active = "", description = "KYP — Know Your Presalers. Locked, public, milestone-unlocked presales for NEAR meme launches." } = Astro.props;
 const nav = [
@@ -28,6 +29,7 @@ const nav = [
         </nav>
         <div class="spacer"></div>
         <ModeBadge client:only="solid-js" />
+        <WalletButton client:only="solid-js" />
       </div>
     </header>
     <main class="wrap">

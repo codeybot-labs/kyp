@@ -4,6 +4,7 @@ import { onDemoChange } from "../lib/demo";
 import { CONFIG } from "../lib/config";
 import { units, fmt, fmtUsd, fdvAtPoint } from "../lib/math.mjs";
 import type { LaunchView, LaunchStatus } from "../lib/model";
+import { account, connect, signAndSend, type Tx as WalletTx } from "../lib/wallet";
 
 export const quote = (raw: string | bigint | number) => units(BigInt(raw), 24);
 export const tok = (raw: string | bigint) => units(BigInt(raw), 18);
@@ -184,5 +185,29 @@ export function Spark(p: { points: { ts: number; v: number }[]; targets?: number
       <path d={d().area} fill="url(#sg)" />
       <path d={d().path} fill="none" stroke="#c6f36b" stroke-width="2" vector-effect="non-scaling-stroke" />
     </svg>
+  );
+}
+
+/** Sign + send with the connected wallet, toast the result, then run `after` (e.g. refetch). */
+export async function sendTx(build: () => Promise<WalletTx | WalletTx[]> | WalletTx | WalletTx[], okText: string, after?: () => void) {
+  const hashes = await act(async () => signAndSend(await build()), (h) => (h.length ? `${okText} · tx ${h.at(-1)!.slice(0, 8)}…` : okText));
+  if (hashes) after?.();
+  return hashes;
+}
+
+/** Testnet write area: wallet button(s) when connected, else a connect prompt + the CLI fallback. */
+export function Signable(p: { children: JSX.Element; cli?: JSX.Element; note?: string }) {
+  return (
+    <Show when={account()} fallback={
+      <div class="stack">
+        <div class="notice row between">
+          <span>{p.note ?? "Connect a NEAR testnet wallet to sign this."}</span>
+          <button class="btn sm primary" onClick={() => connect().catch((e) => toast(`Wallet: ${e?.message ?? e}`, "bad"))}>Connect wallet</button>
+        </div>
+        <Show when={p.cli}><details><summary class="sub" style={{ cursor: "pointer" }}>Or sign with NEAR CLI</summary>{p.cli}</details></Show>
+      </div>
+    }>
+      {p.children}
+    </Show>
   );
 }

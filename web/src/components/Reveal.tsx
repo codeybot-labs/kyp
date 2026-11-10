@@ -4,7 +4,8 @@ import { demo } from "../lib/demo";
 import { cliCall } from "../lib/near";
 import { CONFIG } from "../lib/config";
 import { isReserved, type LaunchView } from "../lib/model";
-import { WithLaunch, useLive, useNow, fmtQ, fmtT, dur, when, act, Cli } from "./ui";
+import { WithLaunch, useLive, useNow, fmtQ, fmtT, dur, when, act, Cli, Signable, sendTx } from "./ui";
+import { revealTx } from "../lib/actions.mjs";
 
 function Body(p: { l: LaunchView }) {
   const l = () => p.l;
@@ -31,7 +32,13 @@ function Body(p: { l: LaunchView }) {
               <button class="btn sm" onClick={() => act(() => demo.advance(l().id, l().reveal.interval_sec), `Advanced ${dur(l().reveal.interval_sec)}`)}>+{dur(l().reveal.interval_sec)} (demo)</button>
             </Show>
           </div>
-          <Show when={!isDemo}><Cli title="Reveal next wave (anyone)" cmd={cliCall(CONFIG.coordinator, "reveal_next_wave", { launch_id: l().id }, { gas: "30 Tgas" })} /></Show>
+          <Show when={!isDemo}>
+            <div style={{ "margin-top": "12px" }}>
+              <Signable note="Anyone can reveal a wave once it is due. Connect a wallet to sign." cli={<Cli title="Reveal next wave (anyone)" cmd={cliCall(CONFIG.coordinator, "reveal_next_wave", { launch_id: l().id }, { gas: "30 Tgas" })} />}>
+                <button class="btn sm primary" disabled={!l().next_wave_at || now() < l().next_wave_at!} onClick={() => sendTx(() => revealTx(CONFIG.coordinator, l().id), "Next wave revealed")}>Reveal next wave</button>
+              </Signable>
+            </div>
+          </Show>
         </Show>
       </div>
       <div class="grid g2">

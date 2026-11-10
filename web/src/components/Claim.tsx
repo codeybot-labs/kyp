@@ -4,14 +4,17 @@ import { demo, onDemoChange } from "../lib/demo";
 import { cliCall } from "../lib/near";
 import { CONFIG } from "../lib/config";
 import type { LaunchView } from "../lib/model";
-import { WithLaunch, useLive, useNow, fmtT, usdOf, pct, dur, act, Cli, quote, tok, fdvAt } from "./ui";
+import { WithLaunch, useLive, useNow, fmtT, usdOf, pct, dur, act, Cli, quote, tok, fdvAt, Signable, sendTx } from "./ui";
+import { account as wallet } from "../lib/wallet";
+import { claimTx } from "../lib/actions.mjs";
 import { fmtUsd } from "../lib/math.mjs";
 
 function Body(p: { l: LaunchView }) {
   const l = () => p.l;
   const now = useNow();
   const isDemo = api.mode() === "demo";
-  const [account, setAccount] = createSignal("");
+  const [accountInput, setAccount] = createSignal("");
+  const account = () => (!isDemo && wallet() ? wallet()! : accountInput());
   const [tick, setTick] = createSignal(0);
   onDemoChange(() => setTick((t) => t + 1));
   const [pos] = createResource(() => [account().trim(), tick(), now()] as const, async ([a]) => {
@@ -29,7 +32,7 @@ function Body(p: { l: LaunchView }) {
       <div class="card stack">
         <div class="card-title"><h2>Claim unlocked tokens</h2><span class="pill">{pct(lock()?.unlocked_bps ?? 0)} unlocked</span></div>
         <Show when={l().status === "Live"} fallback={<div class="notice">Claims open after launch, once a milestone qualifies.</div>}>
-          <label class="field"><span>Presaler account</span><input placeholder="you.testnet" value={account()} onInput={(e) => setAccount(e.currentTarget.value)} /></label>
+          <label class="field"><span>Presaler account</span><input placeholder="you.testnet" value={account()} disabled={!isDemo && !!wallet()} onInput={(e) => setAccount(e.currentTarget.value)} /></label>
           <Show when={account().trim()}>
             <Show when={pos()} fallback={<div class="notice">{pos.loading ? "Loading…" : "No locked position for this account."}</div>}>
               {(x) => {
@@ -60,7 +63,13 @@ function Body(p: { l: LaunchView }) {
                         </For>
                       </tbody>
                     </table>
-                    <Show when={isDemo} fallback={<Cli title="Claim (sign as the presaler)" cmd={cliCall(CONFIG.lock, "claim", { launch_id: l().id }, { gas: "60 Tgas", signer: account().trim() })} />}>
+                    <Show when={isDemo} fallback={
+                      <Signable note="Connect your presaler wallet to claim." cli={<Cli title="Claim (sign as the presaler)" cmd={cliCall(CONFIG.lock, "claim", { launch_id: l().id }, { gas: "100 Tgas", signer: account().trim() })} />}>
+                        <Show when={wallet() === account().trim()} fallback={<div class="notice">Only {account().trim()} can claim this position.</div>}>
+                          <button class="btn primary" disabled={BigInt(x().claimable) === 0n} onClick={() => sendTx(() => claimTx(CONFIG.lock, l().id), "Claim sent", () => setTick((t) => t + 1))}>Claim {fmtT(x().claimable)} ${l().symbol}</button>
+                        </Show>
+                      </Signable>
+                    }>
                       <button class="btn primary" disabled={BigInt(x().claimable) === 0n} onClick={() => act(() => demo.claim(l().id, account().trim()), (a) => `Claimed ${fmtT(a)} ${l().symbol}`)}>Claim {fmtT(x().claimable)} ${l().symbol}</button>
                     </Show>
                   </>

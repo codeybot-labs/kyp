@@ -17,7 +17,12 @@ const c = () => CONFIG.coordinator;
 const l = () => CONFIG.lock;
 const nullIfMissing = async <T,>(p: Promise<T>): Promise<T | null> => { try { return await p; } catch { return null; } };
 
+/** Subset of the coordinator's PlatformConfig the UI needs to attach the right NEAR. */
+export interface ChainConfig { token_account_deposit: string; pool_storage_deposit: string; pool_create_deposit: string; liquidity_deposit: string }
+let cfgP: Promise<ChainConfig> | null = null;
+
 export const api = {
+  config: (): Promise<ChainConfig> => (cfgP ??= view<ChainConfig>(c(), "get_config", {})),
   mode: getMode,
   now: (): number => (getMode() === "demo" ? demo.now() : Math.floor(Date.now() / 1000)),
   list: (): Promise<LaunchView[]> => (getMode() === "demo" ? demo.list() : view<LaunchView[]>(c(), "get_launches", { from_index: 0, limit: 50 }).then((x) => x.reverse())),

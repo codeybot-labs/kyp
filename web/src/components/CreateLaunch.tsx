@@ -5,7 +5,9 @@ import { cliCall } from "../lib/near";
 import { CONFIG } from "../lib/config";
 import { randomSalt, slotHash, toRaw, tokensForQuote, DEFAULT_SUPPLY } from "../lib/math.mjs";
 import type { LaunchParams } from "../lib/model";
-import { act, Cli, fmtQ, fmtT, pct, usdOf } from "./ui";
+import { act, Cli, fmtQ, fmtT, pct, usdOf, Signable, sendTx } from "./ui";
+import { account as wallet } from "../lib/wallet";
+import { createLaunchTx } from "../lib/actions.mjs";
 
 const toQ = (wnear: number | string) => toRaw(String(wnear || 0), 24).toString();
 const usdToQ = (usd: number) => toQ((usd / CONFIG.nearUsd).toFixed(6));
@@ -14,7 +16,10 @@ interface Invite { account: string; salt: string; hash: string }
 
 export default function CreateLaunch() {
   const isDemo = api.mode() === "demo";
-  const [launcher, setLauncher] = createSignal("you.testnet");
+  const [launcherInput, setLauncher] = createSignal("you.testnet");
+  // Testnet + connected wallet: the launcher is the wallet that signs create_launch.
+  const launcher = () => (!isDemo && wallet() ? wallet()! : launcherInput());
+  const [savedCodes, setSavedCodes] = createSignal(false);
   const [name, setName] = createSignal("Moon Moth");
   const [symbol, setSymbol] = createSignal("MOTH");
   const [desc, setDesc] = createSignal("Drawn to the light. Hand-picked presalers who ship memes, code and calls.");
@@ -199,11 +204,22 @@ export default function CreateLaunch() {
               <span>Reveal</span><span>{waves()} waves · every {waveH()}h</span>
               <span>Fees</span><span>{fees().h}/{fees().l}/{fees().c}</span>
             </div>
-            <label class="field"><span>Launcher account</span><input value={launcher()} onInput={(e) => setLauncher(e.currentTarget.value)} /></label>
+            <label class="field"><span>Launcher account</span><input value={launcher()} disabled={!isDemo && !!wallet()} onInput={(e) => setLauncher(e.currentTarget.value)} />
+              <Show when={!isDemo && wallet()}><small>Your connected wallet signs and becomes the launcher.</small></Show></label>
             <Show when={errors().length} fallback={<div class="notice ok">Terms look valid. Same checks run on-chain.</div>}>
               <div class="notice bad"><For each={errors()}>{(e) => <div>• {e}</div>}</For></div>
             </Show>
-            <Show when={isDemo} fallback={<Cli title="Create on testnet (attach 2.6 NEAR: token account + launch storage)" cmd={cliCall(CONFIG.coordinator, "create_launch", { params: params() }, { deposit: "2.6 NEAR", signer: launcher() })} />}>
+            <Show when={isDemo} fallback={
+              <Signable note="Connect a NEAR testnet wallet to create the launch." cli={<Cli title="Create on testnet (attach 2.6 NEAR: token account + launch storage)" cmd={cliCall(CONFIG.coordinator, "create_launch", { params: params() }, { deposit: "2.6 NEAR", signer: launcher() })} />}>
+                <label class="row" style={{ gap: "8px" }}><input type="checkbox" checked={savedCodes()} onChange={(e) => setSavedCodes(e.currentTarget.checked)} /><span class="sub">I downloaded the invite codes (they are not stored on-chain and can't be recovered).</span></label>
+                <button class="btn primary" data-testid="create-sign" disabled={errors().length > 0 || !savedCodes()} onClick={async () => {
+                  try { localStorage.setItem(`kyp-invites-${symbol().toLowerCase()}-${Date.now()}`, csv()); } catch {}
+                  const h = await sendTx(async () => createLaunchTx(CONFIG.coordinator, params(), (await api.config()).token_account_deposit), "Launch created on testnet");
+                  if (h) location.href = "/";
+                }}>Create launch (sign with wallet)</button>
+                <div class="sub">Attaches the coordinator's token account deposit + 0.1 NEAR for storage.</div>
+              </Signable>
+            }>
               <button class="btn primary" disabled={errors().length > 0} onClick={async () => {
                 const id = await act(() => demo.create(launcher(), params(), invites()), "Launch created (demo)");
                 if (id) location.href = `/launch?id=${id}`;
