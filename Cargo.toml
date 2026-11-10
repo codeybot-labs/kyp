@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+  "contracts/common",
+  "contracts/token",
+  "contracts/coordinator",
+  "contracts/lock",
+  "contracts/mock-pool",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "UNLICENSED"
+publish = false
+rust-version = "1.86"
+
+[workspace.dependencies]
+near-sdk = { version = "5.11.0" }
+near-contract-standards = "5.11.0"
+uint = { version = "0.9.5", default-features = false }
+kyp-common = { path = "contracts/common" }
+
+[profile.release]
+codegen-units = 1
+opt-level = "z"
+lto = true
+debug = false
+panic = "abort"
+overflow-checks = true
