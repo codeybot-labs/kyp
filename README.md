@@ -65,10 +65,10 @@ On **testnet**, HOT, OKX, Hana and Trezu don't support testnet. They are still l
 
 The connected account fills the account fields. The UI is gated by account: only invited wallets see deposit, only the launcher sees launch and cancel, and only the owner can claim. Details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#wallet-login-frontend).
 
-### Deploy (not done yet)
+### Deploy
 
-- Contracts: `PREFIX=kyp-<name> ./scripts/deploy-testnet.sh` creates faucet-funded **testnet** accounts (keys saved by near-cli-rs to your keychain, never printed) and deploys with the mock pool. `POOL=dcl` targets `dclv2.ref-dev.testnet` instead (unverified).
-- Site: `cd web && npm run deploy` → Cloudflare Workers **static assets only** (`web/wrangler.jsonc`: no Worker script, no bindings, no KV/R2/D1). Static asset requests are free on the Workers Paid plan.
+- Contracts: not deployed yet. `PREFIX=kyp-<name> ./scripts/deploy-testnet.sh` creates faucet-funded **testnet** accounts (keys saved by near-cli-rs to your keychain, never printed) and deploys with the mock pool. `POOL=dcl` targets `dclv2.ref-dev.testnet` instead (unverified).
+- Site: live at https://kyp-web.sushmitsarmah.workers.dev as a Cloudflare Worker **static assets only** (Worker name `kyp-web`; `web/wrangler.jsonc`: no Worker script, no bindings, no KV/R2/D1). This build is the default **testnet demo** (no contract IDs, no WalletConnect ID). Static asset requests are free on the Workers Paid plan. Redeploy from the Mac mini with `cd web && npm run deploy`.
 
 ## Test results (local)
 

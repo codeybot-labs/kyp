@@ -67,7 +67,7 @@ Plain NEP-141 + metadata. The full supply is minted once in `new`. `ft_burn` low
 | Wallet | Real NEAR login via NEAR Connect on the configured network (testnet default) (see "Wallet login" below). Signing is only exercised against mocked RPC + a mock injected wallet in `web/tests/wallet.e2e.mjs`; no real testnet transaction has been sent yet because the contracts are not deployed. |
 | Advisor group | Off-chain (e.g. a private chat). Not built. |
 | Testnet deploy | `scripts/deploy-testnet.sh` written, not run. |
-| Frontend deploy | `web/wrangler.jsonc` ready (static assets only), not deployed: wrangler is not logged in on the build box. |
+| Frontend deploy | Live at https://kyp-web.sushmitsarmah.workers.dev (Worker `kyp-web`, static assets only, no bindings). Testnet demo mode: no contract IDs, no WalletConnect ID. |
 
 ## Wallet login (frontend)
 
