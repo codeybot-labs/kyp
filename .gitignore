@@ -1,0 +1,14 @@
+target/
+node_modules/
+dist/
+.astro/
+.wrangler/
+*.log
+.env
+.env.*
+!.env.example
+neardev/
+.near-credentials/
+res/*.wasm
+!res/.gitkeep
+.DS_Store
