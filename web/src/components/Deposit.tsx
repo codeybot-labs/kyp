@@ -83,7 +83,7 @@ function Body(p: { l: LaunchView }) {
         <div class="card-title"><h2>{reserved() && l().status === "Live" ? "Buy your reserved slot" : "Presale deposit"}</h2>
           <span class={`pill ${open() ? "open" : ""}`}>{open() ? `closes in ${dur(l().sale_end - now())}` : l().status === "Live" ? "Live — reserved slots only" : l().status}</span>
         </div>
-        <label class="field"><span>Your NEAR account</span><input placeholder="you.testnet" value={account()} disabled={!isDemo && !!wallet()} onInput={(e) => setAccount(e.currentTarget.value)} />
+        <label class="field"><span>Your NEAR account</span><input placeholder={CONFIG.exampleAccount} value={account()} disabled={!isDemo && !!wallet()} onInput={(e) => setAccount(e.currentTarget.value)} />
           <Show when={!isDemo && wallet()}><small>From your connected wallet.</small></Show></label>
         <label class="field"><span>Invite code</span><input placeholder="from the launcher, sent privately" value={salt()} onInput={(e) => setSalt(e.currentTarget.value)} />
           <small>Your slot is <code>sha256("account:code")</code>. The code never goes on-chain until you deposit, so nobody can tell who is invited.</small>

@@ -47,16 +47,23 @@ If `openssl-sys` can't find OpenSSL (no `pkg-config`), set `OPENSSL_LIB_DIR=/usr
 ### Site modes
 
 - **Demo** (default): a simulated chain in `localStorage` that follows the contract rules. Use the demo invites, launch, move the price, advance time, qualify, claim, reveal. "Reset" restores the seed data.
-- **Testnet**: set `PUBLIC_KYP_COORDINATOR` / `PUBLIC_KYP_LOCK` (see `web/.env.example`) and rebuild. The site reads live state over RPC. Writes are signed with the connected wallet, and the near-cli-rs command is still shown as a fallback when no wallet is connected.
+- **Live**: set the contract accounts for the network (`PUBLIC_KYP_TESTNET_COORDINATOR` / `PUBLIC_KYP_TESTNET_LOCK`, see `web/.env.example`) and rebuild. The site reads live state over RPC. Writes are signed with the connected wallet, and the near-cli-rs command is still shown as a fallback when no wallet is connected.
 
-### Wallet login (NEAR testnet)
+### Network
 
-The **Connect wallet** button in the header uses [NEAR Connect](https://docs.near.org/web3-apps/tutorials/wallet-login) (`@hot-labs/near-connect`), the connector NEAR's docs currently recommend. The network is fixed to testnet, and the session persists across reloads. The connect modal shows every wallet that works on testnet:
+`PUBLIC_NEAR_NETWORK=testnet|mainnet` (default **testnet**). RPC, wNEAR (`wrap.testnet` / `wrap.near`), explorer links, the MyNearWallet URL, the NEAR CLI commands, labels and the contract IDs (`PUBLIC_KYP_<NETWORK>_*`) all follow it. Contract IDs that don't fit the network fail the build, and the older unprefixed vars only apply to testnet, so testnet IDs can't leak into a mainnet build. No mainnet contracts are deployed or configured, so a mainnet build runs in demo mode.
 
-- Meteor, Intear, MyNearWallet, Ledger, Nightly, Ethereum wallets and NEAR CLI, from the NEAR Connect manifest.
-- Sender, HERE, Bitget, Coin98, Math, NEAR Mobile, Bitte, WELLDONE, Narwallets, Ramper, XDEFI and Arepa, bridged from `@near-wallet-selector/*` modules.
+### Wallet login
 
-Not included: HOT and OKX (mainnet only), and WalletConnect and Unity (they need a Reown `projectId`). The connected account fills the account fields. The UI is gated by account: only invited wallets see deposit, only the launcher sees launch and cancel, and only the owner can claim. Details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#wallet-login-frontend).
+The **Connect wallet** button in the header uses [NEAR Connect](https://docs.near.org/web3-apps/tutorials/wallet-login) (`@hot-labs/near-connect`), the connector NEAR's docs currently recommend. The session persists across reloads. The connect modal lists every NEAR wallet we could find, on both networks:
+
+- From the NEAR Connect manifest: Meteor, Intear, MyNearWallet, Ledger, Nightly, Ethereum wallets, NEAR CLI, HOT, OKX, Hana, Trezu, NEAR Mobile (mainnet; on testnet the bridged module is used).
+- Bridged from `@near-wallet-selector/*` modules: Sender, HERE, Bitget, Coin98, Math, NEAR Mobile, Bitte, WELLDONE, Narwallets, Ramper, XDEFI, Arepa, SafePal and NEAR Snap (MetaMask).
+- WalletConnect and Unity Wallet: only when `PUBLIC_WALLETCONNECT_PROJECT_ID` (a Reown project ID) is set. No ID is in the repo.
+
+On **testnet**, HOT, OKX, Hana and Trezu don't support testnet. They are still listed, at the end, as "… (mainnet only)", and clicking one shows a short explanation instead of an error. On **mainnet** they connect normally. Not added: `meteor-wallet-app` (works only inside the Meteor app; Meteor is already listed) and `webauthn-wallet` (needs our own account-creation relayer).
+
+The connected account fills the account fields. The UI is gated by account: only invited wallets see deposit, only the launcher sees launch and cancel, and only the owner can claim. Details are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md#wallet-login-frontend).
 
 ### Deploy (not done yet)
 
@@ -67,4 +74,4 @@ Not included: HOT and OKX (mainnet only), and WalletConnect and Unity (they need
 
 - `cargo test --workspace`: 51 passed (common 12, token 4, lock 9, coordinator 25, mock-pool 1).
 - `integration-tests`: 1 passed. One `launch` transaction settles 3 presalers at one price, funds the lock, creates and seeds the pool (33 receipts, ~41 Tgas burnt). Then a TWAP-qualified milestone, a 25% claim, wave-1 reveal, a reserved slot on the same terms and the fee split are all checked on the sandbox.
-- `web`: `npm test` runs 12 unit tests: math, plus transaction builders and gating in `src/lib/actions.mjs`. `npm run test:e2e` builds a testnet-mode site with mocked RPC and a mock injected wallet. It checks the connect modal, connecting through the modal, session persistence, launcher-only controls and the exact deposit and launch transactions handed to the wallet: 6 steps pass, with no console errors. It needs Chrome (`CHROME_PATH`). Headless browser run of every page and the full demo flow had no console errors.
+- `web`: `npm test` runs 17 unit tests: math, transaction builders and gating in `src/lib/actions.mjs`, and the network config and wallet labels in `src/lib/network.mjs`. `npm run test:e2e` builds a testnet-mode site with mocked RPC and a mock injected wallet. It checks the connect modal (including the mainnet-only labels and the click explanation), connecting through the modal, session persistence, launcher-only controls and the exact deposit and launch transactions handed to the wallet. It then builds a mainnet site (no labels, mainnet labels, testnet IDs ignored, no testnet requests) and a build with a placeholder WalletConnect ID (WalletConnect and Unity listed; the relay is blocked in the test): 9 steps pass, with no console errors. It needs Chrome (`CHROME_PATH`). Headless browser run of every page and the full demo flow had no console errors.

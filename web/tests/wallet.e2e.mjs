@@ -11,20 +11,24 @@ import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
 
 const COORD = "kyp-coord.testnet", LOCK = "kyp-lock.testnet", LAUNCHER = "boss.testnet", PRESALER = "ana.testnet";
-const out = mkdtempSync(path.join(tmpdir(), "kyp-e2e-"));
-execSync(`npx astro build --outDir ${out}`, { stdio: "ignore", env: { ...process.env, PUBLIC_KYP_COORDINATOR: COORD, PUBLIC_KYP_LOCK: LOCK } });
-
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml" };
-const server = createServer((req, res) => {
-  let p = decodeURIComponent(req.url.split("?")[0]);
-  if (p === "/") p = "/index.html";
-  let f = path.join(out, p);
-  if (!existsSync(f) && existsSync(f + ".html")) f += ".html";
-  if (!existsSync(f) || statSync(f).isDirectory()) { res.writeHead(404); return res.end(); }
-  res.writeHead(200, { "content-type": types[path.extname(f)] ?? "application/octet-stream" });
-  res.end(readFileSync(f));
-}).listen(0);
-const base = `http://localhost:${server.address().port}`;
+/** Build the site with `env` into a temp dir and serve it on a random port. */
+function buildAndServe(env) {
+  const out = mkdtempSync(path.join(tmpdir(), "kyp-e2e-"));
+  execSync(`npx astro build --outDir ${out}`, { stdio: "ignore", env: { ...process.env, ...env } });
+  const server = createServer((req, res) => {
+    let p = decodeURIComponent(req.url.split("?")[0]);
+    if (p === "/") p = "/index.html";
+    let f = path.join(out, p);
+    if (!existsSync(f) && existsSync(f + ".html")) f += ".html";
+    if (!existsSync(f) || statSync(f).isDirectory()) { res.writeHead(404); return res.end(); }
+    res.writeHead(200, { "content-type": types[path.extname(f)] ?? "application/octet-stream" });
+    res.end(readFileSync(f));
+  }).listen(0);
+  return { server, base: `http://localhost:${server.address().port}` };
+}
+const NO_NET = { PUBLIC_NEAR_NETWORK: "", PUBLIC_WALLETCONNECT_PROJECT_ID: "" };
+const { server, base } = buildAndServe({ ...NO_NET, PUBLIC_KYP_COORDINATOR: COORD, PUBLIC_KYP_LOCK: LOCK });
 
 const N = (n) => (BigInt(Math.round(n * 1000)) * 10n ** 21n).toString();
 const now = Math.floor(Date.now() / 1000);
@@ -86,6 +90,7 @@ page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
 const text = () => page.evaluate(() => document.body.innerText);
 const txs = () => page.evaluate(() => window.__txs ?? []);
 let passed = 0;
+let manifestReachable = false;
 const step = async (name, fn) => { await fn(); passed++; console.log(`  ✔ ${name}`); };
 
 try {
@@ -98,10 +103,33 @@ try {
     await page.waitForFunction(() => window.kypWallets, null, { timeout: 20000 });
     const ids = await page.evaluate(() => window.kypWallets.available().map((x) => x.split(":")[0]));
     for (const id of ["kyp-test-wallet", "ws-sender", "ws-here-wallet", "ws-bitget-wallet"]) assert.ok(ids.includes(id), `${id} missing from ${ids}`);
-    if (ids.includes("meteor-wallet")) for (const id of ["mynearwallet", "intear-wallet", "ledger", "nightly-wallet"]) assert.ok(ids.includes(id), id);
-    else console.log("    (NEAR Connect manifest not reachable; skipped manifest wallet checks)");
-    assert.ok(!ids.includes("hot-wallet"), "HOT does not support testnet");
+    for (const id of ["ws-safepal-wallet", "ws-near-mobile-wallet"]) assert.ok(ids.includes(id), `${id} missing`);
+    manifestReachable = ids.includes("meteor-wallet");
+    if (manifestReachable) {
+      for (const id of ["mynearwallet", "intear-wallet", "ledger", "nightly-wallet"]) assert.ok(ids.includes(id), id);
+      // Mainnet-only wallets are listed on testnet, labelled.
+      const w = await page.evaluate(() => ({ list: window.kypWallets.available(), mainnetOnly: window.kypWallets.mainnetOnly(), network: window.kypWallets.network }));
+      assert.equal(w.network, "testnet");
+      for (const id of ["hot-wallet", "okx-wallet", "hana-wallet", "trezu-wallet"]) {
+        assert.ok(w.mainnetOnly.includes(id), `${id} not flagged mainnet-only`);
+        const entry = w.list.find((x) => x.startsWith(`${id}:`));
+        assert.ok(entry?.endsWith("(mainnet only)"), `${id} not labelled: ${entry}`);
+      }
+      assert.ok(!w.list.find((x) => x.startsWith("mynearwallet:")).includes("mainnet only"), "MyNearWallet works on testnet");
+      assert.ok(!ids.includes("near-mobile"), "NEAR Mobile listed once");
+    } else console.log("    (NEAR Connect manifest not reachable; skipped manifest wallet checks)");
+    assert.ok(!ids.includes("wallet-connect") && !ids.includes("unity-wallet"), "WalletConnect wallets hidden without a project ID");
     assert.ok((await text()).includes("Connect a NEAR testnet wallet to launch"));
+  });
+
+  await step("testnet: clicking a mainnet-only wallet explains instead of connecting", async () => {
+    if (!manifestReachable) return console.log("    (skipped: manifest not reachable)");
+    await page.click('[data-testid="wallet-connect"]');
+    await page.click("text=HOT Wallet (mainnet only)");
+    await page.waitForSelector('[data-testid="toast"]');
+    const t = await page.textContent('[data-testid="toast"]');
+    assert.match(t, /HOT Wallet only works on NEAR mainnet/);
+    assert.equal(await page.$('[data-testid="wallet-account"]'), null);
   });
 
   await step("connect as a non-launcher via the modal; launch controls hidden", async () => {
@@ -154,6 +182,46 @@ try {
   });
 
   await step("no console errors", async () => assert.deepEqual(errors, []));
+
+  await step("mainnet build: same wallets work normally (no labels), mainnet RPC/labels, no testnet contracts", async () => {
+    const m = buildAndServe({ ...NO_NET, PUBLIC_NEAR_NETWORK: "mainnet", PUBLIC_KYP_COORDINATOR: COORD, PUBLIC_KYP_LOCK: LOCK });
+    try {
+      const p = await ctx.newPage();
+      const testnetCalls = [];
+      p.on("request", (r) => /rpc\.testnet|testnet\.mynearwallet/.test(r.url()) && testnetCalls.push(r.url()));
+      await p.goto(`${m.base}/`, { waitUntil: "networkidle" });
+      await p.waitForFunction(() => window.kypWallets, null, { timeout: 20000 });
+      const w = await p.evaluate(() => ({ list: window.kypWallets.available(), mainnetOnly: window.kypWallets.mainnetOnly(), network: window.kypWallets.network }));
+      assert.equal(w.network, "mainnet");
+      assert.deepEqual(w.mainnetOnly, []);
+      assert.ok(w.list.every((x) => !x.includes("mainnet only")), "no labels on mainnet");
+      const ids = w.list.map((x) => x.split(":")[0]);
+      if (manifestReachable) for (const id of ["hot-wallet", "okx-wallet", "hana-wallet", "trezu-wallet", "near-mobile", "mynearwallet"]) assert.ok(ids.includes(id), `${id} missing on mainnet`);
+      assert.ok(!ids.includes("ws-near-mobile-wallet"), "NEAR Mobile listed once on mainnet");
+      const body = await p.evaluate(() => document.body.innerText);
+      assert.ok(body.includes("NEAR mainnet"), "mainnet label shown");
+      assert.ok(body.includes("Demo mode"), "testnet contract IDs are ignored on mainnet -> demo mode");
+      assert.deepEqual(testnetCalls, []);
+      await p.close();
+    } finally { m.server.close(); }
+  });
+
+  await step("WalletConnect + Unity appear when PUBLIC_WALLETCONNECT_PROJECT_ID is set", async () => {
+    if (!manifestReachable) return console.log("    (skipped: manifest not reachable)");
+    const m = buildAndServe({ ...NO_NET, PUBLIC_WALLETCONNECT_PROJECT_ID: "e2e-placeholder-not-a-real-id" });
+    try {
+      const c2 = await browser.newContext();
+      // Never talk to the real WalletConnect relay from tests.
+      await c2.route(/walletconnect|reown/, (r) => r.abort());
+      await c2.routeWebSocket(/walletconnect|reown/, (ws) => ws.close());
+      const p = await c2.newPage();
+      await p.goto(`${m.base}/`, { waitUntil: "networkidle" });
+      await p.waitForFunction(() => window.kypWallets, null, { timeout: 20000 });
+      const ids = await p.evaluate(() => window.kypWallets.available().map((x) => x.split(":")[0]));
+      for (const id of ["wallet-connect", "unity-wallet"]) assert.ok(ids.includes(id), `${id} missing with project ID`);
+      await c2.close();
+    } finally { m.server.close(); }
+  });
   console.log(`wallet e2e: ${passed} passed`);
 } catch (e) {
   console.error(`wallet e2e FAILED after ${passed} steps:`, e.message);

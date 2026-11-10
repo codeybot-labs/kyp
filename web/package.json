@@ -25,10 +25,13 @@
     "@near-wallet-selector/math-wallet": "^10.1.4",
     "@near-wallet-selector/narwallets": "^10.1.4",
     "@near-wallet-selector/near-mobile-wallet": "^10.1.4",
+    "@near-wallet-selector/near-snap": "^10.1.4",
     "@near-wallet-selector/ramper-wallet": "^10.1.4",
+    "@near-wallet-selector/safepal-wallet": "^10.1.4",
     "@near-wallet-selector/sender": "^10.1.4",
     "@near-wallet-selector/welldone-wallet": "^10.1.4",
     "@near-wallet-selector/xdefi": "^10.1.4",
+    "@walletconnect/sign-client": "^2.26.0",
     "astro": "^7.4.8",
     "buffer": "^6.0.3",
     "solid-js": "^1.9.18"

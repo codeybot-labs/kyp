@@ -100,4 +100,4 @@ export function parseWalletRedirect(search) {
   return { hashes, error: errorCode ? decodeURIComponent(errorMessage || errorCode) : null, cleanSearch: rest ? `?${rest}` : "" };
 }
 
-export const explorerTx = (hash, network = "testnet") => `https://${network === "mainnet" ? "" : "testnet."}nearblocks.io/txns/${hash}`;
+export { explorerTxUrl as explorerTx } from "./network.mjs";

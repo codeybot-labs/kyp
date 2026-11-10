@@ -1,7 +1,7 @@
 import { createResource, createSignal, onCleanup, Show, For, type JSX } from "solid-js";
 import { api } from "../lib/source";
 import { onDemoChange } from "../lib/demo";
-import { CONFIG } from "../lib/config";
+import { CONFIG, NETWORK_LABEL } from "../lib/config";
 import { units, fmt, fmtUsd, fdvAtPoint } from "../lib/math.mjs";
 import type { LaunchView, LaunchStatus } from "../lib/model";
 import { account, connect, signAndSend, type Tx as WalletTx } from "../lib/wallet";
@@ -118,13 +118,17 @@ export function WithLaunch(p: { tab: string; children: (l: () => LaunchView) => 
 
 const [toastMsg, setToastMsg] = createSignal<{ text: string; kind: string } | null>(null);
 let toastTimer: any;
-export function toast(text: string, kind: "ok" | "bad" | "" = "") {
+export function toast(text: string, kind: "ok" | "bad" | "" = "", ms = 4200) {
   setToastMsg({ text, kind });
   clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => setToastMsg(null), 4200);
+  toastTimer = setTimeout(() => setToastMsg(null), ms);
+}
+/** Open the connect modal; a mainnet-only wallet picked on testnet gets an explanation, not an error. */
+export function connectWallet() {
+  return connect().catch((e) => (e?.name === "MainnetOnlyWallet" ? toast(e.message, "", 10000) : toast(`Wallet: ${e?.message ?? e}`, "bad")));
 }
 export function Toaster() {
-  return <Show when={toastMsg()}>{(t) => <div class={`toast ${t().kind}`}>{t().text}</div>}</Show>;
+  return <Show when={toastMsg()}>{(t) => <div class={`toast ${t().kind}`} data-testid="toast">{t().text}</div>}</Show>;
 }
 
 /** Wraps a demo action: runs it and shows the contract-style error if it panics. */
@@ -201,8 +205,8 @@ export function Signable(p: { children: JSX.Element; cli?: JSX.Element; note?: s
     <Show when={account()} fallback={
       <div class="stack">
         <div class="notice row between">
-          <span>{p.note ?? "Connect a NEAR testnet wallet to sign this."}</span>
-          <button class="btn sm primary" onClick={() => connect().catch((e) => toast(`Wallet: ${e?.message ?? e}`, "bad"))}>Connect wallet</button>
+          <span>{p.note ?? `Connect a ${NETWORK_LABEL} wallet to sign this.`}</span>
+          <button class="btn sm primary" onClick={connectWallet}>Connect wallet</button>
         </div>
         <Show when={p.cli}><details><summary class="sub" style={{ cursor: "pointer" }}>Or sign with NEAR CLI</summary>{p.cli}</details></Show>
       </div>

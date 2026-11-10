@@ -1,5 +1,5 @@
-// Read-only NEAR testnet RPC (view calls). No keys, no signing.
-import { CONFIG } from "./config";
+// Read-only NEAR RPC (view calls) for the configured network. No keys, no signing.
+import { CONFIG, NETWORK } from "./config";
 
 export async function view<T>(contract: string, method: string, args: Record<string, unknown> = {}): Promise<T> {
   const res = await fetch(CONFIG.rpc, {
@@ -24,6 +24,6 @@ export function cliCall(contract: string, method: string, args: unknown, opts: {
     `near contract call-function as-transaction ${contract} ${method}`,
     `  json-args '${a}'`,
     `  prepaid-gas '${opts.gas ?? "300 Tgas"}' attached-deposit '${opts.deposit ?? "0 NEAR"}'`,
-    `  sign-as ${opts.signer ?? "<your-account.testnet>"} network-config testnet sign-with-keychain send`,
+    `  sign-as ${opts.signer ?? `<${CONFIG.exampleAccount}>`} network-config ${NETWORK} sign-with-keychain send`,
   ].join(" \\\n");
 }

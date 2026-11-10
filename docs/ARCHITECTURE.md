@@ -64,19 +64,21 @@ Plain NEP-141 + metadata. The full supply is minted once in `new`. `ft_burn` low
 | USD | Milestones are stored in wNEAR. USD is a display-only reference (`PUBLIC_NEAR_USD`). There is no on-chain quote/USD oracle yet. |
 | LP fee collection | The coordinator owns the LP but has no method to claim DCL fees yet. `Fees` deposits + `distribute_fees` route whatever is sent in. |
 | Holder rewards | The "holders" share goes to one account. Per-holder distribution is off-chain/later. |
-| Wallet | Real NEAR testnet login via NEAR Connect (see "Wallet login" below). Signing is only exercised against mocked RPC + a mock injected wallet in `web/tests/wallet.e2e.mjs`; no real testnet transaction has been sent yet because the contracts are not deployed. |
+| Wallet | Real NEAR login via NEAR Connect on the configured network (testnet default) (see "Wallet login" below). Signing is only exercised against mocked RPC + a mock injected wallet in `web/tests/wallet.e2e.mjs`; no real testnet transaction has been sent yet because the contracts are not deployed. |
 | Advisor group | Off-chain (e.g. a private chat). Not built. |
 | Testnet deploy | `scripts/deploy-testnet.sh` written, not run. |
 | Frontend deploy | `web/wrangler.jsonc` ready (static assets only), not deployed: wrangler is not logged in on the build box. |
 
 ## Wallet login (frontend)
 
-- **Connector:** NEAR Connect (`@hot-labs/near-connect`), which NEAR's docs now recommend over Wallet Selector. Network is fixed to `testnet` (`web/src/lib/config.ts`). The session survives reloads (NEAR Connect storage).
-- **Wallets in the one connect modal (testnet only):**
-  - From the NEAR Connect manifest: Meteor, Intear, MyNearWallet, Ledger, Nightly, Ethereum wallets (MetaMask etc. via the EVM-on-NEAR module), NEAR CLI. MyNearWallet's manifest doesn't flag testnet, but its executor ships a testnet connector, so `wallet.ts` enables it and allows `https://testnet.mynearwallet.com`.
-  - Bridged from `@near-wallet-selector/*` modules (`web/src/lib/wallet-bridge.ts`, announced through NEAR Connect's standard `near-wallet-injected` event): Sender, HERE, Bitget, Coin98, Math, NEAR Mobile, Bitte, WELLDONE, Narwallets, Ramper, XDEFI, Arepa. Extensions that aren't installed still show, and point to their install page.
+- **Connector:** NEAR Connect (`@hot-labs/near-connect`), which NEAR's docs now recommend over Wallet Selector. Network comes from `PUBLIC_NEAR_NETWORK` (`testnet` default, or `mainnet`), resolved in `web/src/lib/network.mjs`: RPC, wNEAR, explorer, MyNearWallet URL and the per-network contract IDs follow it, and IDs that don't fit the network are rejected at build. The session survives reloads (NEAR Connect storage).
+- **Wallets in the one connect modal (both networks):**
+  - From the NEAR Connect manifest: Meteor, Intear, MyNearWallet, Ledger, Nightly, Ethereum wallets (MetaMask etc. via the EVM-on-NEAR module), NEAR CLI, HOT, OKX, Hana, Trezu, NEAR Mobile. MyNearWallet's manifest doesn't flag testnet, but its executor ships a testnet connector, so on testnet `network.mjs` enables it and allows `https://testnet.mynearwallet.com`.
+  - Bridged from `@near-wallet-selector/*` modules (`web/src/lib/wallet-bridge.ts`, announced through NEAR Connect's standard `near-wallet-injected` event): Sender, HERE, Bitget, Coin98, Math, NEAR Mobile, Bitte, WELLDONE, Narwallets, Ramper, XDEFI, Arepa, SafePal, NEAR Snap. Extensions that aren't installed still show, and point to their install page. On mainnet the bridged NEAR Mobile is skipped (the manifest one covers it); on testnet the manifest one is dropped (it lacks testnet).
+  - WalletConnect and Unity Wallet need a WalletConnect sign client. `wallet.ts` creates one (`@walletconnect/sign-client`, lazy-loaded) only when `PUBLIC_WALLETCONNECT_PROJECT_ID` is set; otherwise NEAR Connect hides them.
+  - **Mainnet-only wallets on testnet:** `prepareManifest()` keeps HOT, OKX, Hana and Trezu, renames them "… (mainnet only)", and marks them testnet-visible so NEAR Connect lists them (sorted last). `connect()` opens the selector itself; if a mainnet-only wallet is picked it throws `MainnetOnlyWallet`, and the UI shows an explanation toast instead of starting the wallet. On mainnet nothing is relabelled or intercepted.
   - Any other wallet extension that announces itself to NEAR Connect shows automatically.
-  - **Left out:** HOT and OKX (mainnet only; HOT's executor rejects testnet), Hana, Trezu (not flagged for testnet), and WalletConnect and Unity Wallet, which need a Reown/WalletConnect `projectId` (a keyed third-party account).
+  - **Not added:** `meteor-wallet-app` (in-app only), `webauthn-wallet` (needs our own relayer).
 - **Writes** (`web/src/lib/actions.mjs` builds them, `wallet.ts` signs them):
   - `create_launch`: attaches `token_account_deposit` from `get_config`, plus 0.1 NEAR for storage. The launcher must download the invite codes first.
   - Deposit or `BuyReserved`: one transaction to wNEAR. It runs `storage_deposit` for the signer and the coordinator if either isn't registered, `near_deposit` for any wNEAR shortfall, then `ft_transfer_call` (1 yocto).

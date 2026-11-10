@@ -31,6 +31,6 @@ const steps = [
   </div>
   <div class="card" style="margin-top: 16px">
     <h3>MVP scope</h3>
-    <p class="muted" style="margin-top:8px">Testnet only. The site runs in demo mode (a simulated chain in your browser) unless it is built with testnet contract accounts, in which case it reads live state and shows NEAR CLI commands for writes. No wallet connection yet. The pool step targets RHEA DCL's interface; tests run against a mock pool with the same methods.</p>
+    <p class="muted" style="margin-top:8px">Runs on NEAR testnet by default (PUBLIC_NEAR_NETWORK switches to mainnet; no mainnet contracts are deployed yet). The site runs in demo mode (a simulated chain in your browser) unless it is built with contract accounts for the selected network, in which case it reads live state and signs writes with the connected NEAR wallet (NEAR CLI commands are shown as a fallback). The pool step targets RHEA DCL's interface; tests run against a mock pool with the same methods.</p>
   </div>
 </Base>

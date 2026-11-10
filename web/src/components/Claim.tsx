@@ -32,7 +32,7 @@ function Body(p: { l: LaunchView }) {
       <div class="card stack">
         <div class="card-title"><h2>Claim unlocked tokens</h2><span class="pill">{pct(lock()?.unlocked_bps ?? 0)} unlocked</span></div>
         <Show when={l().status === "Live"} fallback={<div class="notice">Claims open after launch, once a milestone qualifies.</div>}>
-          <label class="field"><span>Presaler account</span><input placeholder="you.testnet" value={account()} disabled={!isDemo && !!wallet()} onInput={(e) => setAccount(e.currentTarget.value)} /></label>
+          <label class="field"><span>Presaler account</span><input placeholder={CONFIG.exampleAccount} value={account()} disabled={!isDemo && !!wallet()} onInput={(e) => setAccount(e.currentTarget.value)} /></label>
           <Show when={account().trim()}>
             <Show when={pos()} fallback={<div class="notice">{pos.loading ? "Loading…" : "No locked position for this account."}</div>}>
               {(x) => {

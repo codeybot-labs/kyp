@@ -2,7 +2,7 @@ import { createEffect, createMemo, createSignal, For, Index, Show } from "solid-
 import { api } from "../lib/source";
 import { demo, validateParams } from "../lib/demo";
 import { cliCall } from "../lib/near";
-import { CONFIG } from "../lib/config";
+import { CONFIG, NETWORK, NETWORK_LABEL, NETWORK_NAME } from "../lib/config";
 import { randomSalt, slotHash, toRaw, tokensForQuote, DEFAULT_SUPPLY } from "../lib/math.mjs";
 import type { LaunchParams } from "../lib/model";
 import { act, Cli, fmtQ, fmtT, pct, usdOf, Signable, sendTx } from "./ui";
@@ -210,11 +210,11 @@ export default function CreateLaunch() {
               <div class="notice bad"><For each={errors()}>{(e) => <div>• {e}</div>}</For></div>
             </Show>
             <Show when={isDemo} fallback={
-              <Signable note="Connect a NEAR testnet wallet to create the launch." cli={<Cli title="Create on testnet (attach 2.6 NEAR: token account + launch storage)" cmd={cliCall(CONFIG.coordinator, "create_launch", { params: params() }, { deposit: "2.6 NEAR", signer: launcher() })} />}>
+              <Signable note={`Connect a ${NETWORK_LABEL} wallet to create the launch.`} cli={<Cli title={`Create on ${NETWORK} (attach 2.6 NEAR: token account + launch storage)`} cmd={cliCall(CONFIG.coordinator, "create_launch", { params: params() }, { deposit: "2.6 NEAR", signer: launcher() })} />}>
                 <label class="row" style={{ gap: "8px" }}><input type="checkbox" checked={savedCodes()} onChange={(e) => setSavedCodes(e.currentTarget.checked)} /><span class="sub">I downloaded the invite codes (they are not stored on-chain and can't be recovered).</span></label>
                 <button class="btn primary" data-testid="create-sign" disabled={errors().length > 0 || !savedCodes()} onClick={async () => {
                   try { localStorage.setItem(`kyp-invites-${symbol().toLowerCase()}-${Date.now()}`, csv()); } catch {}
-                  const h = await sendTx(async () => createLaunchTx(CONFIG.coordinator, params(), (await api.config()).token_account_deposit), "Launch created on testnet");
+                  const h = await sendTx(async () => createLaunchTx(CONFIG.coordinator, params(), (await api.config()).token_account_deposit), `Launch created on ${NETWORK}`);
                   if (h) location.href = "/";
                 }}>Create launch (sign with wallet)</button>
                 <div class="sub">Attaches the coordinator's token account deposit + 0.1 NEAR for storage.</div>

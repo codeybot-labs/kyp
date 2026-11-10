@@ -1,10 +1,13 @@
 // NEAR wallet login + signing via NEAR Connect (@hot-labs/near-connect), the connector NEAR docs
-// recommend, on testnet. Loaded lazily in the browser. NEAR Connect keeps the session in
+// recommend, on the configured network (PUBLIC_NEAR_NETWORK, default testnet). On testnet,
+// mainnet-only wallets are still listed, labelled "(mainnet only)"; clicking one explains instead
+// of connecting. WalletConnect-based wallets appear only when PUBLIC_WALLETCONNECT_PROJECT_ID is set. Loaded lazily in the browser. NEAR Connect keeps the session in
 // localStorage/IndexedDB, so a reload keeps you signed in. Legacy wallet-selector-only wallets are
 // bridged into the same modal (see wallet-bridge.ts).
 // No private keys are handled here: the wallet signs.
 import { createSignal } from "solid-js";
-import { CONFIG, NETWORK } from "./config";
+import { CONFIG, NETWORK, NETWORK_LABEL } from "./config";
+import { prepareManifest, mainnetOnlyMessage } from "./network.mjs";
 import { view } from "./near";
 import { explorerTx, parseWalletRedirect, depositTx } from "./actions.mjs";
 
@@ -18,29 +21,42 @@ const [busy, setBusy] = createSignal(false);
 const [initError, setInitError] = createSignal<string | null>(null);
 export { account, walletName, ready as walletReady, busy as walletBusy, initError as walletInitError };
 
-const MANIFEST_URL = "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/manifest.json";
-/**
- * Manifest wallets whose executor handles testnet but whose manifest doesn't flag it (checked by
- * hand in the executor source): enable testnet and let the sandbox open the testnet wallet site.
- */
-const TESTNET_OVERRIDES: Record<string, string[]> = { mynearwallet: ["https://testnet.mynearwallet.com"] };
+const MANIFEST_URLS = [
+  "https://raw.githubusercontent.com/hot-dao/near-selector/refs/heads/main/repository/manifest.json",
+  "https://cdn.jsdelivr.net/gh/azbang/hot-connector/repository/manifest.json",
+];
 
 let connector: Connector | null = null;
 let initP: Promise<void> | null = null;
+/** Wallet id -> display name, for wallets listed on this network but only usable on mainnet. */
+const mainnetOnly = new Map<string, string>();
+
+/** Thrown when the user picks a mainnet-only wallet on testnet. Carries a readable explanation. */
+export class MainnetOnlyWallet extends Error {
+  constructor(public walletId: string, name: string) { super(mainnetOnlyMessage(name)); this.name = "MainnetOnlyWallet"; }
+}
 
 async function loadManifest() {
-  try {
-    const r = await fetch(MANIFEST_URL);
-    if (!r.ok) return undefined;
-    const m = await r.json();
-    for (const w of m.wallets ?? []) {
-      const extra = TESTNET_OVERRIDES[w.id];
-      if (!extra) continue;
-      w.features = { ...w.features, testnet: true };
-      w.permissions = { ...w.permissions, allowsOpen: [...(w.permissions?.allowsOpen ?? []), ...extra] };
-    }
-    return m;
-  } catch { return undefined; } // NearConnector falls back to its own manifest URLs
+  for (const url of MANIFEST_URLS) {
+    try {
+      const r = await fetch(url);
+      if (!r.ok) continue;
+      const { manifest, mainnetOnly: ids } = prepareManifest(await r.json(), NETWORK);
+      for (const w of manifest.wallets) if (ids.includes(w.id)) mainnetOnly.set(w.id, w.name);
+      return manifest;
+    } catch { /* try next */ }
+  }
+  return undefined; // NearConnector falls back to its own manifest URLs (unlabelled)
+}
+
+/** WalletConnect sign client, only when a Reown project ID is configured. No ID = those wallets stay hidden. */
+function walletConnectClient() {
+  const projectId = CONFIG.walletConnectProjectId;
+  if (!projectId) return undefined;
+  return import("@walletconnect/sign-client").then((m) => m.default.init({
+    projectId,
+    metadata: { name: "KYP", description: "Know Your Presalers", url: location.origin, icons: [`${location.origin}/favicon.svg`] },
+  }));
 }
 
 export function initWallet(): Promise<void> {
@@ -55,20 +71,27 @@ export function initWallet(): Promise<void> {
       connector = new NearConnector({
         network: NETWORK,
         manifest,
+        walletConnect: walletConnectClient() as any,
         features: { signAndSendTransaction: true },
-        footerBranding: { icon: "/favicon.svg", heading: "KYP · NEAR testnet", link: "https://wallet.near.org", linkText: "Don't have a wallet?" },
+        footerBranding: { icon: "/favicon.svg", heading: `KYP · ${NETWORK_LABEL}`, link: "https://wallet.near.org", linkText: "Don't have a wallet?" },
       });
       connector.on("wallet:signIn", (e) => { setAccount(e.accounts[0]?.accountId ?? null); setWalletName(e.wallet.manifest.name); });
       connector.on("wallet:signOut", () => { setAccount(null); setWalletName(null); });
       // Announce wallet-selector-only wallets before restoring, so a saved session on one of them is found.
       const { announceBridgedWallets } = await import("./wallet-bridge");
       await announceBridgedWallets(CONFIG.coordinator || CONFIG.quote).catch((e) => console.warn("legacy wallet bridge failed", e));
-      // Order: NEAR Connect manifest wallets first (manifest order), then bridged ones (our order).
+      // Order: NEAR Connect manifest wallets first (manifest order), then bridged ones (our order),
+      // then (on testnet) the mainnet-only ones.
       await connector.whenManifestLoaded;
       const { BRIDGED_IDS } = await import("./wallet-bridge");
-      const rank = (id: string) => (BRIDGED_IDS.includes(id) ? 1000 + BRIDGED_IDS.indexOf(id) : (connector!.manifest.wallets.findIndex((w) => w.id === id) + 1000) % 1000);
+      // Mainnet-only wallets (testnet builds) go last.
+      const rank = (id: string) => (mainnetOnly.has(id) ? 2000 : 0) + (BRIDGED_IDS.includes(id) ? 1000 + BRIDGED_IDS.indexOf(id) : (connector!.manifest.wallets.findIndex((w) => w.id === id) + 1000) % 1000);
       connector.wallets.sort((a, b) => rank(a.manifest.id) - rank(b.manifest.id));
-      (window as any).kypWallets = { available: () => connector!.availableWallets.map((w) => `${w.manifest.id}:${w.manifest.name}`) };
+      (window as any).kypWallets = {
+        network: NETWORK,
+        available: () => connector!.availableWallets.map((w) => `${w.manifest.id}:${w.manifest.name}`),
+        mainnetOnly: () => [...mainnetOnly.keys()],
+      };
       try {
         const { wallet, accounts } = await connector.getConnectedWallet();
         setAccount(accounts[0]?.accountId ?? null);
@@ -87,7 +110,15 @@ export function initWallet(): Promise<void> {
 export async function connect() {
   await initWallet();
   if (!connector) throw new Error(initError() ?? "wallet connector unavailable");
-  try { await connector.connect(); } catch (e: any) { if (!/reject/i.test(String(e?.message ?? e))) throw e; }
+  try {
+    const walletId = await connector.selectWallet();
+    const name = mainnetOnly.get(walletId);
+    if (name) throw new MainnetOnlyWallet(walletId, name);
+    await connector.connect({ walletId });
+  } catch (e: any) {
+    if (e instanceof MainnetOnlyWallet) throw e;
+    if (!/reject/i.test(String(e?.message ?? e))) throw e;
+  }
 }
 export async function disconnect() {
   await initWallet();

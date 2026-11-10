@@ -2,8 +2,12 @@
 // are announced to NEAR Connect as "injected" wallets, so every wallet shows in ONE modal.
 // Wallets already in the NEAR Connect manifest (Meteor, Intear, MyNearWallet, Nightly, Ledger,
 // Ethereum wallets, NEAR CLI) are NOT bridged; they come from NEAR Connect itself.
-// Excluded on purpose: HOT + OKX (mainnet only), WalletConnect + Unity (need a Reown projectId).
+// HOT, OKX, Hana, Trezu, WalletConnect and Unity also come from the NEAR Connect manifest (see
+// network.mjs for mainnet-only labels and wallet.ts for the WalletConnect project ID).
+// Not bridged: meteor-wallet-app (works only inside the Meteor app; Meteor is already listed) and
+// webauthn-wallet (needs our own relayer backend to create accounts).
 import { NETWORK } from "./config";
+import { skippedBridgedIds } from "./network.mjs";
 
 type ConnectorAction = { type: string; params?: any };
 
@@ -39,13 +43,18 @@ const BRIDGED = [
   ["ramper-wallet", () => import("@near-wallet-selector/ramper-wallet").then((m) => m.setupRamperWallet())],
   ["xdefi", () => import("@near-wallet-selector/xdefi").then((m) => m.setupXDEFI())],
   ["arepa-wallet", () => import("@near-wallet-selector/arepa-wallet").then((m) => m.setupArepaWallet())],
+  ["safepal-wallet", () => import("@near-wallet-selector/safepal-wallet").then((m) => m.setupSafePalWallet())],
+  // MetaMask Snap for NEAR (desktop only; hidden on mobile by the module itself).
+  ["near-snap", () => import("@near-wallet-selector/near-snap").then((m) => m.setupNearSnap())],
 ] as const;
 
-export const BRIDGED_IDS = BRIDGED.map(([id]) => `ws-${id}`);
+const SKIP = new Set(skippedBridgedIds(NETWORK));
+const ACTIVE = BRIDGED.filter(([id]) => !SKIP.has(id));
+export const BRIDGED_IDS = ACTIVE.map(([id]) => `ws-${id}`);
 
 /** Load the legacy modules (best effort, one failure doesn't block the rest) and announce them. */
 export async function announceBridgedWallets(contractId: string) {
-  const modules = (await Promise.all(BRIDGED.map(([id, load]) => load().catch((e) => (console.warn(`wallet module ${id} failed to load`, e), null))))).filter(Boolean);
+  const modules = (await Promise.all(ACTIVE.map(([id, load]) => load().catch((e) => (console.warn(`wallet module ${id} failed to load`, e), null))))).filter(Boolean);
   const { setupWalletSelector } = await import("@near-wallet-selector/core");
   const { actionCreators } = await import("@near-js/transactions");
   const selector = await setupWalletSelector({ network: NETWORK, modules: modules as any });
@@ -73,7 +82,7 @@ export async function announceBridgedWallets(contractId: string) {
       features: {
         signMessage: false, signTransaction: false, signAndSendTransaction: true, signAndSendTransactions: true,
         signInWithoutAddKey: true, signInAndSignMessage: false, signInWithFunctionCallKey: false,
-        signDelegateActions: false, mainnet: false, testnet: true,
+        signDelegateActions: false, mainnet: NETWORK === "mainnet", testnet: NETWORK === "testnet",
       },
     };
     const w = () => selector.wallet(m.id);

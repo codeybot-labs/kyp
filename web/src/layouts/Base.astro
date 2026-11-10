@@ -1,4 +1,5 @@
 ---
+import { NETWORK_LABEL } from "../lib/config";
 import "../styles/global.css";
 import ModeBadge from "../components/ModeBadge.tsx";
 import ToastHost from "../components/ToastHost.tsx";
@@ -37,7 +38,7 @@ const nav = [
     </main>
     <footer class="foot">
       <div class="wrap row between">
-        <span>KYP testnet MVP · NEAR testnet only · not financial advice</span>
+        <span>KYP MVP · {NETWORK_LABEL} · not financial advice</span>
         <span>Contracts: coordinator · lock · NEP-141 token · RHEA DCL (mock adapter in demo)</span>
       </div>
     </footer>

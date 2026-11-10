@@ -61,8 +61,8 @@ done
 cat <<OUT
 
 Deployed (testnet):
-  PUBLIC_KYP_COORDINATOR=$COORD
-  PUBLIC_KYP_LOCK=$LOCK
-  PUBLIC_KYP_POOL=$POOL_ID
+  PUBLIC_KYP_TESTNET_COORDINATOR=$COORD
+  PUBLIC_KYP_TESTNET_LOCK=$LOCK
+  PUBLIC_KYP_TESTNET_POOL=$POOL_ID
 Put these in web/.env and rebuild the site to read live testnet state.
 OUT

@@ -2,7 +2,7 @@ import { createSignal, For, Show } from "solid-js";
 import { api } from "../lib/source";
 import { demo } from "../lib/demo";
 import { cliCall } from "../lib/near";
-import { CONFIG } from "../lib/config";
+import { CONFIG, NETWORK, NETWORK_LABEL, NETWORK_NAME } from "../lib/config";
 import { toRaw } from "../lib/math.mjs";
 import { MilestoneLadder } from "./Terms";
 import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, fdvAt, Stat, Spark, act, Cli, Signable, sendTx } from "./ui";
@@ -164,8 +164,8 @@ function TestnetActions(p: { l: LaunchView }) {
   );
   return (
     <div class="card stack">
-      <div class="card-title"><h3>Actions</h3><span class="pill">testnet{me() ? ` · ${me()}` : ""}</span></div>
-      <Signable note="Connect a NEAR testnet wallet to launch, poke the observer or qualify milestones." cli={cli}>
+      <div class="card-title"><h3>Actions</h3><span class="pill">{NETWORK_NAME.toLowerCase()}{me() ? ` · ${me()}` : ""}</span></div>
+      <Signable note={`Connect a ${NETWORK_LABEL} wallet to launch, poke the observer or qualify milestones.`} cli={cli}>
         <Show when={p.l.status === "Open"}>
           <Show when={launcher()} fallback={<div class="notice">Only the launcher ({p.l.launcher}) can launch or cancel this presale.</div>}>
             <div class="row">

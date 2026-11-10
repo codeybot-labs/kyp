@@ -1,10 +1,11 @@
 ---
 import Base from "../layouts/Base.astro";
 import LaunchList from "../components/LaunchList.tsx";
+import { NETWORK_LABEL } from "../lib/config";
 ---
 <Base title="Locked presales for NEAR memes" active="/">
   <section class="hero">
-    <span class="pill live"><span class="dot"></span> NEAR testnet MVP</span>
+    <span class="pill live"><span class="dot"></span> {NETWORK_LABEL} MVP</span>
     <h1 style="margin-top:18px; max-width: 820px">Know who holds the early supply.<br/><span style="color: var(--accent)">And know they can't dump it.</span></h1>
     <p class="lead">KYP is an optional presale for meme launches. Launchers hand-pick presalers, everyone buys at one price inside the launch transaction, and the tokens go straight into a lock that opens only at public, ambitious market-cap milestones.</p>
     <div class="row" style="margin-top: 26px">
