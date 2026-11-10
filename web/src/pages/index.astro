@@ -1,0 +1,28 @@
+---
+import Base from "../layouts/Base.astro";
+import LaunchList from "../components/LaunchList.tsx";
+---
+<Base title="Locked presales for NEAR memes" active="/">
+  <section class="hero">
+    <span class="pill live"><span class="dot"></span> NEAR testnet MVP</span>
+    <h1 style="margin-top:18px; max-width: 820px">Know who holds the early supply.<br/><span style="color: var(--accent)">And know they can't dump it.</span></h1>
+    <p class="lead">KYP is an optional presale for meme launches. Launchers hand-pick presalers, everyone buys at one price inside the launch transaction, and the tokens go straight into a lock that opens only at public, ambitious market-cap milestones.</p>
+    <div class="row" style="margin-top: 26px">
+      <a class="btn primary" href="/create">Create a launch</a>
+      <a class="btn" href="/how-it-works">How it works</a>
+    </div>
+  </section>
+
+  <section class="grid g4" style="margin: 10px 0 40px">
+    <div class="card tight feature"><div class="ic">1</div><div><h3>Everyone's visible</h3><p class="sub">Size, terms and milestones public. Wallets revealed in waves after launch, smallest first.</p></div></div>
+    <div class="card tight feature"><div class="ic">2</div><div><h3>Everyone's locked</h3><p class="sub">Presale tokens enter the lock in the same transaction that opens the pool.</p></div></div>
+    <div class="card tight feature"><div class="ic">3</div><div><h3>One price</h3><p class="sub">All fills settle together at the opening price. Nobody gets a cheaper entry.</p></div></div>
+    <div class="card tight feature"><div class="ic">4</div><div><h3>Unlock at milestones</h3><p class="sub">TWAP-verified FDV targets, e.g. $10m. The community roots for presalers to get there.</p></div></div>
+  </section>
+
+  <div class="row between" style="margin-bottom: 14px">
+    <h2>Launches</h2>
+    <a class="link" href="/create">+ New launch</a>
+  </div>
+  <LaunchList client:only="solid-js" />
+</Base>

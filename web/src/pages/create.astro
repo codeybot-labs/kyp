@@ -1,0 +1,7 @@
+---
+import Base from "../layouts/Base.astro";
+import CreateLaunch from "../components/CreateLaunch.tsx";
+---
+<Base title="Create a launch" active="/create">
+  <CreateLaunch client:only="solid-js" />
+</Base>

@@ -1,0 +1,166 @@
+import { createSignal, For, Show } from "solid-js";
+import { api } from "../lib/source";
+import { demo } from "../lib/demo";
+import { cliCall } from "../lib/near";
+import { CONFIG } from "../lib/config";
+import { toRaw } from "../lib/math.mjs";
+import { MilestoneLadder } from "./Terms";
+import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, fdvAt, Stat, Spark, act, Cli } from "./ui";
+import type { LaunchView } from "../lib/model";
+
+const STEPS: [keyof LaunchView["progress"], string, string][] = [
+  ["lock_funded", "Settle + lock", "Every fill priced at the one presale price; all presale tokens sent to the lock."],
+  ["pool_created", "Create pool", "RHEA DCL pool created at the presale price (1% fee tier)."],
+  ["token_deposited", "Deposit supply", "Remaining supply (minus reserved slots) deposited to the pool."],
+  ["quote_deposited", "Deposit proceeds", "All presale wNEAR deposited as quote-side liquidity."],
+  ["liquidity_added", "Seed liquidity", "Single-sided ranges: tokens above the price, wNEAR below. LP owned by the coordinator."],
+];
+
+function Body(p: { l: LaunchView }) {
+  const now = useNow();
+  const l = () => p.l;
+  const [tw] = useLive(() => api.twap(p.l.id));
+  const [lock] = useLive(() => api.lock(p.l.id));
+  const [obs] = useLive(() => api.observations(p.l.id));
+  const raisedPct = () => Math.min(100, (quote(l().total_raised) / Math.max(1e-9, quote(l().open_cap_quote))) * 100);
+  const minPct = () => Math.min(100, (quote(l().min_raise) / Math.max(1e-9, quote(l().open_cap_quote))) * 100);
+  const isDemo = api.mode() === "demo";
+  const [fdvUsd, setFdvUsd] = createSignal("10000000");
+
+  return (
+    <div class="stack">
+      <div class="grid g4">
+        <Stat label="Raised" value={fmtQ(l().total_raised, 0)} sub={`${usdOf(l().total_raised)} · min ${fmtQ(l().min_raise, 0)}`} />
+        <Stat label="Presalers" value={`${l().filled_open_slots}/${l().open_slots}`} sub={`${l().filled_reserved_slots}/${l().reserved_slots} reserved filled`} />
+        <Show when={l().status === "Live"} fallback={<Stat label={l().status === "Open" ? "Window closes" : "Window"} value={l().status === "Open" ? dur(l().sale_end - now()) : "—"} sub={when(l().sale_end)} />}>
+          <Stat label="TWAP FDV" value={tw()?.twap_fdv_quote ? usdOf(tw()!.twap_fdv_quote!) : "—"} sub={tw()?.ok ? `${tw()!.observations_in_window} obs in window` : tw()?.error ?? "no observations"} />
+        </Show>
+        <Show when={l().status === "Live"} fallback={<Stat label="Opening FDV" value={usdOf(l().opening_fdv_quote)} sub="pool opens here, presale price" />}>
+          <Stat label="Unlocked" value={pct(lock()?.unlocked_bps ?? 0)} sub={`${fmtT(lock()?.total_claimed ?? "0")} of ${fmtT(lock()?.total_locked ?? "0")} claimed`} />
+        </Show>
+      </div>
+
+      <div class="grid g2">
+        <div class="card">
+          <div class="card-title"><h3>Presale</h3><span class="sub num">{raisedPct().toFixed(1)}% of open cap</span></div>
+          <div class="bar" style={{ position: "relative" }}>
+            <i style={{ width: `${raisedPct()}%` }} />
+          </div>
+          <div class="row between sub" style={{ "margin-top": "8px" }}>
+            <span>min raise at {minPct().toFixed(0)}%</span>
+            <span>{fmtQ(l().open_cap_quote, 0)} cap</span>
+          </div>
+          <hr class="sep" />
+          <div class="kv">
+            <span>Window</span><span>{when(l().sale_start)} → {when(l().sale_end)}</span>
+            <span>Presale tokens</span><span>{l().status === "Live" || l().status === "Launching" ? fmtT(l().presale_tokens) : "set at launch"}</span>
+            <span>Reserved for later</span><span>{fmtT(l().reserved_tokens)} tokens</span>
+            <span>Launcher</span><span class="mono">{l().launcher}</span>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-title"><h3>Launch transaction</h3><Show when={l().launched_at}><span class="sub">{when(l().launched_at!)}</span></Show></div>
+          <ul class="steps">
+            <For each={STEPS}>
+              {([k, t, d], i) => (
+                <li>
+                  <span class={`ck ${l().progress[k] ? "done" : ""}`}>{l().progress[k] ? "✓" : i() + 1}</span>
+                  <div><div style={{ "font-weight": 650 }}>{t}</div><div class="sub">{d}</div></div>
+                </li>
+              )}
+            </For>
+          </ul>
+          <Show when={l().status === "Launching"}>
+            <div class="notice warn" style={{ "margin-top": "10px" }}>A step stopped. Anyone can call <code>resume_launch</code>; it continues from the first incomplete step. Presale tokens never leave the coordinator/lock.</div>
+          </Show>
+        </div>
+      </div>
+
+      <Show when={l().status === "Live"}>
+        <div class="card">
+          <div class="card-title">
+            <h3>Market vs milestones</h3>
+            <span class="sub">spot {tw()?.spot_fdv_quote ? usdOf(tw()!.spot_fdv_quote!) : "—"} · TWAP {tw()?.twap_fdv_quote ? usdOf(tw()!.twap_fdv_quote!) : "—"}</span>
+          </div>
+          <Spark points={(obs() ?? []).map((o) => ({ ts: o.ts, v: fdvAt(l(), o.point) * CONFIG.nearUsd }))} targets={l().milestones.map((m) => quote(m.target_fdv_quote) * CONFIG.nearUsd)} />
+          <div class="sub" style={{ "margin-top": "6px" }}>FDV from recorded pool observations (log scale). Dashed lines: unlock targets.</div>
+          <hr class="sep" />
+          <MilestoneLadder l={l()} />
+        </div>
+        <div class="card">
+          <div class="card-title"><h3>Pool</h3><span class="pill">RHEA DCL{isDemo ? " (simulated)" : ""}</span></div>
+          <div class="kv">
+            <span>Pool id</span><span class="mono">{l().pool_id}</span>
+            <span>Token liquidity</span><span>{fmtT(l().lp_tokens)} ${l().symbol}</span>
+            <span>wNEAR liquidity</span><span>{fmtQ(l().total_raised)}</span>
+            <span>LP positions</span><span class="mono">{l().lpt_ids.join(", ") || "—"}</span>
+            <span>Fees waiting</span><span>{l().fee_balances.length ? l().fee_balances.map(([t, b]) => (t === l().quote_token_id ? fmtQ(b) : `${b} ${t}`)).join(", ") : "none"}</span>
+          </div>
+        </div>
+      </Show>
+
+      <Show when={isDemo} fallback={<TestnetActions l={l()} />}>
+        <div class="demo-bar stack">
+          <div class="row between"><h3>Demo controls</h3><span class="sub">Simulated chain. Time: {when(now())}</span></div>
+          <Show when={l().status === "Open"}>
+            <div class="row">
+              <button class="btn primary" onClick={() => act(() => demo.launchNow(l().id, l().launcher), "Launched: fills settled at one price, tokens locked, pool seeded.")}>Launch now (as {l().launcher})</button>
+              <button class="btn" onClick={() => act(() => demo.cancel(l().id, l().launcher), "Presale cancelled; deposits refundable.")}>Cancel presale</button>
+              <a class="btn ghost" href={`/deposit?id=${l().id}`}>Make a deposit →</a>
+            </div>
+          </Show>
+          <Show when={l().status === "Live"}>
+            <div class="grid g2">
+              <div class="stack">
+                <label class="field"><span>Simulate trading to an FDV (USD)</span>
+                  <div class="row" style={{ "flex-wrap": "nowrap" }}>
+                    <input value={fdvUsd()} onInput={(e) => setFdvUsd(e.currentTarget.value)} inputmode="numeric" />
+                    <button class="btn" onClick={() => act(() => demo.setPrice(l().id, toRaw((Number(fdvUsd()) / CONFIG.nearUsd).toFixed(6), 24)), `Pool price moved to ~$${Number(fdvUsd()).toLocaleString()} FDV (spot)`)}>Set price</button>
+                  </div>
+                </label>
+                <div class="sub">A spot move alone unlocks nothing. Keep it there for a full TWAP window.</div>
+              </div>
+              <div class="stack">
+                <div class="row">
+                  <button class="btn" onClick={() => act(() => demo.record(l().id), "Observation recorded")}>Poke observer</button>
+                  <button class="btn" onClick={() => act(() => demo.advance(l().id, l().twap.window_sec + l().twap.min_obs_interval_sec), "Advanced one TWAP window (auto-poked)")}>+{dur(l().twap.window_sec)} window</button>
+                  <button class="btn" onClick={() => act(() => demo.advance(l().id, 86400), "Advanced 1 day")}>+1 day</button>
+                </div>
+                <div class="row">
+                  <button class="btn primary" onClick={() => act(() => demo.qualify(l().id), (n) => `${n} milestone(s) qualified. Claim opens after ${dur(l().twap.claim_delay_sec)}.`)}>Qualify milestones</button>
+                  <a class="btn ghost" href={`/claim?id=${l().id}`}>Go to claim →</a>
+                </div>
+              </div>
+            </div>
+          </Show>
+          <Show when={l().status === "Cancelled" || (l().status === "Open" && now() >= l().sale_end)}>
+            <div class="notice">Presalers can withdraw their deposit on the <a class="link" href={`/deposit?id=${l().id}`}>deposit page</a>.</div>
+          </Show>
+        </div>
+      </Show>
+    </div>
+  );
+}
+
+function TestnetActions(p: { l: LaunchView }) {
+  return (
+    <div class="card">
+      <div class="card-title"><h3>Sign these yourself (NEAR CLI)</h3><span class="pill">testnet</span></div>
+      <p class="muted">This MVP has no wallet connection. Writes are shown as near-cli-rs commands you run with your own testnet key.</p>
+      <Show when={p.l.status === "Open"}>
+        <Cli title="Launch (launcher only)" cmd={cliCall(CONFIG.coordinator, "launch", { launch_id: p.l.id }, { deposit: "1 NEAR", signer: p.l.launcher })} />
+      </Show>
+      <Show when={p.l.status === "Launching"}>
+        <Cli title="Resume launch" cmd={cliCall(CONFIG.coordinator, "resume_launch", { launch_id: p.l.id }, { deposit: "0.5 NEAR" })} />
+      </Show>
+      <Show when={p.l.status === "Live"}>
+        <Cli title="Poke the TWAP observer" cmd={cliCall(CONFIG.lock, "record", { launch_id: p.l.id }, { gas: "60 Tgas" })} />
+        <Cli title="Qualify milestones" cmd={cliCall(CONFIG.lock, "qualify", { launch_id: p.l.id }, { gas: "30 Tgas" })} />
+      </Show>
+    </div>
+  );
+}
+
+export default function LaunchStatus() {
+  return <WithLaunch tab="launch">{(L) => <Body l={L()} />}</WithLaunch>;
+}

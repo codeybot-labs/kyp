@@ -1,0 +1,36 @@
+---
+import Base from "../layouts/Base.astro";
+const steps = [
+  ["Launcher sets terms", "Picks presalers (hashed invites), presale cap (≤ 50%), per-wallet limits, a window of up to 7 days, unlock milestones, TWAP rules, reveal waves and the fee split. The coordinator deploys the token with the full supply minted to itself."],
+  ["Presalers deposit wNEAR", "Each invited wallet deposits with its private invite code. Limits and the cap are enforced on-chain; any excess is refunded in the same transaction."],
+  ["One launch transaction", "The launcher calls launch. In one promise chain the coordinator prices every fill at the same opening price, sends all presale tokens into the lock, creates the RHEA DCL pool at that price, and seeds it with the remaining supply and all presale proceeds."],
+  ["Market-cap milestones", "Anyone can poke the lock to record the pool price and token supply. A tranche qualifies only when the time-weighted FDV over the public window stays above its target, with enough observations and liquidity. Then, after a short delay, every presaler can claim that tranche."],
+  ["Reveal waves", "After launch, presaler accounts are revealed on a fixed schedule, smallest first. Reserved slots for bigger names can be bought after launch at the same price and lock on the same terms."],
+  ["Fees flow back", "LP positions are owned by the coordinator and can't be removed. Fees and reserved-slot proceeds are split on-chain between holders, liquidity and competitions/bounties."],
+];
+---
+<Base title="How it works" active="/how-it-works">
+  <section class="hero" style="padding-bottom: 10px">
+    <h1>How KYP works</h1>
+    <p class="lead">An antidote to the race-to-dump meta: early supply goes to capable, committed hands, enforced by contracts rather than promises.</p>
+  </section>
+  <div class="grid g2">
+    {steps.map(([t, d], i) => (
+      <div class="card feature"><div class="ic">{i + 1}</div><div><h3>{t}</h3><p class="muted" style="margin-top:6px">{d}</p></div></div>
+    ))}
+  </div>
+  <div class="grid g2" style="margin-top: 16px">
+    <div class="card">
+      <h3>Why TWAP, not spot</h3>
+      <p class="muted" style="margin-top:8px">A thin meme pool can be pushed to any price for one block. KYP's lock averages the pool's price over a public window (e.g. 60 minutes, at least 6 observations spaced 5 minutes apart, with minimum liquidity), and qualified milestones only become claimable after a delay. A one-block spike barely moves the average.</p>
+    </div>
+    <div class="card">
+      <h3>What is public, and when</h3>
+      <p class="muted" style="margin-top:8px">Terms, sizes, slot counts and milestones: from day one. Who was invited: only salted hashes until reveal. Note that deposits are ordinary NEAR transactions, so a determined observer can see depositing accounts on-chain; the reveal waves are what KYP publishes and indexes, not cryptographic privacy.</p>
+    </div>
+  </div>
+  <div class="card" style="margin-top: 16px">
+    <h3>MVP scope</h3>
+    <p class="muted" style="margin-top:8px">Testnet only. The site runs in demo mode (a simulated chain in your browser) unless it is built with testnet contract accounts, in which case it reads live state and shows NEAR CLI commands for writes. No wallet connection yet. The pool step targets RHEA DCL's interface; tests run against a mock pool with the same methods.</p>
+  </div>
+</Base>

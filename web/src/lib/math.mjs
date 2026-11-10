@@ -65,14 +65,15 @@ export function twapPoint(obs, now, cfg) {
   return { ok: true, avg_point: Math.floor(acc / cfg.window_sec), observations: used.length };
 }
 
+const trim = (s) => (s.includes(".") ? s.replace(/\.?0+$/, "") : s);
 export function fmt(n, digits = 2) {
   if (!isFinite(n)) return "—";
   const abs = Math.abs(n);
-  if (abs >= 1e9) return (n / 1e9).toFixed(digits) + "B";
-  if (abs >= 1e6) return (n / 1e6).toFixed(digits) + "M";
-  if (abs >= 1e4) return (n / 1e3).toFixed(1) + "k";
-  if (abs >= 100) return n.toFixed(0);
-  return n.toFixed(digits);
+  if (abs >= 1e9) return trim((n / 1e9).toFixed(digits)) + "B";
+  if (abs >= 1e6) return trim((n / 1e6).toFixed(digits)) + "M";
+  if (abs >= 1e4) return trim((n / 1e3).toFixed(1)) + "k";
+  if (abs >= 100) return Math.round(n).toLocaleString("en-US");
+  return trim(n.toFixed(digits));
 }
 
 export function fmtUsd(n) {

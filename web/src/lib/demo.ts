@@ -170,7 +170,7 @@ async function seed(s: DemoState) {
   owl.view.revealed_waves = 1;
   // price history: a steady climb to ~8x the opening FDV over 30h
   const lock = owl.lock!;
-  for (let t = now - 30 * 3600; t <= now - 120; t += 1800) {
+  for (let t = now - 30 * 3600; t <= now - 120; t += 300) {
     const f = (t - (now - 30 * 3600)) / (30 * 3600);
     lock.observations.push({ ts: t, point: owl.view.init_point + Math.round(f * 20800), liquidity: "1000000000000000000000000000" });
   }
