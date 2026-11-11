@@ -64,6 +64,12 @@ dep "$ALICE" "1$Y" "$SALT_A"
 dep "$BOB" "1500000000000000000000000" "$SALT_B"
 tx launch "$COORD" launch "{\"launch_id\":$ID}" '1 NEAR' "$LAUNCHER"
 else ID=$LAUNCH_ID; fi
+# split pool steps (RHEA DCL): each ~920 Tgas pool deposit runs in its own resume_launch tx
+for i in 1 2 3 4 5; do
+  st=$(view "$COORD" get_launch "{\"launch_id\":$ID}" | python3 -c 'import json,sys;print(json.load(sys.stdin)["status"])')
+  [ "$st" = "Launching" ] || break
+  tx "resume_launch_$i" "$COORD" resume_launch "{\"launch_id\":$ID}" '0 NEAR' "$BOB" '1000 Tgas'
+done
 L=$(view "$COORD" get_launch "{\"launch_id\":$ID}")
 echo "$L" > /tmp/kyp-smoke-launch.json
 python3 - <<PY

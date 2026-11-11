@@ -36,18 +36,58 @@ Deploy txs: [deploy lock](https://testnet.nearblocks.io/txns/J9fSiH76ayuwBFbKJLQ
 
 Not exercised on testnet: reserved slots, fee distribution, refunds/withdraw (all covered in the sandbox integration test).
 
-## Real RHEA DCL (`dclv2.ref-dev.testnet`, v2.3.14) — blocked at pool deposit
+## Real RHEA DCL (`dclv2.ref-dev.testnet`, v2.3.14): working
 
-A second, separate instance points at the real testnet DCL: coordinator `kyp-sushmit-dcl.testnet`, lock `kyp-sushmit-dcl-lock.testnet` (`PREFIX=kyp-sushmit-dcl POOL=dcl ./scripts/deploy-testnet.sh`). It is **not** used by the site.
+A second, separate instance points at the real testnet DCL: coordinator `kyp-sushmit-dcl.testnet` ([explorer](https://testnet.nearblocks.io/address/kyp-sushmit-dcl.testnet)) and lock `kyp-sushmit-dcl-lock.testnet` ([explorer](https://testnet.nearblocks.io/address/kyp-sushmit-dcl-lock.testnet)). It was created with `PREFIX=kyp-sushmit-dcl POOL=dcl ./scripts/deploy-testnet.sh`. The site does not use it; it still reads the mock instance.
 
-Verified against the real contract:
-- `storage_deposit`: minimum is **0.5 NEAR** (`storage_balance_bounds`). Config now uses 0.5 NEAR for DCL.
-- `add_liquidity` **does not accept an attached deposit**, so `liquidity_deposit` must be 0 for DCL (config now does this).
-- Token deposits use `ft_transfer_call` with msg `"Deposit"` (`TokenReceiverMessage::Deposit`); an empty msg is not a deposit. Config now sets `pool_deposit_msg` to `"Deposit"` for DCL.
-- `create_pool` from the coordinator inside the launch tx **works**: pool `smk1-1.kyp-sushmit-dcl.testnet|wrap.testnet|10000` was created at the presale price (point −39200, 1% tier). No pool whitelist was needed.
-- `get_pool` JSON matches what the lock reads: `record` on the lock observed the real pool ([DqSV…](https://testnet.nearblocks.io/txns/DqSVjn5mWBzPKCTN9DuXCofXX5Z2QMiAEbWnDpbTL5XK)).
-- Settle + lock in the same tx also worked (125M SMK1 into `kyp-sushmit-dcl-lock.testnet`).
+### What the DCL needs (checked against the live contract)
+- `storage_deposit`: minimum is **0.5 NEAR**.
+- `add_liquidity` takes **no attached deposit** (`liquidity_deposit` = 0).
+- Token deposits are `ft_transfer_call` with msg `"Deposit"`.
+- `create_pool` works from the coordinator inside the `launch` tx, with no pool whitelist.
+- `get_pool` JSON matches what the lock reads.
+- Points: `right_point` must be **< 800000** and `right - left` **< 800000** (otherwise `E202: illegal point`). The coordinator now clamps both ranges (token range `init+200 … 760800` at `init = -39200`).
+- **Gas: one `"Deposit"` burns ~920.8 Tgas on this testnet contract**, for any token, any sender. Swaps cost ~18 Tgas.
 
-Blocker: on this testnet contract a plain `"Deposit"` via `ft_on_transfer` burns **~920 Tgas** — measured from a plain wallet with a 1 PGas tx ([7Lin…](https://testnet.nearblocks.io/txns/7Lini8VhaTqCyE4kVC1TSG2q44zBVatH9RWSdJRzp1eF)), and the same for an unrelated third-party deposit ([DzuU…](https://testnet.nearblocks.io/txns/DzuU4cfk7Jtd4bKgMoMyVBL69urUKWJr79uMos3oKBbc)). Swaps on the same contract cost ~18 Tgas, so it looks specific to the testnet deployment's deposit path. KYP gives each pool deposit 50 Tgas, so the launch halted at `pool_deposit` ([launch tx 8j5f…](https://testnet.nearblocks.io/txns/8j5fBGmi2mpv478CMKocSiqieCWqmxpaT5PAxpnyFaak)); the DCL refunded both tokens to the coordinator. Two ~920 Tgas deposits can't fit in one 1 PGas tx, so seeding a real testnet DCL pool would need the deposits split across separate resume txs with gas set per step — a coordinator code change, not done. Mainnet `dclv2.ref-labs.near` deposit gas is unmeasured.
+### Coordinator change (2026-11-11): split pool steps
+- New owner setting `set_step_gas({split_pool_steps, pool_deposit_tgas, add_liquidity_tgas})` / view `get_step_gas`. It is stored under its own storage key, so existing coordinators were upgraded in place with no state migration.
+  - Default `{false, 50, 25}` is the original flow: the mock launch still completes in one tx.
+  - DCL instance: `{true, 965, 100}`.
+- In split mode:
+  - The two pool deposits run one per step (token, then wNEAR), and the two `add_liquidity` ranges also run one per step.
+  - Before each step the coordinator checks the remaining gas. If the step doesn't fit, it emits `launch_paused {step, need_tgas}` and stops cleanly, keeping all progress.
+  - `resume_launch` (anyone, up to 1000 Tgas) continues from there.
+- Settlement at one price, lock funding and pool creation still happen in the `launch` tx itself.
+- DCL launch = `launch` (≈23 Tgas) + `resume_launch` ×3: token deposit (~931 Tgas), wNEAR deposit (~931 Tgas), both ranges (≈39 Tgas).
+- Tests: 5 new coordinator unit tests (setter/bounds, pause/resume to Live, one re-credited deposit per failed range, DCL point rules). New sandbox test `split_pool_steps_resume_to_live` checks launch → pause → 3 resumes → Live on the mock. All 57 unit + 2 sandbox tests pass.
+- Upgrade txs: [DCL coordinator](https://testnet.nearblocks.io/txns/4RBSUSQ18K4gxjp3GPwP9edBRpUBkdAxeMcPEExCwmJY), [mock coordinator](https://testnet.nearblocks.io/txns/AbCfaG9NwrtBrXV9SHCfgwYEhoqahHd6ww5sKzX8pDCt), [set_step_gas](https://testnet.nearblocks.io/txns/DiBg8dpSZGpuC7CsETFivSS8AWq38K5PQXWRiAdc9yVp). The mock coordinator keeps the defaults.
 
-State left on the DCL instance: launch #1 is `Launching` (pool created, presale tokens locked, 875M SMK1 + 2.5 wNEAR held by the coordinator). Test wallet `kyp-sushmit-a1.testnet` holds 0.1 wNEAR as an internal DCL deposit from the gas measurement.
+### Fresh launch #2 on the real DCL: passed
+Run with `PREFIX=kyp-sushmit-dcl POOLMODE=dcl WALLETS=kyp-sushmit RUN=2 ./scripts/smoke-testnet.sh`. Faucet wallets: `kyp-sushmit-l2`, `-a2`, `-b2` (`.testnet`).
+
+| Step | Result | Tx |
+| --- | --- | --- |
+| create_launch ($SMK2, same terms as #1) | Open | [GHXJ…](https://testnet.nearblocks.io/txns/GHXJ7LRjozk4KQVSNgWnUvTpxJT5ReJnkjTTodXHXKCc) |
+| deposits 1 + 1.5 wNEAR | accepted | [7Epn…](https://testnet.nearblocks.io/txns/7EpnbudF6ssQTwNudkV1oXHgWkX9tVkoMB9mfnNtiBp1), [5SwK…](https://testnet.nearblocks.io/txns/5SwkdSfMnSGakkLxmVDLFm8r88RL6iRbbZLWhyKjHWmT) |
+| launch: settle at one price, 125M SMK2 into the lock, real pool `smk2-2.kyp-sushmit-dcl.testnet\|wrap.testnet\|10000` created at point −39200, then `launch_paused` | ok | [Gq4e…](https://testnet.nearblocks.io/txns/Gq4efKMYBmQ2cQK2YCMeUVSfcEcooXTPnztgrmQGbRLJ) |
+| resume 1: 875M SMK2 deposited into the DCL | ok (931 Tgas) | [Bicv…](https://testnet.nearblocks.io/txns/BicvyLr7HXPobHsm3L4Y3w9LKo9TeuUHirhFhoeswgVf) |
+| resume 2: 2.5 wNEAR deposited | ok | [BSyK…](https://testnet.nearblocks.io/txns/BSyKVLYF52cWbVGio949EQ7cLLF73M52Lg3KHqPbSw2f) |
+| resume 3: both ranges added (LPT `#2574`, `#2575`), **Live** | ok | [4CnM…](https://testnet.nearblocks.io/txns/4CnMJxWPgx1TEiDxZbf1JA6y48iibU7Na7buoks9PyBx) |
+| DCL `get_pool` | `total_x` 874,999,999.9 SMK2, `total_y` 2.5 wNEAR, state Running | view |
+| lock `record` on the real pool | ok | [9Gfx…](https://testnet.nearblocks.io/txns/9GfxTp7s5EEGvad9SygExJ62pPrqnGwwv7PTJ4DMTqub) |
+| real swap: 0.2 wNEAR → 9.67M SMK2 (presaler A) | price moved −39200 → −38778 | [GBAk…](https://testnet.nearblocks.io/txns/GBAkv4CAVi3E3bjpYMJgLBMFTWCzLVVqmzHWVcuhVfFs) |
+| `record` ×9 more, then `twap_status` | ok: 4 obs in window, TWAP point −38778, FDV ≈ 20.7 wNEAR | e.g. [dpeQ…](https://testnet.nearblocks.io/txns/dpeQpxLKa4Rffi5WVA5oVXYB7j4PHEkjf3o2YkkbNfA) |
+
+Note: at the opening price the active liquidity is 0. The token range starts one point-delta above the price and the wNEAR range ends at it. So `twap_status` reports `pool liquidity below minimum` until the first trade, and observations taken before that trade count against the window.
+
+### Stuck launch #1 on the DCL instance: recovered
+After the upgrade + `set_step_gas`:
+- [resume: token deposit](https://testnet.nearblocks.io/txns/Hj3N9ZK65tXMXcF54QSPh4cwwnzxYQjpGq8YUrFDMYoT)
+- [resume: wNEAR deposit](https://testnet.nearblocks.io/txns/EvPYFNqHF5Ci5sww8AxboC25m3nsMKmcmWnnVZEREEUk)
+- [resume: add_liquidity, which failed with E202](https://testnet.nearblocks.io/txns/8qSjNncgCBqVCEMnpkpWEqN9kqstLmuRRjUDXc9c3yrj). This found the point rule. The failure was handled: halted, nothing lost.
+- After the range fix: [resume: both ranges, Live](https://testnet.nearblocks.io/txns/BvAPTe564McHrX57Sh3FRFcAgyAuBdCF9Sdrf4E8rQhi). LPTs `#2572`, `#2573`.
+
+Leftovers:
+- The DCL refunded ~1e8 yocto-SMK dust to the coordinator per launch (rounding).
+- Test wallet `kyp-sushmit-a1.testnet` still has a 0.1 wNEAR internal DCL deposit from the earlier gas measurement ([7Lin…](https://testnet.nearblocks.io/txns/7Lini8VhaTqCyE4kVC1TSG2q44zBVatH9RWSdJRzp1eF)).
+- Mainnet `dclv2.ref-labs.near` deposit gas is still unmeasured.

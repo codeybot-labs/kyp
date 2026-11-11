@@ -62,6 +62,15 @@ near contract deploy "$COORD" use-file res/kyp_coordinator.wasm with-init-call n
 near contract call-function as-transaction "$COORD" set_token_code file-args res/kyp_token.wasm \
   prepaid-gas '100 Tgas' attached-deposit '0 NEAR' sign-as "$COORD" $NET $SIGN
 
+# RHEA DCL: each pool deposit burns ~920 Tgas on testnet, so run the pool deposits and the two
+# add_liquidity ranges as separate steps; `launch` pauses after create_pool and
+# `resume_launch` (1000 Tgas) finishes it, one deposit per transaction.
+if [ "$POOL" != "mock" ]; then
+  near contract call-function as-transaction "$COORD" set_step_gas \
+    json-args '{"step_gas":{"split_pool_steps":true,"pool_deposit_tgas":965,"add_liquidity_tgas":100}}' \
+    prepaid-gas '30 Tgas' attached-deposit '0 NEAR' sign-as "$COORD" $NET $SIGN
+fi
+
 # register the coordinator (and the mock pool) on wNEAR so they can receive deposits
 for a in "$COORD" "$MOCKPOOL"; do
   [ "$POOL" != "mock" ] && [ "$a" = "$MOCKPOOL" ] && continue

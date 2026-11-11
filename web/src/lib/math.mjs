@@ -76,6 +76,11 @@ export function fmt(n, digits = 2) {
   return trim(n.toFixed(digits));
 }
 
+/** wNEAR amounts: never round below 2 decimals, so 1.5 shows as 1.5 (not 2). */
+export function fmtQuoteAmount(n, digits = 2) {
+  return fmt(n, Math.max(digits, 2));
+}
+
 export function fmtUsd(n) {
   if (!isFinite(n)) return "—";
   return "$" + fmt(n, n >= 1e6 ? 1 : 2);

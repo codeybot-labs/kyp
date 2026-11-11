@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { tokensForQuote, fdvAtPoint, pointForFdv, waveOf, twapPoint, toRaw, units, slotHash, DEFAULT_SUPPLY } from "./math.mjs";
+import { tokensForQuote, fdvAtPoint, pointForFdv, waveOf, twapPoint, toRaw, units, slotHash, DEFAULT_SUPPLY, fmtQuoteAmount } from "./math.mjs";
 
 const NEAR = 10n ** 24n;
 
@@ -38,4 +38,12 @@ test("slot hash matches contract format sha256('account:salt')", async () => {
   // sha256("alice.testnet:s1")
   const h = await slotHash("alice.testnet", "s1");
   assert.equal(h.length, 64);
+});
+
+test("wNEAR amounts keep their decimals (1.5 is not shown as 2)", () => {
+  assert.equal(fmtQuoteAmount(1.5, 0), "1.5");
+  assert.equal(fmtQuoteAmount(2.5, 0), "2.5");
+  assert.equal(fmtQuoteAmount(0.25), "0.25");
+  assert.equal(fmtQuoteAmount(150, 0), "150");
+  assert.equal(fmtQuoteAmount(2500, 0), "2,500");
 });

@@ -73,7 +73,7 @@ function Body(p: { l: LaunchView }) {
             </For>
           </ul>
           <Show when={l().status === "Launching"}>
-            <div class="notice warn" style={{ "margin-top": "10px" }}>A step stopped. Anyone can call <code>resume_launch</code>; it continues from the first incomplete step. Presale tokens never leave the coordinator/lock.</div>
+            <div class="notice warn" style={{ "margin-top": "10px" }}>The launch is paused or a step stopped. Anyone can call <code>resume_launch</code> (up to 1000 Tgas); it continues from the first incomplete step. On the RHEA DCL each pool deposit needs its own transaction. Presale tokens are already settled at one price and locked.</div>
           </Show>
         </div>
       </div>
@@ -154,7 +154,7 @@ function TestnetActions(p: { l: LaunchView }) {
         <Cli title="Launch (launcher only)" cmd={cliCall(CONFIG.coordinator, "launch", { launch_id: p.l.id }, { deposit: "0.3 NEAR", signer: p.l.launcher })} />
       </Show>
       <Show when={p.l.status === "Launching"}>
-        <Cli title="Resume launch" cmd={cliCall(CONFIG.coordinator, "resume_launch", { launch_id: p.l.id }, { deposit: "0.2 NEAR" })} />
+        <Cli title="Resume launch" cmd={cliCall(CONFIG.coordinator, "resume_launch", { launch_id: p.l.id }, { deposit: "0 NEAR", gas: "1000 Tgas" })} />
       </Show>
       <Show when={p.l.status === "Live"}>
         <Cli title="Poke the TWAP observer" cmd={cliCall(CONFIG.lock, "record", { launch_id: p.l.id }, { gas: "100 Tgas" })} />

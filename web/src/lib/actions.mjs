@@ -7,7 +7,7 @@ export const ONE_YOCTO = "1";
 const NEAR = 10n ** 24n;
 const g = (t) => (BigInt(t) * TGAS).toString();
 const fc = (method, args, tgas, deposit = "0") => ({ method, args, gas: g(tgas), deposit: String(deposit) });
-const MAX_TX_GAS = 300n * TGAS;
+const MAX_TX_GAS = 1000n * TGAS; // NEAR per-transaction gas limit (1 PGas)
 
 /** Extra NEAR attached to create_launch on top of token_account_deposit, for the launch record's storage. */
 export const CREATE_STORAGE_BUFFER = (NEAR / 10n).toString(); // 0.1 NEAR
@@ -25,7 +25,7 @@ export function launchNearNeeded(cfg) {
 }
 
 export const launchTx = (coordinator, launchId, nearNeeded) => ({ receiverId: coordinator, actions: [fc("launch", { launch_id: launchId }, 300, nearNeeded)] });
-export const resumeLaunchTx = (coordinator, launchId, deposit = "0") => ({ receiverId: coordinator, actions: [fc("resume_launch", { launch_id: launchId }, 300, deposit)] });
+export const resumeLaunchTx = (coordinator, launchId, deposit = "0") => ({ receiverId: coordinator, actions: [fc("resume_launch", { launch_id: launchId }, 1000, deposit)] });
 export const cancelLaunchTx = (coordinator, launchId) => ({ receiverId: coordinator, actions: [fc("cancel_launch", { launch_id: launchId }, 30)] });
 export const withdrawTx = (coordinator, launchId) => ({ receiverId: coordinator, actions: [fc("withdraw", { launch_id: launchId }, 60)] });
 export const revealTx = (coordinator, launchId) => ({ receiverId: coordinator, actions: [fc("reveal_next_wave", { launch_id: launchId }, 30)] });

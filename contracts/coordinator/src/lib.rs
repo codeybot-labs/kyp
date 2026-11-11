@@ -27,7 +27,7 @@ pub use types::*;
 use kyp_common::{
     aligned_bounds, assert_valid_milestones, dcl_pool_id, init_point_for_fdv, mul_div,
     tokens_for_quote, LockAddMsg, LockFundMsg, LockMsg, BPS_DENOM, DEFAULT_DECIMALS,
-    DEFAULT_TOTAL_SUPPLY, MAX_PRESALE_CAP_BPS, MAX_PRESALERS, MAX_SALE_WINDOW_SEC,
+    DEFAULT_TOTAL_SUPPLY, MAX_POINT, MAX_PRESALE_CAP_BPS, MAX_PRESALERS, MAX_SALE_WINDOW_SEC,
 };
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::{self, json};
@@ -47,6 +47,9 @@ const GAS_ADD_LIQUIDITY: Gas = Gas::from_tgas(25);
 const GAS_CB: Gas = Gas::from_tgas(10);
 const GAS_CB_ADD: Gas = Gas::from_tgas(10);
 const GAS_CB_SMALL: Gas = Gas::from_tgas(5);
+/// Kept free when checking whether a split step fits in the remaining gas.
+const GAS_STEP_RESERVE: Gas = Gas::from_tgas(5);
+const STEP_GAS_KEY: &[u8] = b"step_gas";
 
 #[near(serializers = [borsh])]
 #[derive(BorshStorageKey)]
@@ -118,6 +121,21 @@ impl Contract {
 
     pub fn get_config(&self) -> PlatformConfig {
         self.config.clone()
+    }
+
+    /// Owner sets per-step gas for the pool steps (see `StepGas`). Applies to launches that are
+    /// launching now or later.
+    pub fn set_step_gas(&mut self, step_gas: StepGas) {
+        require!(env::predecessor_account_id() == self.owner_id, "owner only");
+        require!(step_gas.pool_deposit_tgas >= 20 && step_gas.pool_deposit_tgas <= 990, "pool_deposit_tgas 20-990");
+        require!(step_gas.add_liquidity_tgas >= 10 && step_gas.add_liquidity_tgas <= 990, "add_liquidity_tgas 10-990");
+        env::storage_write(STEP_GAS_KEY, &near_sdk::borsh::to_vec(&step_gas).unwrap());
+    }
+
+    pub fn get_step_gas(&self) -> StepGas {
+        env::storage_read(STEP_GAS_KEY)
+            .and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+            .unwrap_or_default()
     }
 
     pub fn has_token_code(&self) -> bool {
@@ -485,10 +503,14 @@ impl Contract {
 
     /// The add_liquidity ranges: (left, right, amount_x, amount_y) for token side and quote side.
     pub(crate) fn liquidity_ranges(l: &Launch, point_delta: i32) -> [(i32, i32, u128, u128); 2] {
+        // RHEA DCL (iZi-style) rejects right_point >= MAX_POINT and ranges with
+        // right - left >= MAX_POINT ("E202: illegal point"), checked on dclv2.ref-dev.testnet.
         let (lo, hi) = aligned_bounds(point_delta);
+        let hi = if hi >= MAX_POINT { hi - point_delta } else { hi };
+        let max_width = (MAX_POINT - 1).div_euclid(point_delta) * point_delta;
         let a = l.init_point;
-        let above = (a + point_delta, hi);
-        let below = (lo, a);
+        let above = (a + point_delta, hi.min(a + point_delta + max_width));
+        let below = (lo.max(a - max_width), a);
         let (tok, quo) = (l.lp_tokens, l.total_raised);
         if l.token_is_x {
             // x-only above the price (token for sale), y-only below (quote bids)
@@ -534,6 +556,23 @@ impl Contract {
                     .then(Self::ext(me).with_static_gas(GAS_CB).with_unused_gas_weight(1).on_pool_created(launch_id)),
             );
         }
+        let sg = self.get_step_gas();
+        if sg.split_pool_steps && (!p.token_deposited || !p.quote_deposited) {
+            // one deposit per step: token side first, then the presale proceeds
+            let (which, token, amount, step) = if !p.token_deposited {
+                (0u8, l.token_id.clone(), l.lp_tokens, "pool_deposit_token")
+            } else {
+                (1u8, l.quote_token_id.clone(), l.total_raised, "pool_deposit_quote")
+            };
+            let g = Gas::from_tgas(sg.pool_deposit_tgas);
+            if !Self::fits(g.saturating_add(GAS_CB)) {
+                return self.pause(launch_id, step, g.saturating_add(GAS_CB));
+            }
+            return PromiseOrValue::Promise(
+                Self::deposit_to_pool_gas(&token, &l.pool_contract, amount, &cfg.pool_deposit_msg, g)
+                    .then(Self::ext(me).with_static_gas(GAS_CB).with_unused_gas_weight(1).on_deposited(launch_id, vec![which])),
+            );
+        }
         if !p.token_deposited || !p.quote_deposited {
             let mut which: Vec<u8> = vec![];
             let mut promise: Option<Promise> = None;
@@ -555,24 +594,29 @@ impl Contract {
                     .then(Self::ext(me).with_static_gas(GAS_CB).with_unused_gas_weight(1).on_deposited(launch_id, which)),
             );
         }
+        if sg.split_pool_steps && !p.liquidity_added {
+            // one range per step; lpt_ids.len() = ranges already added
+            let ranges = Self::liquidity_ranges(&l, cfg.point_delta);
+            let i = l.lpt_ids.len().min(ranges.len() - 1);
+            let g = Gas::from_tgas(sg.add_liquidity_tgas);
+            if !Self::fits(g.saturating_add(GAS_CB_ADD)) {
+                return self.pause(launch_id, "add_liquidity", g.saturating_add(GAS_CB_ADD));
+            }
+            let (left, right, ax, ay) = ranges[i];
+            let d = self.spend(launch_id, cfg.liquidity_deposit);
+            return PromiseOrValue::Promise(
+                Promise::new(l.pool_contract.clone())
+                    .function_call("add_liquidity", Self::add_liquidity_args(&l.pool_id, left, right, ax, ay), d, g)
+                    .then(Self::ext(me).with_static_gas(GAS_CB_ADD).with_unused_gas_weight(1).on_liquidity_added(launch_id)),
+            );
+        }
         if !p.liquidity_added {
             let ranges = Self::liquidity_ranges(&l, cfg.point_delta);
             let d1 = self.spend(launch_id, cfg.liquidity_deposit);
             let d2 = self.spend(launch_id, cfg.liquidity_deposit);
             let mut pr = Promise::new(l.pool_contract.clone());
             for ((left, right, ax, ay), d) in ranges.iter().zip([d1, d2]) {
-                pr = pr.function_call(
-                    "add_liquidity",
-                    json!({
-                        "pool_id": l.pool_id, "left_point": left, "right_point": right,
-                        "amount_x": U128(*ax), "amount_y": U128(*ay),
-                        "min_amount_x": U128(0), "min_amount_y": U128(0)
-                    })
-                    .to_string()
-                    .into_bytes(),
-                    d,
-                    GAS_ADD_LIQUIDITY,
-                );
+                pr = pr.function_call("add_liquidity", Self::add_liquidity_args(&l.pool_id, *left, *right, *ax, *ay), d, GAS_ADD_LIQUIDITY);
             }
             return PromiseOrValue::Promise(pr.then(Self::ext(me).with_static_gas(GAS_CB_ADD).on_liquidity_added(launch_id)));
         }
@@ -593,12 +637,37 @@ impl Contract {
     }
 
     fn deposit_to_pool(token: &AccountId, pool: &AccountId, amount: u128, msg: &str) -> Promise {
+        Self::deposit_to_pool_gas(token, pool, amount, msg, GAS_FT_TRANSFER_CALL_POOL)
+    }
+
+    fn deposit_to_pool_gas(token: &AccountId, pool: &AccountId, amount: u128, msg: &str, gas: Gas) -> Promise {
         Promise::new(token.clone()).function_call(
             "ft_transfer_call",
             json!({"receiver_id": pool, "amount": U128(amount), "msg": msg}).to_string().into_bytes(),
             NearToken::from_yoctonear(1),
-            GAS_FT_TRANSFER_CALL_POOL,
+            gas,
         )
+    }
+
+    fn add_liquidity_args(pool_id: &str, left: i32, right: i32, ax: u128, ay: u128) -> Vec<u8> {
+        json!({
+            "pool_id": pool_id, "left_point": left, "right_point": right,
+            "amount_x": U128(ax), "amount_y": U128(ay),
+            "min_amount_x": U128(0), "min_amount_y": U128(0)
+        })
+        .to_string()
+        .into_bytes()
+    }
+
+    /// Does `need` (plus a small reserve) fit in this receipt's remaining gas?
+    fn fits(need: Gas) -> bool {
+        env::prepaid_gas().saturating_sub(env::used_gas()) >= need.saturating_add(GAS_STEP_RESERVE)
+    }
+
+    /// Stop the chain cleanly (progress so far is kept); `resume_launch` with enough gas continues.
+    fn pause(&mut self, launch_id: u64, step: &str, need: Gas) -> PromiseOrValue<bool> {
+        emit("launch_paused", json!({"launch_id": launch_id, "step": step, "need_tgas": need.as_tgas() + GAS_STEP_RESERVE.as_tgas() + 5}));
+        PromiseOrValue::Value(false)
     }
 
     fn halt(&mut self, launch_id: u64, step: &str) -> PromiseOrValue<bool> {
@@ -660,14 +729,17 @@ impl Contract {
     pub fn on_liquidity_added(&mut self, launch_id: u64, #[callback_result] res: Result<String, PromiseError>) -> PromiseOrValue<bool> {
         match res {
             Ok(lpt) => {
+                let split = self.get_step_gas().split_pool_steps;
                 let l = self.launches.get_mut(&launch_id).unwrap();
-                l.progress.liquidity_added = true;
                 l.lpt_ids.push(lpt);
+                // batch mode adds both ranges at once; split mode one range per step
+                l.progress.liquidity_added = !split || l.lpt_ids.len() >= 2;
                 self.next_step(launch_id)
             }
             Err(_) => {
                 // batch is atomic: NEAR deposits came back; re-credit the budget
-                let d = 2 * self.config.liquidity_deposit.as_yoctonear();
+                let n = if self.get_step_gas().split_pool_steps { 1 } else { 2 };
+                let d = n * self.config.liquidity_deposit.as_yoctonear();
                 self.launches.get_mut(&launch_id).unwrap().near_budget += d;
                 self.halt(launch_id, "add_liquidity")
             }

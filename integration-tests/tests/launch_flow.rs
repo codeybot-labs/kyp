@@ -289,3 +289,123 @@ async fn full_launch_flow() -> anyhow::Result<()> {
     assert_eq!(ft_balance(&wrap, bounties.id().as_str()).await?, 10 * NEAR);
     Ok(())
 }
+
+/// RHEA DCL mode on the sandbox: `split_pool_steps` puts each pool deposit in its own
+/// transaction (as needed for the ~920 Tgas testnet DCL deposit) and `resume_launch` finishes
+/// the launch. Settlement + lock still happen in the `launch` transaction at one price.
+#[tokio::test]
+async fn split_pool_steps_resume_to_live() -> anyhow::Result<()> {
+    let worker = near_workspaces::sandbox().await?;
+    let root = worker.root_account()?;
+    let mk = |name: &'static str, near: u128| {
+        let root = root.clone();
+        async move { root.create_subaccount(name).initial_balance(NearToken::from_near(near)).transact().await.map(|r| r.into_result().unwrap()) }
+    };
+    let launcher = mk("launcher", 50).await?;
+    let alice = mk("alice", 10).await?;
+    let bob = mk("bob", 10).await?;
+    let keeper = mk("keeper", 10).await?;
+    let coord_acc = mk("kyp", 60).await?;
+    let lock_acc = mk("lock", 20).await?;
+    let pool_acc = mk("pool", 20).await?;
+    let wrap_acc = mk("wrap", 20).await?;
+    let coord = coord_acc.deploy(&wasm("kyp_coordinator")).await?.into_result()?;
+    let lock = lock_acc.deploy(&wasm("kyp_lock")).await?.into_result()?;
+    let pool = pool_acc.deploy(&wasm("kyp_mock_pool")).await?.into_result()?;
+    let wrap = wrap_acc.deploy(&wasm("kyp_token")).await?.into_result()?;
+    let everyone: Vec<String> = [&launcher, &alice, &bob, &coord_acc, &lock_acc, &pool_acc].iter().map(|a| a.id().to_string()).collect();
+    wrap.call("new")
+        .args_json(json!({"owner_id": root.id(), "total_supply": (1_000_000 * NEAR).to_string(),
+            "metadata": {"spec": "ft-1.0.0", "name": "wNEAR", "symbol": "wNEAR", "decimals": 24},
+            "register": everyone, "auto_register_senders": []}))
+        .transact().await?.into_result()?;
+    for a in [&alice, &bob] {
+        root.call(wrap.id(), "ft_transfer").args_json(json!({"receiver_id": a.id(), "amount": (100 * NEAR).to_string()}))
+            .deposit(NearToken::from_yoctonear(1)).transact().await?.into_result()?;
+    }
+    lock.call("new").args_json(json!({"coordinator": coord.id()})).transact().await?.into_result()?;
+    pool.call("new").args_json(json!({"owner_id": root.id()})).transact().await?.into_result()?;
+    coord.call("new").args_json(json!({"owner_id": coord.id(), "config": {
+        "lock_contract": lock.id(), "pool_contract": pool.id(), "pool_fee": 10000, "point_delta": 200,
+        "allowed_quote_tokens": [wrap.id()], "max_presale_cap_bps": 5000,
+        "token_account_deposit": NearToken::from_millinear(2500), "pool_storage_deposit": NearToken::from_millinear(500),
+        "pool_create_deposit": NearToken::from_millinear(100), "liquidity_deposit": NearToken::from_millinear(0),
+        "pool_deposit_msg": "\"Deposit\""}})).transact().await?.into_result()?;
+    coord.call("set_token_code").args(wasm("kyp_token")).gas(Gas::from_tgas(100)).transact().await?.into_result()?;
+    // each deposit needs ~all of a 300 Tgas tx -> one deposit per transaction
+    coord.call("set_step_gas").args_json(json!({"step_gas": {"split_pool_steps": true, "pool_deposit_tgas": 250, "add_liquidity_tgas": 30}}))
+        .transact().await?.into_result()?;
+
+    let t0 = now_sec(&worker).await?;
+    let params = json!({
+        "name": "Split", "symbol": "SPL", "icon": null, "description": "", "terms_uri": null,
+        "quote_token_id": wrap.id(), "total_supply": null, "decimals": null,
+        "opening_fdv_quote": (2_500 * NEAR).to_string(), "presale_cap_bps": 2000,
+        "min_raise": (10 * NEAR).to_string(), "wallet_min": NEAR.to_string(), "wallet_max": (100 * NEAR).to_string(),
+        "allowlist": [slot_hash(alice.id().as_str(), "a"), slot_hash(bob.id().as_str(), "b")], "reserved": [],
+        "sale_start": t0, "sale_end": t0 + 86_400,
+        "milestones": [{"target_fdv_quote": (10_000 * NEAR).to_string(), "unlock_bps": 10000}],
+        "twap": {"window_sec": 60, "min_observations": 3, "min_liquidity": "1", "claim_delay_sec": 5, "min_obs_interval_sec": 2},
+        "reveal": {"waves": 1, "interval_sec": 60},
+        "fee_split": {"holders_bps": 5000, "liquidity_bps": 3000, "community_bps": 2000,
+            "holders_account": launcher.id(), "liquidity_account": launcher.id(), "community_account": launcher.id()}
+    });
+    let r = launcher.call(coord.id(), "create_launch").args_json(json!({"params": params}))
+        .deposit(NearToken::from_millinear(2600)).gas(Gas::from_tgas(300)).transact().await?;
+    assert!(r.is_success(), "{:?}", r.failures());
+    let token_id = format!("spl-1.{}", coord.id());
+    let token = Contract::from_secret_key(token_id.parse()?, coord_acc.secret_key().clone(), &worker);
+    deposit(&wrap, &alice, &coord, 10 * NEAR, json!({"Deposit": {"launch_id": 1, "salt": "a"}})).await?;
+    deposit(&wrap, &bob, &coord, 30 * NEAR, json!({"Deposit": {"launch_id": 1, "salt": "b"}})).await?;
+
+    let status = |label: &'static str| {
+        let coord = coord.clone();
+        async move {
+            let v: Value = coord.view("get_launch").args_json(json!({"launch_id": 1})).await?.json()?;
+            println!("{label}: status={} progress={}", v["status"], v["progress"]);
+            anyhow::Ok(v)
+        }
+    };
+    // launch tx: settle + lock + create pool, then pause before the big deposit
+    let r = launcher.call(coord.id(), "launch").args_json(json!({"launch_id": 1}))
+        .deposit(NearToken::from_near(1)).gas(Gas::from_tgas(300)).transact().await?;
+    assert!(r.is_success(), "{:?}", r.failures());
+    assert!(r.logs().iter().any(|l| l.contains("launch_paused")), "launch should pause, not fail");
+    let v = status("after launch").await?;
+    assert_eq!(v["status"], "Launching");
+    assert_eq!(v["progress"]["lock_funded"], true);
+    assert_eq!(v["progress"]["pool_created"], true);
+    assert_eq!(v["progress"]["token_deposited"], false);
+    let presale_tokens = u(&v["presale_tokens"]);
+    assert_eq!(presale_tokens, SUPPLY * 40 / 2_500, "one price: 40 wNEAR at 2,500 wNEAR FDV");
+    assert_eq!(ft_balance(&token, lock.id().as_str()).await?, presale_tokens, "lock funded in the launch tx");
+
+    let resume = |n: u32| {
+        let keeper = keeper.clone();
+        let cid = coord.id().clone();
+        async move {
+            let r = keeper.call(&cid, "resume_launch").args_json(json!({"launch_id": 1})).gas(Gas::from_tgas(300)).transact().await?;
+            assert!(r.is_success(), "resume {n}: {:?}", r.failures());
+            anyhow::Ok(r)
+        }
+    };
+    resume(1).await?;
+    let v = status("after resume 1").await?;
+    assert_eq!(v["progress"]["token_deposited"], true);
+    assert_eq!(v["progress"]["quote_deposited"], false, "quote deposit is its own tx");
+    resume(2).await?;
+    let v = status("after resume 2").await?;
+    assert_eq!(v["progress"]["quote_deposited"], true);
+    resume(3).await?;
+    let v = status("after resume 3").await?;
+    assert_eq!(v["status"], "Live");
+    assert_eq!(v["lpt_ids"].as_array().map(|a| a.len()), Some(2));
+    assert_eq!(ft_balance(&token, pool.id().as_str()).await?, u(&v["lp_tokens"]));
+    assert_eq!(ft_balance(&wrap, pool.id().as_str()).await?, 40 * NEAR);
+    // the lock reads the pool
+    let r = keeper.call(lock.id(), "record").args_json(json!({"launch_id": 1})).gas(Gas::from_tgas(60)).transact().await?;
+    assert!(r.is_success());
+    let obs: Value = lock.view("get_observations").args_json(json!({"launch_id": 1})).await?.json()?;
+    assert_eq!(obs.as_array().unwrap().len(), 1);
+    Ok(())
+}

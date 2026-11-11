@@ -2,13 +2,13 @@ import { createResource, createSignal, onCleanup, Show, For, type JSX } from "so
 import { api } from "../lib/source";
 import { onDemoChange } from "../lib/demo";
 import { CONFIG, NETWORK_LABEL } from "../lib/config";
-import { units, fmt, fmtUsd, fdvAtPoint } from "../lib/math.mjs";
+import { units, fmt, fmtQuoteAmount, fmtUsd, fdvAtPoint } from "../lib/math.mjs";
 import type { LaunchView, LaunchStatus } from "../lib/model";
 import { account, connect, signAndSend, type Tx as WalletTx } from "../lib/wallet";
 
 export const quote = (raw: string | bigint | number) => units(BigInt(raw), 24);
 export const tok = (raw: string | bigint) => units(BigInt(raw), 18);
-export const fmtQ = (raw: string | bigint, d = 2) => `${fmt(quote(raw), d)} wNEAR`;
+export const fmtQ = (raw: string | bigint, d = 2) => `${fmtQuoteAmount(quote(raw), d)} wNEAR`;
 export const fmtT = (raw: string | bigint) => fmt(tok(raw), 2);
 export const usdOf = (raw: string | bigint | number) => fmtUsd(quote(raw) * CONFIG.nearUsd);
 export const pct = (bps: number) => `${(bps / 100).toLocaleString(undefined, { maximumFractionDigits: 2 })}%`;

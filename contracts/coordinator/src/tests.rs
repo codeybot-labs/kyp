@@ -452,6 +452,29 @@ fn liquidity_ranges_single_sided_around_price() {
 }
 
 #[test]
+fn liquidity_ranges_fit_dcl_point_rules() {
+    // DCL: right_point < 800_000, right - left < 800_000, multiples of point_delta
+    let mut c = new_contract();
+    go_live(&mut c);
+    for init in [-39_200, 0, -400_000, 400_000, 799_000, -799_000] {
+        let mut l = c.launches.get(&1).unwrap().clone();
+        l.init_point = init;
+        for is_x in [true, false] {
+            l.token_is_x = is_x;
+            for (left, right, _, _) in Contract::liquidity_ranges(&l, 200) {
+                assert!(left >= -800_000 && right < 800_000 && left < right, "{init} {left}..{right}");
+                assert!(right - left < 800_000, "width {init} {left}..{right}");
+                assert!(left % 200 == 0 && right % 200 == 0);
+            }
+        }
+    }
+    let l = c.launches.get(&1).unwrap().clone();
+    let r = Contract::liquidity_ranges(&l, 200);
+    assert_eq!(r[0].0, l.init_point + 200, "token range starts one delta above the price");
+    assert_eq!(r[1].1, l.init_point, "quote range ends at the price");
+}
+
+#[test]
 fn fees_split_and_failed_legs_recredited() {
     let mut c = new_contract();
     go_live(&mut c);
@@ -484,4 +507,128 @@ fn hash_helper_matches() {
     let c = new_contract();
     assert_eq!(c.hash_slot(acc("alice.testnet"), "s1".into()), h("alice.testnet", "s1"));
     assert_eq!(from_hex(&h("a.testnet", "x")), slot_hash(&acc("a.testnet"), "x"));
+}
+
+// ------------------------------------------------------------------ split pool steps (RHEA DCL)
+
+fn set_gas(pred: &str, ts: u64, deposit: u128, tgas: u64) {
+    testing_env!(ctx(pred, ts, deposit).prepaid_gas(Gas::from_tgas(tgas)).build());
+}
+
+fn set_results_gas(pred: &str, ts: u64, tgas: u64, results: Vec<PromiseResult>) {
+    testing_env!(
+        ctx(pred, ts, 0).prepaid_gas(Gas::from_tgas(tgas)).build(),
+        near_sdk::test_vm_config(),
+        near_sdk::RuntimeFeesConfig::test(),
+        Default::default(),
+        results
+    );
+}
+
+fn dcl_gas() -> StepGas {
+    StepGas { split_pool_steps: true, pool_deposit_tgas: 965, add_liquidity_tgas: 100 }
+}
+
+#[test]
+fn step_gas_defaults_and_owner_only_setter() {
+    let mut c = new_contract();
+    assert_eq!(c.get_step_gas(), StepGas::default());
+    assert!(!c.get_step_gas().split_pool_steps);
+    set("owner.testnet", T0, 0);
+    c.set_step_gas(dcl_gas());
+    assert_eq!(c.get_step_gas(), dcl_gas());
+}
+
+#[test]
+#[should_panic(expected = "owner only")]
+fn step_gas_owner_only() {
+    let mut c = new_contract();
+    set("mallory.testnet", T0, 0);
+    c.set_step_gas(dcl_gas());
+}
+
+#[test]
+#[should_panic(expected = "pool_deposit_tgas 20-990")]
+fn step_gas_bounds() {
+    let mut c = new_contract();
+    set("owner.testnet", T0, 0);
+    c.set_step_gas(StepGas { split_pool_steps: true, pool_deposit_tgas: 2000, add_liquidity_tgas: 100 });
+}
+
+#[test]
+fn split_steps_pause_and_resume_one_step_per_tx_to_live() {
+    let mut c = new_contract();
+    set("owner.testnet", T0, 0);
+    c.set_step_gas(dcl_gas());
+    launch_ready(&mut c);
+    // launch tx (300 Tgas): settle at one price + fund the lock + create the pool
+    set_gas("launcher.testnet", T0 + 100, NearToken::from_near(1).as_yoctonear(), 300);
+    let _ = c.launch(1);
+    let v = c.get_launch(1).unwrap();
+    let per_near = SUPPLY / 2_500;
+    for p in c.get_presalers(1) {
+        assert_eq!(p.tokens.0, p.quote.0 / NEAR * per_near, "one price for everyone");
+    }
+    set_results_gas("kyp.testnet", T0 + 101, 250, vec![]);
+    assert!(matches!(c.on_lock_funded(1, Ok(v.presale_tokens)), PromiseOrValue::Promise(_)), "pool creation follows lock funding");
+    // the ~965 Tgas token deposit can't fit in the rest of the launch tx: pause, keep progress
+    set_results_gas("kyp.testnet", T0 + 101, 200, vec![]);
+    let r = c.on_pool_created(1, Ok(v.pool_id.clone()));
+    assert!(matches!(r, PromiseOrValue::Value(false)));
+    let l = c.get_launch(1).unwrap();
+    assert_eq!(l.status, LaunchStatus::Launching);
+    assert!(l.progress.lock_funded && l.progress.pool_created && !l.progress.token_deposited);
+    // resume with too little gas pauses again (no panic, nothing lost)
+    set_gas("keeper.testnet", T0 + 150, 0, 300);
+    assert!(matches!(c.resume_launch(1), PromiseOrValue::Value(false)));
+    // resume tx 1 (1 PGas): token deposit only
+    set_gas("keeper.testnet", T0 + 200, 0, 1000);
+    assert!(matches!(c.resume_launch(1), PromiseOrValue::Promise(_)));
+    let lp = serde_json::to_vec(&v.lp_tokens).unwrap();
+    set_results_gas("kyp.testnet", T0 + 201, 10, vec![PromiseResult::Successful(lp)]);
+    assert!(matches!(c.on_deposited(1, vec![0]), PromiseOrValue::Value(false)), "callback pauses, quote deposit is its own tx");
+    let pr = c.get_launch(1).unwrap().progress;
+    assert!(pr.token_deposited && !pr.quote_deposited);
+    // resume tx 2: quote deposit only
+    set_gas("keeper.testnet", T0 + 300, 0, 1000);
+    assert!(matches!(c.resume_launch(1), PromiseOrValue::Promise(_)));
+    let q = serde_json::to_vec(&v.total_raised).unwrap();
+    set_results_gas("kyp.testnet", T0 + 301, 10, vec![PromiseResult::Successful(q)]);
+    let _ = c.on_deposited(1, vec![1]);
+    let pr = c.get_launch(1).unwrap().progress;
+    assert!(pr.token_deposited && pr.quote_deposited && !pr.liquidity_added);
+    // resume tx 3: two add_liquidity ranges, one per step
+    set_gas("keeper.testnet", T0 + 400, 0, 300);
+    assert!(matches!(c.resume_launch(1), PromiseOrValue::Promise(_)));
+    set_results_gas("kyp.testnet", T0 + 401, 180, vec![]);
+    assert!(matches!(c.on_liquidity_added(1, Ok("lpt#1".into())), PromiseOrValue::Promise(_)));
+    let l = c.get_launch(1).unwrap();
+    assert!(!l.progress.liquidity_added);
+    assert_eq!(l.lpt_ids, vec!["lpt#1".to_string()]);
+    set_results_gas("kyp.testnet", T0 + 402, 70, vec![]);
+    let _ = c.on_liquidity_added(1, Ok("lpt#2".into()));
+    let l = c.get_launch(1).unwrap();
+    assert!(l.progress.liquidity_added);
+    assert_eq!(l.status, LaunchStatus::Live);
+    assert_eq!(l.lpt_ids.len(), 2);
+}
+
+#[test]
+fn split_failed_range_recredits_one_deposit() {
+    let mut c = new_contract();
+    set("owner.testnet", T0, 0);
+    c.set_step_gas(dcl_gas());
+    launch_ready(&mut c);
+    set_gas("launcher.testnet", T0 + 100, NearToken::from_near(1).as_yoctonear(), 300);
+    let _ = c.launch(1);
+    let budget_before = c.launches.get(&1).unwrap().near_budget;
+    c.launches.get_mut(&1).unwrap().progress = LaunchProgress { lock_funded: true, pool_created: true, token_deposited: true, quote_deposited: true, liquidity_added: false };
+    set_gas("keeper.testnet", T0 + 200, 0, 300);
+    let _ = c.resume_launch(1);
+    let spent = budget_before - c.launches.get(&1).unwrap().near_budget;
+    assert_eq!(spent, config().liquidity_deposit.as_yoctonear(), "one range = one deposit");
+    set_results_gas("kyp.testnet", T0 + 201, 50, vec![]);
+    let _ = c.on_liquidity_added(1, Err(PromiseError::Failed));
+    assert_eq!(c.launches.get(&1).unwrap().near_budget, budget_before);
+    assert_eq!(c.get_launch(1).unwrap().status, LaunchStatus::Launching);
 }

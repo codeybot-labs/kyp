@@ -32,6 +32,29 @@ pub fn from_hex(s: &str) -> Hash {
     out
 }
 
+/// Per-step gas for the pool steps of `launch` / `resume_launch`. Stored under its own storage
+/// key (not inside the contract struct), so it can be added to an already-deployed coordinator
+/// without a state migration. Defaults keep the original one-transaction flow for the mock.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct StepGas {
+    /// false: both pool deposits run in parallel and both `add_liquidity` ranges in one batch
+    /// (fits one 300 Tgas `launch` against the mock). true: one deposit or one range per step,
+    /// each with the gas below; a step that doesn't fit in the remaining gas pauses the launch
+    /// (`launch_paused` event) and `resume_launch` continues it in a new transaction.
+    pub split_pool_steps: bool,
+    /// Gas attached to each `ft_transfer_call` into the pool (RHEA testnet DCL: ~920 Tgas burnt).
+    pub pool_deposit_tgas: u64,
+    /// Gas attached to each `add_liquidity` call.
+    pub add_liquidity_tgas: u64,
+}
+
+impl Default for StepGas {
+    fn default() -> Self {
+        Self { split_pool_steps: false, pool_deposit_tgas: 50, add_liquidity_tgas: 25 }
+    }
+}
+
 /// Platform-level settings (owner-controlled; cannot touch escrow or locks).
 #[near(serializers = [borsh, json])]
 #[derive(Clone, Debug)]
@@ -49,7 +72,7 @@ pub struct PlatformConfig {
     pub pool_storage_deposit: NearToken,
     pub pool_create_deposit: NearToken,
     pub liquidity_deposit: NearToken,
-    /// `msg` for `ft_transfer_call` deposits into the pool (DCL uses "").
+    /// `msg` for `ft_transfer_call` deposits into the pool (RHEA DCL: `"Deposit"`, mock: "").
     pub pool_deposit_msg: String,
 }
 
