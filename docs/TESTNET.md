@@ -91,3 +91,17 @@ Leftovers:
 - The DCL refunded ~1e8 yocto-SMK dust to the coordinator per launch (rounding).
 - Test wallet `kyp-sushmit-a1.testnet` still has a 0.1 wNEAR internal DCL deposit from the earlier gas measurement ([7Lin…](https://testnet.nearblocks.io/txns/7Lini8VhaTqCyE4kVC1TSG2q44zBVatH9RWSdJRzp1eF)).
 - Mainnet `dclv2.ref-labs.near` deposit gas is still unmeasured.
+
+## Price chart data sources
+
+Checked 2026-11-11 (IST).
+
+| Source | Network | Status | Used |
+| --- | --- | --- | --- |
+| Lock `get_observations` / `get_lock` (via RPC) | testnet + mainnet | on-chain, free | **yes**, primary |
+| Pool `get_pool.current_point` (RHEA DCL or mock, via RPC) | testnet + mainnet | on-chain, free | **yes**, live last point |
+| `testnet-indexer.ref-finance.com`, `dev-indexer.ref-finance.com`, `indexer.rhea.finance` | testnet | DNS does not resolve | no |
+| `api.ref.finance` / `api.rhea.finance` (`list-token-price`, `get-dcl-points`, `get-dcl-pools-volume`, `get-pool`) | mainnet | 200, CORS `*` | no. Prices, liquidity distribution and volume only; no candle or swap-history endpoint found |
+| `api.justhoot.fun` `/api/trades?limit=` (fields: `pool_id`, `side`, `price` in wNEAR, `price_usd`, `timestamp`), `/api/prices/latest` | mainnet | 200, CORS `*` | no. A global feed of JustHoot launchpad trades; no per-token filter found (`token`, `token_id`, `pool_id` params are ignored) and KYP tokens aren't indexed there |
+
+So candles are built from `record` observations. More frequent pokes give finer candles. On mainnet, a per-pool swap history would need an indexer (or the JustHoot feed, if they add a token filter).

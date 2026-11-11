@@ -53,6 +53,20 @@ If `openssl-sys` can't find OpenSSL (no `pkg-config`), set `OPENSSL_LIB_DIR=/usr
 
 `PUBLIC_NEAR_NETWORK=testnet|mainnet` (default **testnet**). RPC, wNEAR (`wrap.testnet` / `wrap.near`), explorer links, the MyNearWallet URL, the NEAR CLI commands, labels and the contract IDs (`PUBLIC_KYP_<NETWORK>_*`) all follow it. Contract IDs that don't fit the network fail the build, and the older unprefixed vars only apply to testnet, so testnet IDs can't leak into a mainnet build. No mainnet contracts are deployed or configured, so a mainnet build runs in demo mode.
 
+### Price chart
+
+The launch status page has a token price chart for Live launches, built with [TradingView Lightweight Charts™](https://www.tradingview.com/lightweight-charts/) (`lightweight-charts` 5.3.0, Apache-2.0; attribution kept, see [web/THIRD_PARTY_NOTICES.md](web/THIRD_PARTY_NOTICES.md)).
+
+- **Views:** candles or line, FDV or per-token price in wNEAR, on a log scale. The lock's unlock thresholds are drawn as dashed price lines.
+- **Data, all read client-side over NEAR RPC with no server or indexer:**
+  - every observation the lock has recorded (`get_observations`, paged), plus
+  - the pool's live point (`get_pool.current_point`) as the latest sample.
+- **Candles:** buckets of 1m to 1d, picked to give at most ~80 candles. Each candle opens at the previous close. Buckets with no observation are skipped, so no prices are invented.
+- **Empty state:** below 2 points the chart shows "Not enough price data yet".
+- **Demo mode:** shows the simulated chain's observations, labelled "Demo data (simulated)".
+- **Loading:** lazy. The chart component (~3 KB gz) and the library (~62 KB gz) are separate chunks, fetched only on the status page of a Live launch.
+- **Why no swap history:** no free RHEA indexer serves testnet (`testnet-indexer.ref-finance.com` and `dev-indexer.ref-finance.com` don't resolve). The chart only moves when someone pokes `record`, plus the live point. Mainnet options are in [docs/TESTNET.md](docs/TESTNET.md#price-chart-data-sources).
+
 ### Wallet login
 
 The **Connect wallet** button in the header uses [NEAR Connect](https://docs.near.org/web3-apps/tutorials/wallet-login) (`@hot-labs/near-connect`), the connector NEAR's docs currently recommend. The session persists across reloads. The connect modal lists every NEAR wallet we could find, on both networks:
@@ -75,4 +89,4 @@ The connected account fills the account fields. The UI is gated by account: only
 
 - `cargo test --workspace`: 57 passed (common 12, token 4, lock 9, coordinator 31, mock-pool 1).
 - `integration-tests`: 2 passed. `split_pool_steps_resume_to_live` runs the RHEA-style flow (launch pauses after create_pool, 3 `resume_launch` txs to Live). One `launch` transaction settles 3 presalers at one price, funds the lock, creates and seeds the pool (33 receipts, ~41 Tgas burnt). Then a TWAP-qualified milestone, a 25% claim, wave-1 reveal, a reserved slot on the same terms and the fee split are all checked on the sandbox.
-- `web`: `npm test` runs 18 unit tests: math, transaction builders and gating in `src/lib/actions.mjs`, and the network config and wallet labels in `src/lib/network.mjs`. `npm run test:e2e` builds a testnet-mode site with mocked RPC and a mock injected wallet. It checks the connect modal (including the mainnet-only labels and the click explanation), connecting through the modal, session persistence, launcher-only controls and the exact deposit and launch transactions handed to the wallet. It then builds a mainnet site (no labels, mainnet labels, testnet IDs ignored, no testnet requests) and a build with a placeholder WalletConnect ID (WalletConnect and Unity listed; the relay is blocked in the test): 9 steps pass, with no console errors. It needs Chrome (`CHROME_PATH`). Headless browser run of every page and the full demo flow had no console errors.
+- `web`: `npm test` runs 24 unit tests (incl. `src/lib/chart.mjs` candle building): math, transaction builders and gating in `src/lib/actions.mjs`, and the network config and wallet labels in `src/lib/network.mjs`. `npm run test:e2e` builds a testnet-mode site with mocked RPC and a mock injected wallet. It checks the connect modal (including the mainnet-only labels and the click explanation), connecting through the modal, session persistence, launcher-only controls and the exact deposit and launch transactions handed to the wallet. It then builds a mainnet site (no labels, mainnet labels, testnet IDs ignored, no testnet requests) and a build with a placeholder WalletConnect ID (WalletConnect and Unity listed; the relay is blocked in the test), and the price chart (lazy chunk, candle/line toggle, milestone lines, empty state, attribution): 10 steps pass, with no console errors. It needs Chrome (`CHROME_PATH`). Headless browser run of every page and the full demo flow had no console errors.

@@ -1,14 +1,17 @@
-import { createSignal, For, Show } from "solid-js";
+import { createSignal, For, lazy, Show, Suspense } from "solid-js";
 import { api } from "../lib/source";
 import { demo } from "../lib/demo";
 import { cliCall } from "../lib/near";
 import { CONFIG, NETWORK, NETWORK_LABEL, NETWORK_NAME } from "../lib/config";
 import { toRaw } from "../lib/math.mjs";
 import { MilestoneLadder } from "./Terms";
-import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, fdvAt, Stat, Spark, act, Cli, Signable, sendTx } from "./ui";
+import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, Stat, act, Cli, Signable, sendTx } from "./ui";
 import { account as wallet } from "../lib/wallet";
 import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx } from "../lib/actions.mjs";
 import type { LaunchView } from "../lib/model";
+
+// lazy: the chart + lightweight-charts load as separate chunks, only when a launch is Live
+const PriceChart = lazy(() => import("./PriceChart"));
 
 const STEPS: [keyof LaunchView["progress"], string, string][] = [
   ["lock_funded", "Settle + lock", "Every fill priced at the one presale price; all presale tokens sent to the lock."],
@@ -23,7 +26,6 @@ function Body(p: { l: LaunchView }) {
   const l = () => p.l;
   const [tw] = useLive(() => api.twap(p.l.id));
   const [lock] = useLive(() => api.lock(p.l.id));
-  const [obs] = useLive(() => api.observations(p.l.id));
   const raisedPct = () => Math.min(100, (quote(l().total_raised) / Math.max(1e-9, quote(l().open_cap_quote))) * 100);
   const minPct = () => Math.min(100, (quote(l().min_raise) / Math.max(1e-9, quote(l().open_cap_quote))) * 100);
   const isDemo = api.mode() === "demo";
@@ -84,8 +86,9 @@ function Body(p: { l: LaunchView }) {
             <h3>Market vs milestones</h3>
             <span class="sub">spot {tw()?.spot_fdv_quote ? usdOf(tw()!.spot_fdv_quote!) : "—"} · TWAP {tw()?.twap_fdv_quote ? usdOf(tw()!.twap_fdv_quote!) : "—"}</span>
           </div>
-          <Spark points={(obs() ?? []).map((o) => ({ ts: o.ts, v: fdvAt(l(), o.point) * CONFIG.nearUsd }))} targets={l().milestones.map((m) => quote(m.target_fdv_quote) * CONFIG.nearUsd)} />
-          <div class="sub" style={{ "margin-top": "6px" }}>FDV from recorded pool observations (log scale). Dashed lines: unlock targets.</div>
+          <Suspense fallback={<div class="sub" style={{ height: "300px", display: "grid", "place-items": "center" }}>Loading chart…</div>}>
+            <PriceChart l={l()} />
+          </Suspense>
           <hr class="sep" />
           <MilestoneLadder l={l()} />
         </div>

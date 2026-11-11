@@ -46,8 +46,20 @@ const L = {
   progress: { lock_funded: false, pool_created: false, token_deposited: false, quote_deposited: false, liquidity_added: false },
   launched_at: null, revealed_waves: 0, next_wave_at: null, lpt_ids: [], fee_balances: [],
 };
+// Live launches for the price chart: #2 has recorded observations, #3 has none (empty state).
+const live = (id) => ({ ...L, id, status: "Live", launched_at: now - 7200, init_point: -39200, pool_id: `p${id}`, presale_tokens: "1", lp_tokens: "1",
+  milestones: [{ target_fdv_quote: N(40), unlock_bps: 2500 }, { target_fdv_quote: N(2000), unlock_bps: 7500 }],
+  progress: { lock_funded: true, pool_created: true, token_deposited: true, quote_deposited: true, liquidity_added: true } });
+const LIVE = { 2: live(2), 3: live(3) };
+const OBS = { 2: Array.from({ length: 12 }, (_, i) => ({ ts: now - 7200 + i * 600, point: -39200 + i * 900, liquidity: "1000" })), 3: [] };
+const lockView = (id) => ({ launch_id: id, token_id: "t", pool_contract: "dclv2.ref-dev.testnet", pool_id: `p${id}`, token_is_x: true, milestones: LIVE[id].milestones.map((m) => ({ ...m, qualified_at: null, qualified_twap_point: null })),
+  twap: L.twap, observations_count: OBS[id].length, last_observation: OBS[id].at(-1) ?? null, supply: L.total_supply, total_locked: "1", total_claimed: "0", positions_count: 1, created_at: now - 7200, unlocked_bps: 0 });
 const views = {
-  get_launches: () => [L], get_launch: (a) => (a.launch_id === 1 ? L : null), get_presalers: () => [],
+  get_launches: () => [L], get_launch: (a) => (a.launch_id === 1 ? L : LIVE[a.launch_id] ?? null), get_presalers: () => [],
+  get_lock: (a) => (LIVE[a.launch_id] ? lockView(a.launch_id) : null),
+  get_observations: (a) => (OBS[a.launch_id] ?? []).slice(a.from_index ?? 0, (a.from_index ?? 0) + (a.limit ?? 200)),
+  twap_status: () => ({ ok: false, error: "fixture", avg_point: null, twap_fdv_quote: null, observations_in_window: null, spot_point: null, spot_fdv_quote: null }),
+  get_pool: (a) => (a.pool_id === "p2" ? { pool_id: "p2", current_point: -28000, liquidity: "1000", state: "Running" } : null),
   get_slot: () => ({ index: 0, kind: "Open", filled: false, deposit: "0", tokens: "0" }),
   get_config: () => ({ token_account_deposit: N(2.5), pool_storage_deposit: N(0.1), pool_create_deposit: N(0.1), liquidity_deposit: N(0.05) }),
   storage_balance_of: () => null, ft_balance_of: () => "0", storage_balance_bounds: () => ({ min: "1250000000000000000000", max: null }),
@@ -180,6 +192,30 @@ try {
     assert.equal(t.receiverId, COORD);
     assert.equal(t.actions[0].params.methodName, "launch");
     assert.equal(t.actions[0].params.deposit, N(0.3));
+  });
+
+  await step("price chart: lazy chunk, candles + line toggle, milestone lines, empty state, attribution", async () => {
+    const chartJs = [];
+    page.on("request", (r) => /lightweight-charts|PriceChart/.test(r.url()) && chartJs.push(r.url()));
+    await page.goto(`${base}/deposit?id=1`, { waitUntil: "networkidle" });
+    assert.deepEqual(chartJs, [], "chart code is not loaded on other pages");
+    await page.goto(`${base}/launch?id=2`, { waitUntil: "networkidle" });
+    await page.waitForSelector('[data-testid="price-chart"] canvas', { timeout: 20000 });
+    assert.ok(chartJs.some((u) => /lightweight-charts/.test(u)), "lightweight-charts loaded lazily on the status page");
+    const t = await page.textContent('[data-testid="price-chart"]');
+    assert.match(t, /13 points/, "12 observations + live pool point");
+    assert.match(t, /on-chain · lock observations \+ live pool/);
+    assert.ok(await page.$('[data-testid="price-chart"] a[href="https://www.tradingview.com/"]'), "TradingView attribution link");
+    assert.ok(await page.$('#tv-attr-logo, a[href*="tradingview.com"][id], a[href*="tradingview"]'), "attribution logo/link");
+    await page.waitForSelector('[data-testid="price-chart"][data-milestone-lines="2"][data-kind="candles"]');
+    await page.click('[data-testid="chart-kind-line"]');
+    await page.waitForSelector('[data-testid="price-chart"][data-milestone-lines="2"][data-kind="line"]');
+    await page.click('[data-testid="chart-unit-price"]');
+    assert.match(await page.textContent('[data-testid="price-chart"]'), /Price per token in wNEAR/);
+    await page.click('[data-testid="chart-kind-candles"]');
+    await page.goto(`${base}/launch?id=3`, { waitUntil: "networkidle" });
+    await page.waitForSelector('[data-testid="chart-empty"]', { timeout: 20000 });
+    assert.match(await page.textContent('[data-testid="chart-empty"]'), /Not enough price data yet/);
   });
 
   await step("no console errors", async () => assert.deepEqual(errors, []));

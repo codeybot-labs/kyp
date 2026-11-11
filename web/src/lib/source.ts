@@ -32,6 +32,25 @@ export const api = {
   lock: (id: number): Promise<LockView | null> => (getMode() === "demo" ? demo.lock(id) : nullIfMissing(view(l(), "get_lock", { launch_id: id }))),
   twap: (id: number): Promise<TwapStatus | null> => (getMode() === "demo" ? demo.twap(id) : nullIfMissing(view(l(), "twap_status", { launch_id: id }))),
   observations: (id: number): Promise<Observation[]> => (getMode() === "demo" ? demo.observations(id) : nullIfMissing(view<Observation[]>(l(), "get_observations", { launch_id: id, from_index: 0, limit: 200 })).then((x) => x ?? [])),
+  /** Every recorded observation (paged), for the price chart. */
+  allObservations: async (id: number): Promise<Observation[]> => {
+    if (getMode() === "demo") return demo.observations(id);
+    const lk = await nullIfMissing(view<LockView>(l(), "get_lock", { launch_id: id }));
+    const n = lk?.observations_count ?? 0;
+    const out: Observation[] = [];
+    for (let from = 0; from < n; from += 200) {
+      const page = await nullIfMissing(view<Observation[]>(l(), "get_observations", { launch_id: id, from_index: from, limit: 200 }));
+      if (!page?.length) break;
+      out.push(...page);
+    }
+    return out;
+  },
+  /** Live pool point right now (DCL `get_pool.current_point`; demo: simulated pool). */
+  spot: async (lv: LaunchView): Promise<{ ts: number; point: number } | null> => {
+    if (getMode() === "demo") { const t = await demo.twap(lv.id); return t?.spot_point == null ? null : { ts: demo.now(), point: t.spot_point }; }
+    const p = await nullIfMissing(view<{ current_point: number }>(lv.pool_contract, "get_pool", { pool_id: lv.pool_id }));
+    return p && Number.isFinite(p.current_point) ? { ts: Math.floor(Date.now() / 1000), point: p.current_point } : null;
+  },
   position: (id: number, a: string): Promise<Position | null> => (getMode() === "demo" ? demo.position(id, a) : nullIfMissing(view(l(), "get_position", { launch_id: id, account_id: a }))),
   claimable: (id: number, a: string): Promise<string> => (getMode() === "demo" ? demo.claimable(id, a) : nullIfMissing(view<string>(l(), "claimable", { launch_id: id, account_id: a })).then((x) => x ?? "0")),
 };
