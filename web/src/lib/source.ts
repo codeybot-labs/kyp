@@ -1,5 +1,5 @@
 // One data API for the UI. "demo" = in-browser simulation; "testnet" = live views from NEAR testnet.
-import { CONFIG, TESTNET_CONFIGURED } from "./config";
+import { CONFIG, NETWORK, TESTNET_CONFIGURED } from "./config";
 import { demo } from "./demo";
 import { view } from "./near";
 import type { LaunchView, LockView, Observation, Position, PresalerView, SlotView, TwapStatus } from "./model";
@@ -9,7 +9,9 @@ export type Mode = "demo" | "testnet";
 export function getMode(): Mode {
   if (typeof localStorage === "undefined") return "demo";
   const m = localStorage.getItem("kyp-mode");
-  return m === "testnet" && TESTNET_CONFIGURED ? "testnet" : "demo";
+  if (!TESTNET_CONFIGURED || m === "demo") return "demo";
+  // testnet builds read the live contracts by default; elsewhere live mode is opt-in
+  return m === "testnet" || NETWORK === "testnet" ? "testnet" : "demo";
 }
 export function setMode(m: Mode) { localStorage.setItem("kyp-mode", m); location.reload(); }
 

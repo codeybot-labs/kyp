@@ -1,0 +1,7 @@
+---
+import Base from "../layouts/Base.astro";
+import TestWallets from "../components/TestWallets.tsx";
+---
+<Base title="Test wallets" active="/test-wallets" description="KYP testnet test wallets: generate faucet accounts in your browser and test the full presale flow.">
+  <TestWallets client:only="solid-js" />
+</Base>

@@ -92,6 +92,26 @@ Leftovers:
 - Test wallet `kyp-sushmit-a1.testnet` still has a 0.1 wNEAR internal DCL deposit from the earlier gas measurement ([7Lin…](https://testnet.nearblocks.io/txns/7Lini8VhaTqCyE4kVC1TSG2q44zBVatH9RWSdJRzp1eF)).
 - Mainnet `dclv2.ref-labs.near` deposit gas is still unmeasured.
 
+## In-site test wallets on the RHEA DCL copy (2026-11-11): passed
+
+The site now defaults to the RHEA DCL deployment (`kyp-sushmit-dcl.testnet` / `kyp-sushmit-dcl-lock.testnet`); the mock-pool copy stays selectable in the header.
+
+Faucet: `POST https://helper.nearprotocol.com/account {newAccountId, newAccountPublicKey}` (what near-cli-rs `sponsor-by-faucet-service` calls) answers CORS preflight for our origin and creates a top-level `.testnet` account with 10 NEAR. `helper.testnet.near.org` answers the same. No relayer, Worker script or paid service is needed.
+
+`scripts/testwallet-live.mjs` (same code the site uses) — launch #3, three faucet wallets:
+[wrap A](https://testnet.nearblocks.io/txns/9x9SM7AUbeBj6hY2cYM6EuQHgFytXYQVJynY4JQGvDKH),
+[wrap B](https://testnet.nearblocks.io/txns/ETDdJYM67rVx4PfAKN8DhUmtbahrTdiYT2d67bDbivsP),
+[create_launch](https://testnet.nearblocks.io/txns/3jmA5kRAQR194ijgFtKhu5486xBffpjWdsGCjyNFw3xe),
+[deposit A](https://testnet.nearblocks.io/txns/GJQztwm1gQ88F98x2rJ7c7BYX5gxGLoCk16Lg7rGBCv8),
+[deposit B](https://testnet.nearblocks.io/txns/HupNsWrEo4JWXZN8YRxRgbqt3riAMVQ4Sqsx1EpqZiVS),
+[launch](https://testnet.nearblocks.io/txns/EZvdpByc4ZRVJ8YBMMAvumb8JUVUS4FAXifFgy2MTAv),
+resume [1](https://testnet.nearblocks.io/txns/GLBJwB23psk4vnWM5nL3usG1R8ZH7jxMArHKEfamLtWq) / [2](https://testnet.nearblocks.io/txns/ER4hY4AoMwqbQ1raAxVnhyGrdAxWnT3wqBF21UqiPF16) / [3](https://testnet.nearblocks.io/txns/9xVR46UFWmRGvJY12js6CzNnQY3Hpv9FWPfx34HpqD1A) → Live (pool `tstjq37-3.kyp-sushmit-dcl.testnet|wrap.testnet|10000`),
+record [1](https://testnet.nearblocks.io/txns/WXVSBCyjMC6gu7zz5iPs9nWVhjgSkEGi6d18UpmSZNc) / [2](https://testnet.nearblocks.io/txns/3Jdm2SaTWo3gaC7TWceWxyNNjNti1UuSwDKwMDzbNPgx) / [3](https://testnet.nearblocks.io/txns/8Vjr9KQ2ZKVZHDvRqZ4hwiT7gAjgTwQCHLgyNejmpfYY),
+[reveal wave](https://testnet.nearblocks.io/txns/7FaXAYy72kwpdLv4ZGK8hqWAjoox9RHENKPbbbaDQQeN).
+`claim` correctly panicked "nothing to claim yet" (no milestone reached without a price move).
+
+`tests/testwallet.live.e2e.mjs` ran the same quick start in headless Chrome from the production build (launch #4 Live, 12 tx links, ~90 s).
+
 ## Price chart data sources
 
 Checked 2026-11-11 (IST).

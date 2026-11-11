@@ -75,3 +75,16 @@ test("mainnet: manifest untouched, no labels; bridged NEAR Mobile duplicate skip
   assert.deepEqual(skippedBridgedIds("mainnet"), ["near-mobile-wallet"]);
   assert.deepEqual(skippedBridgedIds("testnet"), []);
 });
+
+import { pickInstance } from "./network.mjs";
+test("alt instance + test wallets are testnet-only", () => {
+  const env = { PUBLIC_KYP_TESTNET_COORDINATOR: "d.testnet", PUBLIC_KYP_TESTNET_LOCK: "dl.testnet", PUBLIC_KYP_TESTNET_ALT_COORDINATOR: "m.testnet", PUBLIC_KYP_TESTNET_ALT_LOCK: "ml.testnet", PUBLIC_KYP_TESTNET_ALT_LABEL: "Mock pool" };
+  const c = resolveConfig(env);
+  assert.equal(c.testWallets, true);
+  assert.equal(pickInstance(c, "alt").coordinator, "m.testnet");
+  assert.equal(pickInstance(c, null).coordinator, "d.testnet");
+  assert.equal(pickInstance(resolveConfig({ PUBLIC_KYP_TESTNET_COORDINATOR: "d.testnet", PUBLIC_KYP_TESTNET_LOCK: "dl.testnet" }), "alt").coordinator, "d.testnet", "alt ignored when not configured");
+  assert.equal(resolveConfig({ PUBLIC_NEAR_NETWORK: "mainnet" }).testWallets, false);
+  assert.throws(() => resolveConfig({ PUBLIC_NEAR_NETWORK: "mainnet", PUBLIC_KYP_TEST_WALLETS: "1" }), /testnet-only/);
+  assert.equal(resolveConfig({ PUBLIC_KYP_TEST_WALLETS: "0" }).testWallets, false);
+});

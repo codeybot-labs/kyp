@@ -1,5 +1,5 @@
 ---
-import { NETWORK_LABEL } from "../lib/config";
+import { NETWORK_LABEL, TEST_WALLETS } from "../lib/config";
 import "../styles/global.css";
 import ModeBadge from "../components/ModeBadge.tsx";
 import ToastHost from "../components/ToastHost.tsx";
@@ -10,6 +10,7 @@ const nav = [
   ["/", "Launches"],
   ["/create", "Create"],
   ["/how-it-works", "How it works"],
+  ...(TEST_WALLETS ? [["/test-wallets", "Test wallets"]] : []),
 ];
 ---
 <!doctype html>

@@ -6,11 +6,12 @@
 // bridged into the same modal (see wallet-bridge.ts).
 // No private keys are handled here: the wallet signs.
 import { createSignal } from "solid-js";
-import { CONFIG, NETWORK, NETWORK_LABEL } from "./config";
+import { CONFIG, NETWORK, NETWORK_LABEL, TEST_WALLETS } from "./config";
 import { prepareManifest, mainnetOnlyMessage } from "./network.mjs";
 import { view } from "./near";
 import { explorerTx, parseWalletRedirect, depositTx } from "./actions.mjs";
 
+const TEST_WALLET_ID = "kyp-testnet-wallet";
 type Connector = import("@hot-labs/near-connect").NearConnector;
 export interface Tx { receiverId: string; actions: { method: string; args: Record<string, unknown>; gas: string; deposit: string }[] }
 
@@ -67,6 +68,8 @@ export function initWallet(): Promise<void> {
       // Some legacy wallet SDKs expect Node's `global` and `Buffer` in the browser.
       (globalThis as any).global ??= globalThis;
       if (!(globalThis as any).Buffer) (globalThis as any).Buffer = (await import("buffer")).Buffer;
+      // Testnet builds only: offer in-browser faucet test wallets in the picker (standard injected wallet).
+      if (TEST_WALLETS) (await import("./testwallet-ui")).injectTestWallet();
       const [{ NearConnector }, manifest] = await Promise.all([import("@hot-labs/near-connect"), loadManifest()]);
       connector = new NearConnector({
         network: NETWORK,
@@ -85,7 +88,7 @@ export function initWallet(): Promise<void> {
       await connector.whenManifestLoaded;
       const { BRIDGED_IDS } = await import("./wallet-bridge");
       // Mainnet-only wallets (testnet builds) go last.
-      const rank = (id: string) => (mainnetOnly.has(id) ? 2000 : 0) + (BRIDGED_IDS.includes(id) ? 1000 + BRIDGED_IDS.indexOf(id) : (connector!.manifest.wallets.findIndex((w) => w.id === id) + 1000) % 1000);
+      const rank = (id: string) => id === TEST_WALLET_ID ? -1 : (mainnetOnly.has(id) ? 2000 : 0) + (BRIDGED_IDS.includes(id) ? 1000 + BRIDGED_IDS.indexOf(id) : (connector!.manifest.wallets.findIndex((w) => w.id === id) + 1000) % 1000);
       connector.wallets.sort((a, b) => rank(a.manifest.id) - rank(b.manifest.id));
       (window as any).kypWallets = {
         network: NETWORK,
@@ -119,6 +122,14 @@ export async function connect() {
     if (e instanceof MainnetOnlyWallet) throw e;
     if (!/reject/i.test(String(e?.message ?? e))) throw e;
   }
+}
+/** Sign in as the active in-browser test wallet (testnet builds only), replacing any current session. */
+export async function connectTestWallet() {
+  if (!TEST_WALLETS) throw new Error("Test wallets are testnet-only");
+  await initWallet();
+  if (!connector) throw new Error(initError() ?? "wallet connector unavailable");
+  try { await connector.disconnect(); } catch { /* not connected */ }
+  await connector.connect({ walletId: TEST_WALLET_ID });
 }
 export async function disconnect() {
   await initWallet();

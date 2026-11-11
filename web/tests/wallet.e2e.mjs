@@ -9,6 +9,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import assert from "node:assert/strict";
 import { chromium } from "playwright-core";
+import { decodeSignedTransaction } from "@near-js/transactions";
 
 const COORD = "kyp-coord.testnet", LOCK = "kyp-lock.testnet", LAUNCHER = "boss.testnet", PRESALER = "ana.testnet";
 const types = { ".html": "text/html", ".js": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml" };
@@ -28,7 +29,7 @@ function buildAndServe(env) {
   return { server, base: `http://localhost:${server.address().port}` };
 }
 // blank the committed .env.production testnet IDs so the e2e builds use the mocked RPC + test IDs
-const NO_NET = { PUBLIC_NEAR_NETWORK: "", PUBLIC_WALLETCONNECT_PROJECT_ID: "", PUBLIC_KYP_TESTNET_COORDINATOR: "", PUBLIC_KYP_TESTNET_LOCK: "", PUBLIC_KYP_TESTNET_POOL: "", PUBLIC_NEAR_TESTNET_RPC: "" };
+const NO_NET = { PUBLIC_NEAR_NETWORK: "", PUBLIC_WALLETCONNECT_PROJECT_ID: "", PUBLIC_KYP_TESTNET_COORDINATOR: "", PUBLIC_KYP_TESTNET_LOCK: "", PUBLIC_KYP_TESTNET_POOL: "", PUBLIC_NEAR_TESTNET_RPC: "", PUBLIC_KYP_TESTNET_LABEL: "", PUBLIC_KYP_TESTNET_ALT_COORDINATOR: "", PUBLIC_KYP_TESTNET_ALT_LOCK: "", PUBLIC_KYP_TESTNET_ALT_POOL: "", PUBLIC_KYP_TESTNET_ALT_LABEL: "" };
 const { server, base } = buildAndServe({ ...NO_NET, PUBLIC_KYP_COORDINATOR: COORD, PUBLIC_KYP_LOCK: LOCK });
 
 const N = (n) => (BigInt(Math.round(n * 1000)) * 10n ** 21n).toString();
@@ -91,12 +92,31 @@ await ctx.addInitScript(MOCK_WALLET);
 await ctx.route("**/rpc.testnet.near.org/**", async (route) => {
   const body = JSON.parse(route.request().postData() || "{}");
   const p = body.params;
+  const ok = (result) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ jsonrpc: "2.0", id: body.id, result }) });
+  // Direct-signing RPCs used by the in-browser test wallet (nothing reaches a real chain).
+  if (body.method === "block") return ok({ header: { hash: "11111111111111111111111111111111", height: 100, timestamp: 0 } });
+  if (body.method === "send_tx" || body.method === "broadcast_tx_commit") {
+    const st = decodeSignedTransaction(Buffer.from(p.signed_tx_base64 ?? p[0], "base64"));
+    const t = st.transaction;
+    const hash = `TW${signed.length + 1}HASH`;
+    signed.push({ signer: t.signerId, receiver: t.receiverId, nonce: Number(t.nonce), methods: t.actions.map((a) => a.functionCall?.methodName), args: t.actions.map((a) => a.functionCall && JSON.parse(Buffer.from(a.functionCall.args).toString() || "{}")), deposits: t.actions.map((a) => String(a.functionCall?.deposit)), gas: t.actions.map((a) => String(a.functionCall?.gas)) });
+    return ok({ final_execution_status: "EXECUTED_OPTIMISTIC", status: { SuccessValue: "" }, transaction: { hash, signer_id: t.signerId, receiver_id: t.receiverId }, transaction_outcome: { id: hash, outcome: { status: { SuccessValue: "" }, logs: [], receipt_ids: [], gas_burnt: 1, tokens_burnt: "0", executor_id: t.signerId } }, receipts_outcome: [] });
+  }
+  if (p?.request_type === "view_access_key") return ok({ nonce: 5, permission: "FullAccess", block_hash: "11111111111111111111111111111111", block_height: 100 });
+  if (p?.request_type === "view_account") return ok({ amount: "10000000000000000000000000", locked: "0", code_hash: "11111111111111111111111111111111", storage_usage: 182, block_height: 100, block_hash: "11111111111111111111111111111111" });
   if (!p || p.request_type !== "call_function") return route.continue();
   const args = JSON.parse(Buffer.from(p.args_base64, "base64").toString());
   const r = views[p.method_name]?.(args) ?? null;
   await route.fulfill({ contentType: "application/json", body: JSON.stringify({ jsonrpc: "2.0", id: body.id, result: { result: [...Buffer.from(JSON.stringify(r))], logs: [] } }) });
 });
+// The free testnet faucet helper, mocked: records the request instead of creating an account.
+const faucet = [], signed = [];
+await ctx.route("**/helper.nearprotocol.com/**", async (route) => {
+  faucet.push({ url: route.request().url(), body: JSON.parse(route.request().postData() || "{}") });
+  await route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ final_execution_status: "EXECUTED_OPTIMISTIC", status: { SuccessValue: "" } }) });
+});
 const page = await ctx.newPage();
+page.on("dialog", (d) => d.accept());
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
@@ -218,6 +238,60 @@ try {
     assert.match(await page.textContent('[data-testid="chart-empty"]'), /Not enough price data yet/);
   });
 
+  await step("test wallet: generate (faucet) -> wrap -> deposit signed in-browser, export/import/delete", async () => {
+    await page.goto(`${base}/test-wallets`, { waitUntil: "networkidle" });
+    assert.match(await page.textContent('[data-testid="tw-warning"]'), /TESTNET ONLY/);
+    assert.ok((await text()).includes("Test wallets"), "nav link on testnet");
+    await page.fill('input[placeholder="label (optional)"]', "e2e");
+    await page.click('[data-testid="tw-generate"]');
+    await page.waitForSelector('[data-testid="tw-row"]', { timeout: 20000 });
+    assert.equal(faucet.length, 1);
+    const id = faucet[0].body.newAccountId;
+    assert.match(id, /^kyp-t-e2e-[a-z0-9]{8}\.testnet$/);
+    assert.match(faucet[0].body.newAccountPublicKey, /^ed25519:/);
+    const stored = await page.evaluate(() => JSON.parse(localStorage.getItem("kyp-testnet-wallets")));
+    assert.equal(stored[0].accountId, id);
+    assert.ok(!JSON.stringify(faucet).includes(stored[0].secretKey.slice(8)), "secret key never sent to the faucet");
+    assert.ok(!(await text()).includes(stored[0].secretKey), "key not shown until export");
+
+    await page.click('[data-testid="tw-wrap"]');
+    await page.waitForSelector('[data-testid="tw-txlink"]', { timeout: 20000 });
+    assert.equal(signed.length, 1);
+    assert.deepEqual([signed[0].signer, signed[0].receiver, signed[0].methods.join("+")], [id, "wrap.testnet", "storage_deposit+near_deposit"]);
+    assert.ok(signed[0].nonce > 5, "nonce from the access key");
+    assert.equal(signed[0].deposits[1], N(1));
+    assert.equal(await page.getAttribute('[data-testid="tw-txlink"]', "href"), "https://testnet.nearblocks.io/txns/TW1HASH");
+
+    // The test wallet in the standard picker: connect, then the normal deposit page signs through it.
+    await page.click('[data-testid="wallet-disconnect"]').catch(() => {});
+    await page.click('[data-testid="tw-use"]');
+    await page.waitForFunction((a) => document.querySelector('[data-testid="wallet-account"]')?.getAttribute("title")?.startsWith(a), id, { timeout: 20000 });
+    const ids = await page.evaluate(() => window.kypWallets.available().map((x) => x.split(":")[0]));
+    assert.equal(ids[0], "kyp-testnet-wallet", "test wallet listed first in the picker");
+    await page.goto(`${base}/deposit?id=1`, { waitUntil: "networkidle" });
+    await page.waitForSelector('[data-testid="wallet-account"]', { timeout: 20000 });
+    await page.fill('input[placeholder="from the launcher, sent privately"]', "code-tw");
+    await page.click('[data-testid="deposit-sign"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="toast"]')?.textContent?.includes("tx"), null, { timeout: 20000 });
+    assert.equal(signed.length, 2);
+    assert.deepEqual([signed[1].signer, signed[1].receiver, signed[1].methods.at(-1)], [id, "wrap.testnet", "ft_transfer_call"]);
+    assert.deepEqual(JSON.parse(signed[1].args.at(-1).msg), { Deposit: { launch_id: 1, salt: "code-tw" } });
+
+    // export -> delete -> import round trip
+    await page.goto(`${base}/test-wallets`, { waitUntil: "networkidle" });
+    await page.click('[data-testid="tw-export"]');
+    const exp = await page.inputValue('[data-testid="tw-export-text"]');
+    assert.match(exp, /TESTNET ONLY/);
+    await page.click('[data-testid="tw-delete"]');
+    await page.waitForFunction(() => !document.querySelector('[data-testid="tw-row"]'));
+    await page.click("text=Import a testnet key");
+    await page.fill('[data-testid="tw-import-text"]', exp);
+    await page.click('[data-testid="tw-import"]');
+    await page.waitForSelector('[data-testid="tw-row"]');
+    assert.ok((await page.textContent('[data-testid="tw-row"]')).includes(id));
+    await page.click('[data-testid="wallet-disconnect"]').catch(() => {});
+  });
+
   await step("no console errors", async () => assert.deepEqual(errors, []));
 
   await step("mainnet build: same wallets work normally (no labels), mainnet RPC/labels, no testnet contracts", async () => {
@@ -239,6 +313,10 @@ try {
       assert.ok(body.includes("NEAR mainnet"), "mainnet label shown");
       assert.ok(body.includes("Demo mode"), "testnet contract IDs are ignored on mainnet -> demo mode");
       assert.deepEqual(testnetCalls, []);
+      assert.ok(!ids.includes("kyp-testnet-wallet"), "no test wallet in the mainnet picker");
+      assert.ok(!body.includes("Test wallets"), "no test wallet nav on mainnet");
+      await p.goto(`${m.base}/test-wallets`, { waitUntil: "networkidle" });
+      assert.ok((await p.evaluate(() => document.body.innerText)).includes("Test wallets are off"));
       await p.close();
     } finally { m.server.close(); }
   });

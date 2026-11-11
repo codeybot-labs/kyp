@@ -1,8 +1,10 @@
 // Site config. PUBLIC_NEAR_NETWORK picks testnet (default) or mainnet; RPC, wNEAR, explorer,
 // MyNearWallet URL and contract IDs all follow it. See network.mjs for the variable names.
-import { resolveConfig } from "./network.mjs";
+import { resolveConfig, pickInstance } from "./network.mjs";
 
-const R = resolveConfig(import.meta.env as Record<string, string>);
+const BASE = resolveConfig(import.meta.env as Record<string, string>);
+const INSTANCE_KEY = "kyp-instance";
+const R = pickInstance(BASE, typeof localStorage === "undefined" ? "primary" : localStorage.getItem(INSTANCE_KEY));
 export const CONFIG = {
   coordinator: R.coordinator as string,
   lock: R.lock as string,
@@ -20,3 +22,11 @@ export const NETWORK_NAME = NETWORK === "mainnet" ? "Mainnet" : "Testnet";
 /** Contract accounts are set for the selected network, so the site can read live state. */
 export const TESTNET_CONFIGURED = Boolean(R.configured);
 export const LIVE_CONFIGURED = TESTNET_CONFIGURED;
+/** Which deployment the site reads (primary = RHEA DCL copy on testnet, alt = mock-pool copy). */
+export const INSTANCE = R.instance as "primary" | "alt";
+export const INSTANCES = BASE.alt.configured
+  ? [{ id: "primary", label: BASE.instanceLabel || "Primary", coordinator: BASE.coordinator }, { id: "alt", label: BASE.alt.label, coordinator: BASE.alt.coordinator }]
+  : [];
+export function setInstance(id: "primary" | "alt") { localStorage.setItem(INSTANCE_KEY, id); location.reload(); }
+/** In-browser faucet test wallets: testnet builds only (never on mainnet). */
+export const TEST_WALLETS = Boolean(BASE.testWallets) && NETWORK === "testnet";

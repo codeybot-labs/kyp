@@ -59,7 +59,30 @@ export function resolveConfig(env = {}) {
     if (!accountFitsNetwork(cfg[k], network)) throw new Error(`${k} "${cfg[k]}" is not a ${network} account (PUBLIC_NEAR_NETWORK=${network})`);
   }
   cfg.configured = Boolean(cfg.coordinator && cfg.lock);
+  // Optional second deployment on the same network (testnet: the mock-pool copy), switchable at runtime.
+  cfg.instanceLabel = env[`PUBLIC_KYP_${N}_LABEL`] || "";
+  cfg.alt = {
+    coordinator: env[`PUBLIC_KYP_${N}_ALT_COORDINATOR`] || "",
+    lock: env[`PUBLIC_KYP_${N}_ALT_LOCK`] || "",
+    pool: env[`PUBLIC_KYP_${N}_ALT_POOL`] || "",
+    label: env[`PUBLIC_KYP_${N}_ALT_LABEL`] || "Alternate",
+  };
+  for (const k of ["coordinator", "lock", "pool"]) {
+    if (!accountFitsNetwork(cfg.alt[k], network)) throw new Error(`alt ${k} "${cfg.alt[k]}" is not a ${network} account`);
+  }
+  cfg.alt.configured = Boolean(cfg.alt.coordinator && cfg.alt.lock);
+  // In-browser test wallets (faucet-created keys in localStorage) exist only on testnet builds.
+  if (network !== "testnet" && /^(1|true|yes)$/i.test(String(env.PUBLIC_KYP_TEST_WALLETS ?? ""))) {
+    throw new Error("PUBLIC_KYP_TEST_WALLETS is testnet-only; refusing to build test wallets into a mainnet site");
+  }
+  cfg.testWallets = network === "testnet" && !/^(0|false|no)$/i.test(String(env.PUBLIC_KYP_TEST_WALLETS ?? ""));
   return cfg;
+}
+
+/** Contracts for the chosen instance ("alt" = the alternate deployment when configured). */
+export function pickInstance(cfg, choice) {
+  if (choice === "alt" && cfg.alt?.configured) return { ...cfg, coordinator: cfg.alt.coordinator, lock: cfg.alt.lock, pool: cfg.alt.pool, instance: "alt" };
+  return { ...cfg, instance: "primary" };
 }
 
 export const MAINNET_ONLY_SUFFIX = " (mainnet only)";
