@@ -103,6 +103,10 @@ export function quickStart(ctx, state = {}, log = () => {}) {
     async fund() {
       needPs();
       for (let i = 0; i < n; i++) {
+        if (state.launchId && state.salts?.[i]) { // already deposited? then nothing to wrap
+          const slot = await ctx.view(ctx.coordinator, "get_slot", { launch_id: state.launchId, hash: await slotHash(state.ps[i].accountId, state.salts[i]) }).catch(() => null);
+          if (slot?.filled) continue;
+        }
         const w = state.ps[i], s = await wnear(ctx.view, ctx.quote, ctx.coordinator, w.accountId), need = amt(i);
         if (BigInt(s.wnearBalance) < need) await send(`wrap ${sampleAmount(i)} NEAR (${name(i)})`, w, wrapTx({ quote: ctx.quote, signer: w.accountId, amount: (need - BigInt(s.wnearBalance)).toString(), registered: s.signerRegistered, storageMin: s.storageMin }));
       }

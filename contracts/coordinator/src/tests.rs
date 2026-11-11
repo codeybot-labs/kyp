@@ -631,4 +631,28 @@ fn split_failed_range_recredits_one_deposit() {
     let _ = c.on_liquidity_added(1, Err(PromiseError::Failed));
     assert_eq!(c.launches.get(&1).unwrap().near_budget, budget_before);
     assert_eq!(c.get_launch(1).unwrap().status, LaunchStatus::Launching);
+    assert_eq!(c.get_liquidity_attempts(1), 1, "next resume nudges the range");
+    // success resets the counter for the next range
+    set_results_gas("kyp.testnet", T0 + 300, 50, vec![]);
+    let _ = c.on_liquidity_added(1, Ok("lpt#1".into()));
+    assert_eq!(c.get_liquidity_attempts(1), 0);
+}
+
+#[test]
+fn liquidity_ranges_nudge_far_end_only_and_stay_legal() {
+    let mut c = new_contract();
+    go_live(&mut c);
+    let l = c.launches.get(&1).unwrap().clone();
+    let r0 = Contract::liquidity_ranges(&l, 200);
+    for t in 1..=40u8 {
+        let r = Contract::liquidity_ranges_nudged(&l, 200, t);
+        assert_eq!(r[0].0, r0[0].0, "token range still starts one delta above the price");
+        assert_eq!(r[1].1, r0[1].1, "quote range still ends at the price");
+        assert_eq!(r[0].1, r0[0].1 - 1400 * t as i32);
+        assert_eq!(r[1].0, r0[1].0 + 1400 * t as i32);
+        for (lft, rgt, ..) in r {
+            assert!(lft < rgt && lft % 200 == 0 && rgt % 200 == 0 && rgt - lft < 800_000);
+        }
+        assert_eq!((r[0].2, r[1].3), (r0[0].2, r0[1].3), "amounts unchanged");
+    }
 }

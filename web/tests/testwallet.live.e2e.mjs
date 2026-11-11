@@ -58,7 +58,8 @@ try {
     await page.waitForFunction(() => [...document.querySelectorAll('[data-testid="tw-balance"]')].every((b) => /[1-9][0-9.]* NEAR/.test(b.textContent)), null, { timeout: 30000 });
     console.log("batch balances:", (await page.$$eval('[data-testid="tw-log"] li', (ls) => ls.map((l) => l.textContent))).filter((l) => /test wallet/.test(l)).join(" | "));
   }
-  await page.selectOption('[data-testid="tw-presalers"]', presalers);
+  if (await page.isEnabled('[data-testid="tw-presalers"]')) await page.selectOption('[data-testid="tw-presalers"]', presalers);
+  else console.log("resuming the saved test-mode launch");
   await page.click('[data-testid="tw-quickstart"]');
   const t0 = Date.now();
   let last = 0;
@@ -77,6 +78,37 @@ try {
   await page.goto(`${base}/launch?id=${id}`, { waitUntil: "networkidle" });
   await page.waitForFunction(() => /Live/.test(document.body.innerText), null, { timeout: 30000 });
   console.log(`OK: ${links.length} tx links, launch #${id} Live on ${base}`);
+  for (const l of links) console.log("  tx", l);
+  if (process.env.REVEAL) {
+    // reveal every wave (interval 60 s), then check presalers / lock / chart from the chain
+    const rpc = "https://rpc.testnet.fastnear.com";
+    const view = async (c, m, a) => { const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "query", params: { request_type: "call_function", finality: "optimistic", account_id: c, method_name: m, args_base64: Buffer.from(JSON.stringify(a)).toString("base64") } }) }); const j = await r.json(); if (j.error || j.result?.error) throw new Error(JSON.stringify(j.error ?? j.result.error).slice(0, 200)); return JSON.parse(Buffer.from(j.result.result).toString()); };
+    const coord = process.env.KYP_COORD || "kyp-sushmit-dcl.testnet", lock = process.env.KYP_LOCK || "kyp-sushmit-dcl-lock.testnet";
+    const L = await view(coord, "get_launch", { launch_id: Number(id) });
+    await page.goto(`${base}/test-wallets`, { waitUntil: "networkidle" });
+    for (let w = 1; w <= L.reveal.waves; w++) {
+      await page.waitForTimeout(62_000);
+      const n0 = await page.$$eval('[data-testid="tw-txlink"]', (a) => a.length).catch(() => 0);
+      await page.click("text=Reveal next wave");
+      await page.waitForFunction((n) => document.querySelectorAll('[data-testid="tw-txlink"]').length > n || /failed:/.test(document.querySelector('[data-testid="tw-log"]')?.textContent ?? ""), n0, { timeout: 60000 });
+      const last = await page.$$eval('[data-testid="tw-log"] li', (ls) => ls.at(-1).textContent);
+      const href = await page.$$eval('[data-testid="tw-txlink"]', (a) => a.at(-1)?.href);
+      console.log(`reveal wave ${w}: ${redact(last)} ${/failed/.test(last) ? "" : href}`);
+      const pres = await view(coord, "get_presalers", { launch_id: Number(id) });
+      console.log(`  presalers ${pres.length}, waves [${pres.map((p) => p.wave).join(",")}], revealed ${pres.filter((p) => p.account_id).length}`);
+    }
+    const pres = await view(coord, "get_presalers", { launch_id: Number(id) });
+    const prices = pres.map((p) => Number(BigInt(p.tokens) * 10n ** 6n / BigInt(p.quote)));
+    console.log("tokens per wNEAR (x1e-6 raw) per presaler:", prices.join(", "), new Set(prices).size === 1 ? "→ one price" : "→ DIFFERENT PRICES");
+    const lk = await view(lock, "get_lock", { launch_id: Number(id) });
+    const sum = pres.reduce((a, p) => a + BigInt(p.tokens), 0n);
+    console.log(`lock: total_locked ${lk.total_locked}, positions ${lk.positions_count}, presale tokens ${sum}, observations ${lk.observations_count}`);
+    const tok = await view(L.token_id, "ft_balance_of", { account_id: lock });
+    console.log(`lock token balance ${tok} (${BigInt(tok) >= sum ? "holds all presale tokens" : "SHORT"}) · status ${L.status} · pool ${L.pool_id}`);
+    await page.goto(`${base}/launch?id=${id}`, { waitUntil: "networkidle" });
+    await page.waitForSelector('[data-testid="price-chart"] canvas', { timeout: 30000 });
+    console.log("chart:", (await page.textContent('[data-testid="price-chart"]')).match(/on-chain[^a#]*|\d+ points/g)?.join(" · "));
+  }
   const rows = await page.evaluate(() => JSON.parse(localStorage.getItem("kyp-testnet-wallets")).length);
   console.log(`wallets stored: ${rows}/10`);
   if (errors.length) console.log("page errors:", errors.map(redact));

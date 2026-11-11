@@ -50,6 +50,10 @@ const GAS_CB_SMALL: Gas = Gas::from_tgas(5);
 /// Kept free when checking whether a split step fits in the remaining gas.
 const GAS_STEP_RESERVE: Gas = Gas::from_tgas(5);
 const STEP_GAS_KEY: &[u8] = b"step_gas";
+const LIQ_TRY_PREFIX: &[u8] = b"lq_try";
+/// Far-end shrink per failed add_liquidity attempt, in point_delta units (7 x 200 = 1400 points).
+const NUDGE_STEPS: i32 = 7;
+const MAX_LIQ_TRIES: u8 = 40;
 
 #[near(serializers = [borsh])]
 #[derive(BorshStorageKey)]
@@ -502,15 +506,26 @@ impl Contract {
     }
 
     /// The add_liquidity ranges: (left, right, amount_x, amount_y) for token side and quote side.
+    #[allow(dead_code)] // un-nudged ranges; used by tests
     pub(crate) fn liquidity_ranges(l: &Launch, point_delta: i32) -> [(i32, i32, u128, u128); 2] {
+        Self::liquidity_ranges_nudged(l, point_delta, 0)
+    }
+
+    /// RHEA DCL sometimes charges a few hundred million yocto MORE than `amount_x` for a
+    /// single-sided range and then panics computing the refund ("attempt to subtract with
+    /// overflow", testnet launch #5, range -23000..776800). The rounding depends on the range, so
+    /// after each failed attempt the next one pulls the far end of the range in by
+    /// `NUDGE_POINTS * attempt` delta-aligned points (never the end at the price).
+    pub(crate) fn liquidity_ranges_nudged(l: &Launch, point_delta: i32, attempt: u8) -> [(i32, i32, u128, u128); 2] {
+        let nudge = NUDGE_STEPS * point_delta * attempt as i32;
         // RHEA DCL (iZi-style) rejects right_point >= MAX_POINT and ranges with
         // right - left >= MAX_POINT ("E202: illegal point"), checked on dclv2.ref-dev.testnet.
         let (lo, hi) = aligned_bounds(point_delta);
         let hi = if hi >= MAX_POINT { hi - point_delta } else { hi };
         let max_width = (MAX_POINT - 1).div_euclid(point_delta) * point_delta;
         let a = l.init_point;
-        let above = (a + point_delta, hi.min(a + point_delta + max_width));
-        let below = (lo.max(a - max_width), a);
+        let above = (a + point_delta, hi.min(a + point_delta + max_width) - nudge);
+        let below = (lo.max(a - max_width) + nudge, a);
         let (tok, quo) = (l.lp_tokens, l.total_raised);
         if l.token_is_x {
             // x-only above the price (token for sale), y-only below (quote bids)
@@ -596,7 +611,7 @@ impl Contract {
         }
         if sg.split_pool_steps && !p.liquidity_added {
             // one range per step; lpt_ids.len() = ranges already added
-            let ranges = Self::liquidity_ranges(&l, cfg.point_delta);
+            let ranges = Self::liquidity_ranges_nudged(&l, cfg.point_delta, Self::liq_tries(launch_id));
             let i = l.lpt_ids.len().min(ranges.len() - 1);
             let g = Gas::from_tgas(sg.add_liquidity_tgas);
             if !Self::fits(g.saturating_add(GAS_CB_ADD)) {
@@ -611,7 +626,7 @@ impl Contract {
             );
         }
         if !p.liquidity_added {
-            let ranges = Self::liquidity_ranges(&l, cfg.point_delta);
+            let ranges = Self::liquidity_ranges_nudged(&l, cfg.point_delta, Self::liq_tries(launch_id));
             let d1 = self.spend(launch_id, cfg.liquidity_deposit);
             let d2 = self.spend(launch_id, cfg.liquidity_deposit);
             let mut pr = Promise::new(l.pool_contract.clone());
@@ -730,6 +745,7 @@ impl Contract {
         match res {
             Ok(lpt) => {
                 let split = self.get_step_gas().split_pool_steps;
+                Self::set_liq_tries(launch_id, 0);
                 let l = self.launches.get_mut(&launch_id).unwrap();
                 l.lpt_ids.push(lpt);
                 // batch mode adds both ranges at once; split mode one range per step
@@ -741,9 +757,27 @@ impl Contract {
                 let n = if self.get_step_gas().split_pool_steps { 1 } else { 2 };
                 let d = n * self.config.liquidity_deposit.as_yoctonear();
                 self.launches.get_mut(&launch_id).unwrap().near_budget += d;
+                // next resume_launch tries a slightly different range (see liquidity_ranges_nudged)
+                let t = Self::liq_tries(launch_id);
+                Self::set_liq_tries(launch_id, (t + 1) % (MAX_LIQ_TRIES + 1));
                 self.halt(launch_id, "add_liquidity")
             }
         }
+    }
+
+    fn liq_key(launch_id: u64) -> Vec<u8> {
+        [LIQ_TRY_PREFIX, &launch_id.to_le_bytes()].concat()
+    }
+    /// Failed add_liquidity attempts for the range being added (kept outside the Launch struct so
+    /// existing state stays readable).
+    pub fn get_liquidity_attempts(&self, launch_id: u64) -> u8 {
+        Self::liq_tries(launch_id)
+    }
+    fn liq_tries(launch_id: u64) -> u8 {
+        env::storage_read(&Self::liq_key(launch_id)).and_then(|v| v.first().copied()).unwrap_or(0)
+    }
+    fn set_liq_tries(launch_id: u64, n: u8) {
+        if n == 0 { env::storage_remove(&Self::liq_key(launch_id)); } else { env::storage_write(&Self::liq_key(launch_id), &[n]); }
     }
 
     fn apply_progress(&mut self, launch_id: u64, f: impl FnOnce(&mut LaunchProgress)) {
