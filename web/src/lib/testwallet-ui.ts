@@ -4,7 +4,7 @@ import { createSignal } from "solid-js";
 import { CONFIG, NETWORK, TEST_WALLETS } from "./config";
 import * as tw from "./testwallet.mjs";
 
-export interface TestWallet { accountId: string; secretKey: string; label: string; createdAt: number; imported?: boolean }
+export interface TestWallet { accountId: string; secretKey: string; label: string; createdAt: number; imported?: boolean; fundedBy?: string }
 const store = () => localStorage;
 const [list, setList] = createSignal<TestWallet[]>(typeof localStorage === "undefined" ? [] : tw.loadWallets(localStorage));
 const [activeId, setActiveIdSig] = createSignal<string | null>(typeof localStorage === "undefined" ? null : tw.getActive(localStorage)?.accountId ?? null);
@@ -14,11 +14,47 @@ const SESSION_KEY = "kyp-testnet-wallet-session";
 function refresh() { setList(tw.loadWallets(store())); setActiveIdSig(tw.getActive(store())?.accountId ?? null); }
 function guard() { if (!TEST_WALLETS) throw new Error("Test wallets are testnet-only and disabled on this build"); tw.assertTestnet(NETWORK, CONFIG.rpc); }
 
-export async function generateTestWallet(label = ""): Promise<TestWallet> {
+export const MAX_TEST_WALLETS = tw.MAX_WALLETS;
+export const testWalletRoom = () => { list(); return typeof localStorage === "undefined" ? 0 : tw.roomLeft(store()); };
+/** Stored wallets with their live NEAR balance (yocto), richest first. */
+export async function walletsByBalance(exclude: string[] = []) {
+  const out = await Promise.all(list().filter((w) => !exclude.includes(w.accountId)).map(async (w) => ({ w, near: BigInt((await tw.nearBalance(CONFIG.rpc, w.accountId).catch(() => null)) ?? "0") })));
+  return out.sort((a, b) => (b.near > a.near ? 1 : b.near < a.near ? -1 : 0));
+}
+
+/**
+ * New test wallet from the free faucet. If the faucet rate-limits this IP and `fallback` is on, the
+ * richest stored test wallet funds a new account via the `testnet` registrar instead (2 NEAR).
+ */
+export async function generateTestWallet(label = "", opts: { fallback?: boolean; onNote?: (s: string) => void } = {}): Promise<TestWallet & { fundedBy?: string; hash?: string }> {
   guard();
-  const w = await tw.generateTestWallet({ network: NETWORK, label });
+  if (tw.roomLeft(store()) <= 0) throw new Error(tw.capMessage()); // check before spending a faucet account
+  let w: any;
+  try {
+    w = await tw.generateTestWallet({ network: NETWORK, label });
+  } catch (e: any) {
+    if (!tw.isRateLimit(e) || opts.fallback === false) throw e;
+    const need = BigInt(tw.FALLBACK_FUND) + tw.FUNDER_RESERVE;
+    const funder = (await walletsByBalance())[0];
+    if (!funder || funder.near < need) throw new Error(`${e.message} — NEAR's faucet limits each IP. To keep going, import a testnet key that holds at least 3 NEAR (or keep one funded test wallet here): new wallets are then funded from it.`);
+    opts.onNote?.(`faucet rate-limited; funding from ${funder.w.accountId}`);
+    if (!(globalThis as any).Buffer) (globalThis as any).Buffer = (await import("buffer")).Buffer;
+    w = await tw.createFundedByWallet({ network: NETWORK, rpc: CONFIG.rpc, funder: funder.w, label });
+  }
   tw.addWallet(store(), w); refresh();
-  return w as TestWallet;
+  return w;
+}
+export type BatchProgress = { i: number; total: number; status: "creating" | "ok" | "retry" | "error"; accountId?: string; error?: string };
+/** Generate `count` (1-10) wallets sequentially, throttled, with retries; capped at 10 stored. */
+export async function generateTestWallets(count: number, label: string, onProgress: (p: BatchProgress) => void) {
+  guard();
+  const r = await tw.generateBatch({
+    count, room: tw.roomLeft(store()), label: label || "wallet", onProgress,
+    generate: (l: string) => generateTestWallet(l), // stores it (and handles the faucet fallback)
+    add: () => {},
+  });
+  refresh();
+  return r as { created: (TestWallet & { fundedBy?: string; hash?: string })[]; errors: { i: number; error: string }[]; skipped: number; rateLimited?: boolean };
 }
 export function importTestWallet(text: string, accountId = "", label = "imported") { guard(); const w = tw.parseImport(text, accountId); tw.addWallet(store(), { ...w, label }); refresh(); return w.accountId as string; }
 export function deleteTestWallet(id: string) { tw.removeWallet(store(), id); if (localStorage.getItem(SESSION_KEY) === id) localStorage.removeItem(SESSION_KEY); refresh(); }

@@ -5,8 +5,8 @@ import { CONFIG, NETWORK, TEST_WALLETS, INSTANCES, INSTANCE } from "../lib/confi
 import { explorerTxUrl } from "../lib/network.mjs";
 import { view } from "../lib/near";
 import { account, walletName, connectTestWallet } from "../lib/wallet";
-import { testWallets, activeTestWallet, generateTestWallet, importTestWallet, deleteTestWallet, exportTestWallet, setActiveTestWallet, sendWithTestWallet, testnetBalances, findTestWallet, type TestWallet } from "../lib/testwallet-ui";
-import { quickStart, wrapTx } from "../lib/testflow.mjs";
+import { testWallets, activeTestWallet, generateTestWallet, generateTestWallets, walletsByBalance, testWalletRoom, MAX_TEST_WALLETS, type BatchProgress, importTestWallet, deleteTestWallet, exportTestWallet, setActiveTestWallet, sendWithTestWallet, testnetBalances, findTestWallet, type TestWallet } from "../lib/testwallet-ui";
+import { quickStart, wrapTx, sampleAmount, MAX_PRESALERS } from "../lib/testflow.mjs";
 import { fmtQ, toast } from "./ui";
 
 const QS_KEY = "kyp-testmode";
@@ -28,13 +28,19 @@ export default function TestWallets() {
   const [busy, setBusy] = createSignal<string | null>(null);
   const [tick, setTick] = createSignal(0);
   const [label, setLabel] = createSignal("");
+  const [count, setCount] = createSignal(1);
+  const [reuse, setReuse] = createSignal(true);
+  const [nPs, setNPs] = createSignal(Math.max(1, Math.min(MAX_PRESALERS, upgradeSaved().ps?.length || 2)));
+  const [progress, setProgress] = createSignal<BatchProgress[]>([]);
   const [shown, setShown] = createSignal<{ id: string; text: string } | null>(null);
   const [impText, setImpText] = createSignal("");
   const [impId, setImpId] = createSignal("");
   const [log, setLog] = createSignal<LogLine[]>([]);
   const saved = () => { try { return JSON.parse(localStorage.getItem(QS_KEY) || "{}"); } catch { return {}; } };
-  const [qs, setQs] = createSignal<{ launcher?: string; a?: string; b?: string; salts?: { a: string; b: string }; launchId?: number }>(saved());
-  const saveQs = (s: any) => { const v = { launcher: s.launcher?.accountId ?? s.launcher, a: s.a?.accountId ?? s.a, b: s.b?.accountId ?? s.b, salts: s.salts, launchId: s.launchId }; localStorage.setItem(QS_KEY, JSON.stringify(v)); setQs(v); };
+  function upgradeSaved() { try { return upgrade(JSON.parse(localStorage.getItem(QS_KEY) || "{}")); } catch { return {}; } }
+  function upgrade(v: any) { return v.a || v.b ? { launcher: v.launcher, ps: [v.a, v.b].filter(Boolean), salts: v.salts && !Array.isArray(v.salts) ? [v.salts.a, v.salts.b] : v.salts, launchId: v.launchId } : v; }
+  const [qs, setQs] = createSignal<{ launcher?: string; ps?: string[]; salts?: string[]; launchId?: number }>(upgrade(saved()));
+  const saveQs = (s: any) => { const v = { launcher: s.launcher?.accountId ?? s.launcher, ps: (s.ps ?? []).map((w: any) => w.accountId ?? w), salts: s.salts, launchId: s.launchId }; localStorage.setItem(QS_KEY, JSON.stringify(v)); setQs(v); };
 
   const run = async (name: string, fn: () => Promise<unknown>) => {
     if (busy()) return;
@@ -51,17 +57,19 @@ export default function TestWallets() {
     view: (c: string, m: string, a: any) => view<any>(c, m, a),
     send: (w: TestWallet, tx: any) => sendWithTestWallet(w, tx),
     generate: (l: string) => generateTestWallet(l),
+    room: () => testWalletRoom(),
+    get reuse() { return reuse() ? (exclude: string[]) => walletsByBalance(exclude) : undefined; },
+    get presalers() { return nPs(); },
     now: () => Math.floor(Date.now() / 1000),
   };
   const flow = () => {
     const s = qs();
-    const st: any = { salts: s.salts, launchId: s.launchId };
-    for (const k of ["launcher", "a", "b"] as const) { const id = (s as any)[k]; if (id) { const w = findTestWallet(id); if (w) st[k] = w; } }
+    const st: any = { salts: s.salts, launchId: s.launchId, launcher: s.launcher ? findTestWallet(s.launcher) ?? undefined : undefined, ps: (s.ps ?? []).map((id) => findTestWallet(id)).filter(Boolean) };
+    if (st.launchId && (!st.launcher || st.ps.length !== (s.ps ?? []).length)) throw new Error("A test-mode wallet was deleted from this browser. Click Start over.");
     return quickStart(ctx, st, push);
   };
   const step = (name: string, k: "wallets" | "fund" | "create" | "deposit" | "launch" | "record" | "reveal" | "claim") => run(name, async () => {
     const f = flow();
-    if (k !== "wallets" && (!f.state.launcher || !f.state.a || !f.state.b)) throw new Error("Generate the 3 test-mode wallets first");
     try { await (f.steps as any)[k](); } finally { saveQs(f.state); }
   });
   const runAll = () => run("quick start", async () => { const f = flow(); try { for (const k of ["wallets", "fund", "create", "deposit", "launch", "record"]) await (f.steps as any)[k](); } finally { saveQs(f.state); } toast("Sample launch is live", "ok"); });
@@ -82,24 +90,27 @@ export default function TestWallets() {
 
       <section class="card stack">
         <div class="card-title"><h2>Test mode quick start</h2><span class="pill">{INSTANCES.length ? INSTANCES.find((i) => i.id === INSTANCE)?.label : ""} · {CONFIG.coordinator}</span></div>
-        <p class="sub">One click: generate a launcher and two presaler wallets (10 testnet NEAR each from the faucet), wrap wNEAR, create a sample launch with both presalers allowlisted, deposit 1 and 1.5 wNEAR, launch{CONFIG.pool.startsWith("dclv2") ? " (plus resume_launch steps for the RHEA DCL pool, 1000 Tgas each)" : ""}, and record 3 TWAP observations. Every step is signed in this browser and linked on nearblocks. Takes about a minute.</p>
+        <p class="sub">One click: generate a launcher and {nPs()} presaler wallet{nPs() > 1 ? "s" : ""} (10 testnet NEAR each from the faucet), wrap wNEAR, create a sample launch with every presaler allowlisted ({Math.min(3, nPs())} reveal wave{nPs() > 1 ? "s" : ""}), deposit sample amounts ({Array.from({ length: nPs() }, (_, i) => sampleAmount(i)).join(", ")} wNEAR), launch{CONFIG.pool.startsWith("dclv2") ? " (plus resume_launch steps for the RHEA DCL pool, 1000 Tgas each)" : ""}, and record 3 TWAP observations. Every step is signed in this browser and linked on nearblocks. Takes about a minute.</p>
         <div class="row" style={{ gap: "8px", "flex-wrap": "wrap" }}>
+          <label class="sub">Presalers <select data-testid="tw-presalers" value={nPs()} disabled={!!busy() || !!qs().launchId} onChange={(e) => setNPs(Number(e.currentTarget.value))}>
+            {Array.from({ length: MAX_PRESALERS }, (_, i) => <option value={i + 1}>{i + 1}</option>)}
+          </select> + launcher = {nPs() + 1} wallets</label>
+          <label class="sub"><input type="checkbox" data-testid="tw-reuse" checked={reuse()} disabled={!!busy()} onChange={(e) => setReuse(e.currentTarget.checked)} /> reuse funded wallets I already have</label>
           <button class="btn primary" data-testid="tw-quickstart" disabled={!!busy()} onClick={runAll}>{busy() === "quick start" ? "Running…" : "Run quick start"}</button>
-          <button class="btn sm" data-testid="tw-qs-wallets" disabled={!!busy()} onClick={() => step("generate launcher + 2 presalers", "wallets")}>1 · Generate launcher + 2 presalers</button>
+          <button class="btn sm" data-testid="tw-qs-wallets" disabled={!!busy()} onClick={() => step("generate test-mode wallets", "wallets")}>1 · Generate launcher + {nPs()} presaler{nPs() > 1 ? "s" : ""}</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("wrap", "fund")}>2 · Wrap wNEAR</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("create", "create")}>3 · Create sample launch</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("deposit", "deposit")}>4 · Deposit</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("launch", "launch")}>5 · Launch / resume</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("record", "record")}>6 · Record TWAP</button>
           <button class="btn sm" disabled={!!busy() || !qs().launchId} onClick={() => step("reveal", "reveal")}>Reveal next wave</button>
-          <button class="btn sm" disabled={!!busy() || !qs().launchId} onClick={() => step("claim", "claim")}>Claim (presaler A)</button>
+          <button class="btn sm" disabled={!!busy() || !qs().launchId} onClick={() => step("claim", "claim")}>Claim (presaler 1)</button>
           <button class="btn sm ghost" disabled={!!busy()} onClick={() => { localStorage.removeItem(QS_KEY); setQs({}); setLog([]); }}>Start over</button>
         </div>
         <Show when={qs().launcher}>
           <div class="kv sub" data-testid="tw-qs-state">
             <span>Launcher</span><span class="mono">{qs().launcher}</span>
-            <span>Presaler A</span><span class="mono">{qs().a}{qs().salts ? ` · invite code ${qs().salts!.a}` : ""}</span>
-            <span>Presaler B</span><span class="mono">{qs().b}{qs().salts ? ` · invite code ${qs().salts!.b}` : ""}</span>
+            <For each={qs().ps ?? []}>{(id, i) => <><span>Presaler {i() + 1}</span><span class="mono">{id}{qs().salts?.[i()] ? ` · invite code ${qs().salts![i()]}` : ""}</span></>}</For>
             <Show when={qs().launchId}><span>Sample launch</span><span><a href={`/launch?id=${qs().launchId}`}>#{qs().launchId} status & chart</a> · <a href={`/deposit?id=${qs().launchId}`}>deposit</a> · <a href={`/claim?id=${qs().launchId}`}>claim</a> · <a href={`/reveal?id=${qs().launchId}`}>reveal</a></span></Show>
           </div>
         </Show>
@@ -111,21 +122,40 @@ export default function TestWallets() {
       </section>
 
       <section class="card stack">
-        <div class="card-title"><h2>Your test wallets</h2><span class="pill">{testWallets().length} in this browser</span></div>
+        <div class="card-title"><h2>Your test wallets</h2><span class="pill" data-testid="tw-count">{testWallets().length} / {MAX_TEST_WALLETS} in this browser</span></div>
         <div class="row" style={{ gap: "8px", "flex-wrap": "wrap" }}>
           <input placeholder="label (optional)" value={label()} onInput={(e) => setLabel(e.currentTarget.value)} style={{ width: "180px" }} />
-          <button class="btn primary" data-testid="tw-generate" disabled={!!busy()} onClick={() => run("generate", async () => { const w = await generateTestWallet(label() || "wallet"); push({ step: "generated test wallet", account: w.accountId }); toast(`Created ${w.accountId} (10 testnet NEAR)`, "ok"); })}>
-            {busy() === "generate" ? "Creating account…" : "Generate test wallet"}
+          <label class="sub">How many <select data-testid="tw-gen-count" value={count()} disabled={!!busy()} onChange={(e) => setCount(Number(e.currentTarget.value))}>
+            {Array.from({ length: MAX_TEST_WALLETS }, (_, i) => <option value={i + 1}>{i + 1}</option>)}
+          </select></label>
+          <button class="btn primary" data-testid="tw-generate" disabled={!!busy() || testWalletRoom() === 0} onClick={() => run("generate", async () => {
+            const n = Math.min(count(), testWalletRoom());
+            if (n <= 0) throw new Error(`This browser already holds the maximum of ${MAX_TEST_WALLETS} test wallets. Delete one to add another.`);
+            setProgress([]);
+            const r = await generateTestWallets(n, label() || "wallet", (p) => setProgress((xs) => { const out = xs.slice(); out[p.i] = p; return out; }));
+            for (const w of r.created) push({ step: w.fundedBy ? `created test wallet (faucet rate-limited; 2 NEAR from ${w.fundedBy})` : "generated test wallet", account: w.accountId, hash: w.hash });
+            for (const e of r.errors) push({ step: `wallet ${e.i + 1} not created: ${e.error}`, error: true });
+            toast(`Created ${r.created.length} of ${n} test wallet${n > 1 ? "s" : ""}${r.errors.length ? ` · ${r.errors.length} failed (see below)` : " (10 testnet NEAR each)"}`, r.errors.length ? "bad" : "ok", 6000);
+          })}>
+            {busy() === "generate" ? `Creating ${progress().filter((p) => p?.status === "ok").length}/${progress()[0]?.total ?? count()}…` : `Generate ${count() > 1 ? `${Math.min(count(), testWalletRoom()) || count()} test wallets` : "test wallet"}`}
           </button>
           <span class="sub">Signed in: {account() ? `${account()} via ${walletName()}` : "none"}</span>
         </div>
+        <p class="sub">Up to 10 test wallets per browser, created one at a time with a short pause. NEAR's faucet limits each IP (it can answer “retry in 12 hours” after a busy day); when it does, new wallets are funded with 2 NEAR from your richest test wallet instead, so keep one funded or import a funded testnet key.</p>
+        <Show when={testWalletRoom() === 0}><div class="notice" data-testid="tw-cap">This browser holds the maximum of {MAX_TEST_WALLETS} test wallets. Delete one to generate or import another.</div></Show>
+        <Show when={count() > testWalletRoom() && testWalletRoom() > 0}><div class="sub">Only {testWalletRoom()} slot{testWalletRoom() > 1 ? "s" : ""} free (max {MAX_TEST_WALLETS}); that many will be created.</div></Show>
+        <Show when={progress().length}>
+          <ol class="sub mono" data-testid="tw-progress" style={{ margin: 0, "padding-left": "18px" }}>
+            <For each={progress()}>{(p) => <li style={{ color: p?.status === "error" ? "#ff8a8a" : undefined }}>{!p ? "waiting" : p.status === "ok" ? `✓ ${p.accountId}` : p.status === "creating" ? "creating…" : p.status === "retry" ? `retrying (${p.error})` : `✗ ${p.error}`}</li>}</For>
+          </ol>
+        </Show>
         <Show when={testWallets().length} fallback={<p class="sub">No test wallets yet. Generate one, or pick “Test wallet (testnet only)” in Connect wallet.</p>}>
           <table class="t" data-testid="tw-table">
             <thead><tr><th>Wallet</th><th>Balance</th><th></th></tr></thead>
             <tbody>
               <For each={testWallets()}>{(w) => (
                 <tr data-testid="tw-row">
-                  <td><div class="mono"><a href={addr(w.accountId)} target="_blank" rel="noopener">{w.accountId}</a></div><span class="sub">{w.label}{w.imported ? " · imported" : ""}{activeTestWallet() === w.accountId ? " · active" : ""}{account() === w.accountId ? " · signed in" : ""}</span></td>
+                  <td><div class="mono"><a href={addr(w.accountId)} target="_blank" rel="noopener">{w.accountId}</a></div><span class="sub">{w.label}{w.imported ? " · imported" : ""}{w.fundedBy ? ` · funded by ${w.fundedBy}` : ""}{activeTestWallet() === w.accountId ? " · active" : ""}{account() === w.accountId ? " · signed in" : ""}</span></td>
                   <td><Balances id={w.accountId} tick={tick()} /></td>
                   <td><div class="row" style={{ gap: "6px", "justify-content": "flex-end", "flex-wrap": "wrap" }}>
                     <button class="btn sm primary" data-testid="tw-use" disabled={!!busy() || account() === w.accountId} onClick={() => use(w)}>{account() === w.accountId ? "In use" : "Use"}</button>
@@ -150,7 +180,7 @@ export default function TestWallets() {
           <div class="stack" style={{ "margin-top": "8px" }}>
             <input placeholder="account id (if pasting a bare ed25519: key)" value={impId()} onInput={(e) => setImpId(e.currentTarget.value)} />
             <textarea rows={4} class="mono" placeholder='export JSON, near-cli credentials JSON, or ed25519:…' value={impText()} onInput={(e) => setImpText(e.currentTarget.value)} data-testid="tw-import-text" />
-            <button class="btn sm" data-testid="tw-import" onClick={() => { try { const id = importTestWallet(impText(), impId()); setImpText(""); setImpId(""); toast(`Imported ${id}`, "ok"); } catch (e: any) { toast(e?.message ?? String(e), "bad"); } }}>Import</button>
+            <button class="btn sm" data-testid="tw-import" disabled={testWalletRoom() === 0} onClick={() => { try { const id = importTestWallet(impText(), impId()); setImpText(""); setImpId(""); toast(`Imported ${id}`, "ok"); } catch (e: any) { toast(e?.message ?? String(e), "bad"); } }}>Import</button>
           </div>
         </details>
       </section>

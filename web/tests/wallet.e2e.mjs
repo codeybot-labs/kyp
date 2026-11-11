@@ -111,7 +111,10 @@ await ctx.route("**/rpc.testnet.near.org/**", async (route) => {
 });
 // The free testnet faucet helper, mocked: records the request instead of creating an account.
 const faucet = [], signed = [];
+let faucetFail = 0, faucetLimited = false; // next N calls answer 503 (transient) / every call answers the real 429 text
 await ctx.route("**/helper.nearprotocol.com/**", async (route) => {
+  if (faucetLimited) return route.fulfill({ status: 429, headers: { "access-control-allow-origin": "*" }, body: "Rate limit exceeded, retry in 12 hours." });
+  if (faucetFail > 0) { faucetFail--; return route.fulfill({ status: 503, headers: { "access-control-allow-origin": "*" }, body: "busy" }); }
   faucet.push({ url: route.request().url(), body: JSON.parse(route.request().postData() || "{}") });
   await route.fulfill({ contentType: "application/json", headers: { "access-control-allow-origin": "*" }, body: JSON.stringify({ final_execution_status: "EXECUTED_OPTIMISTIC", status: { SuccessValue: "" } }) });
 });
@@ -292,7 +295,59 @@ try {
     await page.click('[data-testid="wallet-disconnect"]').catch(() => {});
   });
 
-  await step("no console errors", async () => assert.deepEqual(errors, []));
+  await step("test wallets: batch of 3 with per-wallet progress + a 503 retried, 429 falls back to funding from a test wallet, 10-wallet cap blocks generate/import, presalers 1-9", async () => {
+    await page.goto(`${base}/test-wallets`, { waitUntil: "networkidle" });
+    const before = (await page.$$('[data-testid="tw-row"]')).length;
+    const opts = await page.$$eval('[data-testid="tw-gen-count"] option', (o) => o.map((x) => x.value));
+    assert.deepEqual(opts, ["1", "2", "3", "4", "5", "6", "7", "8", "9", "10"]);
+    await page.selectOption('[data-testid="tw-gen-count"]', "3");
+    await page.fill('input[placeholder="label (optional)"]', "batch");
+    const f0 = faucet.length;
+    faucetFail = 1; // first call of the batch fails transiently, then succeeds on retry
+    await page.click('[data-testid="tw-generate"]');
+    await page.waitForFunction((n) => document.querySelectorAll('[data-testid="tw-row"]').length === n, before + 3, { timeout: 40000 });
+    await page.waitForFunction(() => !/Creating/.test(document.querySelector('[data-testid="tw-generate"]').textContent), null, { timeout: 20000 });
+    const prog = await page.$$eval('[data-testid="tw-progress"] li', (ls) => ls.map((l) => l.textContent));
+    assert.equal(prog.length, 3);
+    assert.ok(prog.every((x) => x.startsWith("✓ kyp-t-batch-")), prog.join(" | "));
+    assert.deepEqual(faucet.slice(f0).map((f) => f.body.newAccountId.replace(/-[a-z0-9]{8}\.testnet$/, "")), ["kyp-t-batch-1", "kyp-t-batch-2", "kyp-t-batch-3"]);
+    assert.match(await page.textContent('[data-testid="tw-count"]'), new RegExp(`${before + 3} / 10`));
+    // faucet rate limit -> the richest stored test wallet funds the new one through the testnet registrar
+    faucetLimited = true;
+    const s0 = signed.length;
+    await page.selectOption('[data-testid="tw-gen-count"]', "1");
+    await page.fill('input[placeholder="label (optional)"]', "fb");
+    await page.click('[data-testid="tw-generate"]');
+    await page.waitForFunction((n) => document.querySelectorAll('[data-testid="tw-row"]').length === n, before + 4, { timeout: 40000 });
+    faucetLimited = false;
+    assert.equal(signed.length, s0 + 1);
+    const cr = signed.at(-1);
+    assert.deepEqual([cr.receiver, cr.methods[0], cr.deposits[0]], ["testnet", "create_account", N(2)]);
+    assert.match(cr.args[0].new_account_id, /^kyp-t-fb-[a-z0-9]{8}\.testnet$/);
+    assert.ok((await text()).includes("funded by"), "row shows the funder");
+    // fill to the cap (fake keys are fine: nothing is signed) and check generate + import are blocked
+    await page.evaluate(() => {
+      const l = JSON.parse(localStorage.getItem("kyp-testnet-wallets"));
+      for (let i = l.length; i < 10; i++) l.push({ accountId: `kyp-t-fill-${i}.testnet`, secretKey: "ed25519:" + "3".repeat(88), label: "fill", createdAt: 1 });
+      localStorage.setItem("kyp-testnet-wallets", JSON.stringify(l));
+    });
+    await page.reload({ waitUntil: "networkidle" });
+    await page.waitForSelector('[data-testid="tw-cap"]');
+    assert.match(await page.textContent('[data-testid="tw-cap"]'), /maximum of 10/);
+    assert.ok(await page.isDisabled('[data-testid="tw-generate"]'));
+    assert.ok(await page.isDisabled('[data-testid="tw-import"]'));
+    const f1 = faucet.length;
+    await page.evaluate(() => document.querySelector('[data-testid="tw-generate"]').click());
+    await page.waitForTimeout(500);
+    assert.equal(faucet.length, f1, "no faucet call at the cap");
+    const ps = await page.$$eval('[data-testid="tw-presalers"] option', (o) => o.map((x) => x.value));
+    assert.deepEqual(ps, ["1", "2", "3", "4", "5", "6", "7", "8", "9"]);
+    await page.selectOption('[data-testid="tw-presalers"]', "9");
+    assert.match(await page.textContent('[data-testid="test-wallets"]'), /\+ launcher = 10 wallets/);
+    await page.evaluate(() => { localStorage.removeItem("kyp-testnet-wallets"); localStorage.removeItem("kyp-testnet-wallet-active"); });
+  });
+
+  await step("no console errors", async () => assert.deepEqual(errors.filter((e) => !/status of (429|503)/.test(e)), [])); // the 429/503 are the deliberate faucet failures above
 
   await step("mainnet build: same wallets work normally (no labels), mainnet RPC/labels, no testnet contracts", async () => {
     const m = buildAndServe({ ...NO_NET, PUBLIC_NEAR_NETWORK: "mainnet", PUBLIC_KYP_COORDINATOR: COORD, PUBLIC_KYP_LOCK: LOCK });

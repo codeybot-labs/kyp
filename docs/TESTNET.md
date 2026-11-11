@@ -112,6 +112,10 @@ record [1](https://testnet.nearblocks.io/txns/WXVSBCyjMC6gu7zz5iPs9nWVhjgSkEGi6d
 
 `tests/testwallet.live.e2e.mjs` ran the same quick start in headless Chrome from the production build (launch #4 Live, 12 tx links, ~90 s).
 
+### Batches, the 10-wallet cap and the faucet limit (2026-11-11)
+
+After ~20 faucet accounts in a day the helper answered `429 Rate limit exceeded, retry in 12 hours.` for this IP. The site now stops a batch on that answer and falls back to funding new wallets (2 NEAR each) from the richest stored test wallet via `testnet.create_account`. Verified on testnet from the production build in Chrome: three imported funder wallets, then a batch of 3 hit the 429 and all three were created through the fallback (`kyp-t-live-1-zv8zprzz.testnet`, `kyp-t-live-2-f6lutx17.testnet`, `kyp-t-live-3-0znucsns.testnet`, 2.0 NEAR each). The multi-presaler quick start (FDV 100 wNEAR, up to 9 presalers / 3 waves) is covered by unit tests and the mocked e2e only; a real-testnet run is pending a faucet reset (`FUNDERS=… npm run test:live`). The live test now uses a persistent browser profile (`/tmp/kyp-live-profile`, fixed port 4399) so test wallets and their testnet NEAR aren't lost between runs.
+
 ## Price chart data sources
 
 Checked 2026-11-11 (IST).

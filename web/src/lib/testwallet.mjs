@@ -9,6 +9,9 @@ export const STORAGE_KEY = "kyp-testnet-wallets";
 export const ACTIVE_KEY = "kyp-testnet-wallet-active";
 export const WALLET_ID = "kyp-testnet-wallet";
 export const WALLET_NAME = "Test wallet (testnet only)";
+export const MAX_WALLETS = 10; // per browser
+export const capMessage = (n = MAX_WALLETS) => `This browser already holds the maximum of ${n} test wallets. Delete one to add another.`;
+export const roomLeft = (storage) => Math.max(0, MAX_WALLETS - loadWallets(storage).length);
 
 export function assertTestnet(network, rpc) {
   if (network !== "testnet") throw new Error("Test wallets are testnet-only and disabled on this network");
@@ -48,8 +51,10 @@ export function setActive(storage, accountId) {
 export function addWallet(storage, w) {
   if (!validTestnetAccount(w.accountId)) throw new Error("Test wallets must be .testnet accounts");
   if (!validSecretKey(w.secretKey)) throw new Error("Key must look like ed25519:…");
-  const list = loadWallets(storage).filter((x) => x.accountId !== w.accountId);
-  list.push({ accountId: w.accountId, secretKey: w.secretKey, label: w.label || "", createdAt: w.createdAt || Date.now(), imported: !!w.imported });
+  const all = loadWallets(storage);
+  if (!all.some((x) => x.accountId === w.accountId) && all.length >= MAX_WALLETS) throw new Error(capMessage());
+  const list = all.filter((x) => x.accountId !== w.accountId);
+  list.push({ accountId: w.accountId, secretKey: w.secretKey, label: w.label || "", createdAt: w.createdAt || Date.now(), imported: !!w.imported, ...(w.fundedBy ? { fundedBy: w.fundedBy } : {}) });
   save(storage, list);
   if (!getActiveId(storage)) storage.setItem(ACTIVE_KEY, w.accountId);
   return list;
@@ -99,6 +104,28 @@ export async function generateTestWallet({ network, label = "", fetchImpl = fetc
   return { accountId, secretKey: kp.toString(), label, createdAt: Date.now() };
 }
 
+/** NEAR's faucet limits each IP (e.g. 429 "Rate limit exceeded, retry in 12 hours"); retrying soon won't help. */
+export const isRateLimit = (e) => /\(429\)|rate limit/i.test(String(e?.message ?? e));
+
+export const FALLBACK_FUND = (2n * 10n ** 24n).toString(); // 2 testnet NEAR per wallet funded from another test wallet
+export const FUNDER_RESERVE = 10n ** 24n; // the funder keeps at least 1 NEAR
+
+/**
+ * Faucet fallback: `funder` (a test wallet already holding testnet NEAR) creates a new top-level
+ * .testnet account through the `testnet` registrar (create_account, like near-cli fund-myself) and
+ * funds it with `amount`. The new key is generated here; only its public key goes on chain.
+ */
+export async function createFundedByWallet({ network, rpc, funder, label = "", amount = FALLBACK_FUND, rand, fetchImpl = fetch, send = signAndSendWithTestWallet }) {
+  assertTestnet(network, rpc);
+  const { KeyPair } = await import("@near-js/crypto");
+  const kp = KeyPair.fromRandom("ed25519");
+  const accountId = newAccountId(label, rand);
+  const tx = { receiverId: "testnet", actions: [{ method: "create_account", args: { new_account_id: accountId, new_public_key: kp.getPublicKey().toString() }, gas: (100n * 10n ** 12n).toString(), deposit: String(amount) }] };
+  const { hash } = await send({ network, rpc, wallet: funder, tx });
+  if ((await nearBalance(rpc, accountId, fetchImpl)) == null) throw Object.assign(new Error(`create_account via testnet did not create ${accountId}`), { hash });
+  return { accountId, secretKey: kp.toString(), label, createdAt: Date.now(), fundedBy: funder.accountId, hash };
+}
+
 // ---------------------------------------------------------------- signing (direct RPC)
 
 /** Convert a site tx ({receiverId, actions:[{method,args,gas,deposit}]}) to near-js actions. */
@@ -116,7 +143,7 @@ export function failureMessage(outcome) {
 /** Sign one site tx with a test wallet and send it to the testnet RPC. Returns { hash, outcome }. */
 export async function signAndSendWithTestWallet({ network, rpc, wallet, tx }) {
   assertTestnet(network, rpc);
-  if (!validTestnetAccount(wallet?.accountId) || !/^[a-z0-9._-]+\.testnet$/.test(String(tx?.receiverId))) throw new Error("testnet accounts only");
+  if (!validTestnetAccount(wallet?.accountId) || !(/^[a-z0-9._-]+\.testnet$/.test(String(tx?.receiverId)) || tx?.receiverId === "testnet")) throw new Error("testnet accounts only");
   const [{ Account }, { JsonRpcProvider }, { KeyPairSigner }] = await Promise.all([import("@near-js/accounts"), import("@near-js/providers"), import("@near-js/signers")]);
   const provider = new JsonRpcProvider({ url: rpc });
   const account = new Account(wallet.accountId, provider, KeyPairSigner.fromSecretKey(wallet.secretKey));
@@ -133,4 +160,41 @@ export async function nearBalance(rpc, accountId, fetchImpl = fetch) {
     body: JSON.stringify({ jsonrpc: "2.0", id: "kyp", method: "query", params: { request_type: "view_account", finality: "optimistic", account_id: accountId } }) });
   const j = await r.json();
   return j?.result?.amount ?? null;
+}
+
+/**
+ * Generate up to `count` (1-10, and never past the 10-wallet cap) wallets one at a time, with a
+ * pause between faucet calls and retries with backoff on failure (e.g. 429 rate limits), so one
+ * refusal doesn't sink the batch. onProgress({ i, total, status: "creating"|"ok"|"retry"|"error", accountId?, error? }).
+ * Returns { created: [wallet], errors: [{ i, error }] }. `add(wallet)` stores each one as it lands.
+ */
+export async function generateBatch({ count, room, generate, add, label = "wallet", onProgress = () => {}, sleep = (ms) => new Promise((r) => setTimeout(r, ms)), gapMs = 1500, retries = 2, backoffMs = 4000 }) {
+  const want = Math.max(1, Math.min(MAX_WALLETS, Math.floor(Number(count) || 1)));
+  if (room <= 0) throw new Error(capMessage());
+  const total = Math.min(want, room);
+  const created = [], errors = [];
+  for (let i = 0; i < total; i++) {
+    if (i > 0) await sleep(gapMs);
+    onProgress({ i, total, status: "creating" });
+    for (let attempt = 0; ; attempt++) {
+      try {
+        const w = await generate(total > 1 ? `${label}-${i + 1}` : label);
+        add(w); created.push(w);
+        onProgress({ i, total, status: "ok", accountId: w.accountId });
+        break;
+      } catch (e) {
+        const error = e?.message ?? String(e);
+        if (isRateLimit(e)) { // faucet limit and no funded wallet to fall back on: stop, don't hammer it
+          errors.push({ i, error }); onProgress({ i, total, status: "error", error });
+          for (let j = i + 1; j < total; j++) onProgress({ i: j, total, status: "error", error: "skipped (faucet rate limit)" });
+          return { created, errors, skipped: want - i - 1, rateLimited: true };
+        }
+        if (/maximum of/.test(error)) { errors.push({ i, error }); onProgress({ i, total, status: "error", error }); return { created, errors, skipped: want - i - 1 }; }
+        if (attempt < retries) { onProgress({ i, total, status: "retry", error }); await sleep(backoffMs * (attempt + 1)); continue; }
+        errors.push({ i, error }); onProgress({ i, total, status: "error", error });
+        break;
+      }
+    }
+  }
+  return { created, errors, skipped: want - total };
 }
