@@ -23,7 +23,6 @@ export default function CreateLaunch() {
   const launcher = () => wallet() ?? launcherInput();
   const [savedCodes, setSavedCodes] = createSignal(false);
   const [selectedPlatforms, setSelectedPlatforms] = createSignal<("kyp" | "nearly" | "justhoot")[]>(KYP_ENABLED ? ["kyp"] : []);
-  const externalCmds = createMemo(() => externalCommands(params(), launcher(), selectedPlatforms()));
   const togglePlatform = (id: "kyp" | "nearly" | "justhoot", on: boolean) => {
     if (id === "kyp" || !PLATFORMS.find((p) => p.id === id)?.enabled) return;
     const cur = selectedPlatforms();
@@ -90,6 +89,7 @@ export default function CreateLaunch() {
     };
   });
   const errors = createMemo(() => validateParams(params(), nowSec()));
+  const externalCmds = createMemo(() => externalCommands(params(), launcher(), selectedPlatforms()));
   const capTokens = () => (DEFAULT_SUPPLY * BigInt(params().presale_cap_bps)) / 10000n;
   const perNear = () => Number(tokensForQuote(10n ** 24n, DEFAULT_SUPPLY, params().opening_fdv_quote)) / 1e18;
   const msSum = () => ms().reduce((a, m) => a + m.pct, 0);
