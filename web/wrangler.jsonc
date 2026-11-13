@@ -11,5 +11,8 @@
     "not_found_handling": "404-page"
   },
   "workers_dev": true,
-  "preview_urls": false
+  "preview_urls": false,
+  "routes": [
+    { "pattern": "kycabal.fun", "custom_domain": true }
+  ]
 }
