@@ -241,7 +241,7 @@ export default function CreateLaunch() {
               <For each={PLATFORMS}>{(p) => (
                 <label class="field" style={{ opacity: p.enabled ? 1 : 0.6 }}>
                   <span style={{ display: "flex", "align-items": "center", gap: "8px" }}>
-                    <input type="checkbox" checked={selectedPlatforms().includes(p.id)} disabled={p.id === "kyp" || !p.enabled} onChange={(e) => togglePlatform(p.id, e.currentTarget.checked)} />
+                    <input type="checkbox" checked={selectedPlatforms().includes(p.id)} disabled={p.id === "kyp" || !p.enabled} onChange={(e) => togglePlatform(p.id, e.currentTarget.checked)} style={{ width: "18px", height: "18px", "min-height": "auto", "margin-right": "2px" }} />
                     <span style={{ "font-weight": 700, color: p.color }}>{p.label}</span>
                     {p.id === "kyp" && <span class="chip live">required</span>}
                   </span>

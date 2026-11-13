@@ -1,11 +1,11 @@
-import { setNetwork } from "../lib/config";
+import { NETWORK, setNetwork } from "../lib/config";
 
-export default function NetworkSwitch(p: { current: "testnet" | "mainnet" }) {
+export default function NetworkSwitch() {
   return (
     <select
       class="btn sm ghost network-switch"
       aria-label="Network"
-      value={p.current}
+      value={NETWORK}
       onChange={(e) => setNetwork(e.currentTarget.value as "testnet" | "mainnet")}
       style={{ display: "inline-block" }}
     >
