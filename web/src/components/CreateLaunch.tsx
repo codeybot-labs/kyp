@@ -115,12 +115,6 @@ export default function CreateLaunch() {
           </div>
         </div>
       </header>
-      <div class="wrap">
-        <div class="row between" style={{ "margin-top": "20px", "margin-bottom": "-10px", "align-items": "center" }}>
-          <span class="sub">Launching on <b>{NETWORK_NAME}</b></span>
-          <NetworkSwitch />
-        </div>
-      </div>
 
       <div class="layout" id="kyp">
         <div class="stack">
