@@ -10,27 +10,35 @@ const steps = [
 ];
 ---
 <Base title="How it works" active="/how-it-works">
-  <section class="hero" style="padding-bottom: 10px">
-    <h1>How KYP works</h1>
-    <p class="lead">An antidote to the race-to-dump meta: early supply goes to capable, committed hands, enforced by contracts rather than promises.</p>
+  <section class="hero full-bleed" style="padding-bottom: 20px">
+    <div class="wrap">
+      <h1>How KYP works</h1>
+      <p class="lead">An antidote to the race-to-dump meta: early supply goes to capable, committed hands, enforced by contracts rather than promises.</p>
+    </div>
   </section>
-  <div class="grid g2">
+
+  <section class="grid g2" style="padding: 24px 0">
     {steps.map(([t, d], i) => (
-      <div class="card feature"><div class="ic">{i + 1}</div><div><h3>{t}</h3><p class="muted" style="margin-top:6px">{d}</p></div></div>
+      <div class="card reveal">
+        <span class="muted">0{i + 1}</span>
+        <h3 style="margin-top: 6px; margin-bottom: 8px">{t}</h3>
+        <p class="muted">{d}</p>
+      </div>
     ))}
-  </div>
-  <div class="grid g2" style="margin-top: 16px">
-    <div class="card">
+  </section>
+
+  <section class="grid g2" style="padding: 0 0 96px">
+    <div class="card reveal">
       <h3>Why TWAP, not spot</h3>
-      <p class="muted" style="margin-top:8px">A thin meme pool can be pushed to any price for one block. KYP's lock averages the pool's price over a public window (e.g. 60 minutes, at least 6 observations spaced 5 minutes apart, with minimum liquidity), and qualified milestones only become claimable after a delay. A one-block spike barely moves the average.</p>
+      <p class="muted" style="margin-top: 8px">A thin meme pool can be pushed to any price for one block. KYP's lock averages the pool's price over a public window (e.g. 60 minutes, at least 6 observations spaced 5 minutes apart, with minimum liquidity), and qualified milestones only become claimable after a delay. A one-block spike barely moves the average.</p>
     </div>
-    <div class="card">
+    <div class="card reveal">
       <h3>What is public, and when</h3>
-      <p class="muted" style="margin-top:8px">Terms, sizes, slot counts and milestones: from day one. Who was invited: only salted hashes until reveal. Note that deposits are ordinary NEAR transactions, so a determined observer can see depositing accounts on-chain; the reveal waves are what KYP publishes and indexes, not cryptographic privacy.</p>
+      <p class="muted" style="margin-top: 8px">Terms, sizes, slot counts and milestones: from day one. Who was invited: only salted hashes until reveal. Note that deposits are ordinary NEAR transactions, so a determined observer can see depositing accounts on-chain; the reveal waves are what KYP publishes and indexes, not cryptographic privacy.</p>
     </div>
-  </div>
-  <div class="card" style="margin-top: 16px">
-    <h3>MVP scope</h3>
-    <p class="muted" style="margin-top:8px">Runs on NEAR testnet by default (PUBLIC_NEAR_NETWORK switches to mainnet; no mainnet contracts are deployed yet). The site runs in demo mode (a simulated chain in your browser) unless it is built with contract accounts for the selected network, in which case it reads live state and signs writes with the connected NEAR wallet (NEAR CLI commands are shown as a fallback). The pool step targets RHEA DCL's interface; tests run against a mock pool with the same methods.</p>
-  </div>
+    <div class="card reveal" style="grid-column: 1 / -1">
+      <h3>MVP scope</h3>
+      <p class="muted" style="margin-top: 8px">Runs on NEAR testnet by default (PUBLIC_NEAR_NETWORK switches to mainnet; no mainnet contracts are deployed yet). The site runs in demo mode (a simulated chain in your browser) unless it is built with contract accounts for the selected network, in which case it reads live state and signs writes with the connected NEAR wallet (NEAR CLI commands are shown as a fallback). The pool step targets RHEA DCL's interface; tests run against a mock pool with the same methods.</p>
+    </div>
+  </section>
 </Base>

@@ -12,15 +12,14 @@ export default function WalletButton() {
   });
   return (
     <Show when={account()} fallback={
-      <button class="btn sm primary" data-testid="wallet-connect" title={walletInitError() ?? `Sign in with a ${NETWORK_LABEL} wallet`} onClick={connectWallet}>
-        Connect wallet
+      <button class="wallet" data-testid="wallet-connect" title={walletInitError() ?? `Sign in with a ${NETWORK_LABEL} wallet`} onClick={connectWallet}>
+        Connect<span class="wx"> wallet</span>
       </button>
     }>
       {(a) => (
-        <div class="row" style={{ gap: "6px" }}>
-          <span class="pill live mono" data-testid="wallet-account" title={`${a()} (${NETWORK_LABEL})`}><span class="dot" />{short(a())}</span>
-          <button class="btn sm ghost" data-testid="wallet-disconnect" onClick={() => disconnect().then(() => toast("Wallet disconnected"))}>Disconnect</button>
-        </div>
+        <button class="wallet on" data-testid="wallet-account" title={`${a()} (${NETWORK_LABEL})`} onClick={() => disconnect().then(() => toast("Wallet disconnected"))}>
+          {short(a())}
+        </button>
       )}
     </Show>
   );

@@ -65,10 +65,18 @@ export function StatusPill(p: { status: LaunchStatus; saleEnd?: number; now?: nu
   );
 }
 
+function avatarColor(s: string) {
+  const palette = ["#4df0bb", "#ffd23f", "#ff6fa5", "#b9a8ff", "#5b3df5"];
+  let h = 0;
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) | 0;
+  return palette[Math.abs(h) % palette.length];
+}
+
 export function TokenBadge(p: { symbol: string; icon?: string | null; lg?: boolean }) {
+  const style = { "background-color": avatarColor(p.symbol), "font-size": p.lg ? "1.3rem" : "1.1rem", width: p.lg ? "64px" : "52px", height: p.lg ? "64px" : "52px" };
   return (
-    <Show when={p.icon} fallback={<div class={`token-badge ${p.lg ? "lg" : ""}`}>{p.symbol.slice(0, 4)}</div>}>
-      <img class={`token-badge ${p.lg ? "lg" : ""}`} src={p.icon!} alt={p.symbol} style={{ "object-fit": "cover" }} />
+    <Show when={p.icon} fallback={<div class="av" style={style}>{p.symbol.slice(0, 4)}</div>}>
+      <img class="av" src={p.icon!} alt={p.symbol} style={{ ...style, "object-fit": "cover" }} />
     </Show>
   );
 }

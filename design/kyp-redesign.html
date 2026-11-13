@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Locked presales for NEAR memes · KYP</title>
+<meta name="description" content="KYP — Know Your Presalers. Locked, public, milestone-unlocked presales for NEAR meme launches.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='10' y='28' width='44' height='30' rx='10' fill='%23ffd23f'/><path d='M20 30V22a12 12 0 0 1 24 0v8' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --night:#1d1250; --deep:#2b1a78; --violet:#5b3df5; --butter:#ffd23f; --mint:#4df0bb; --pink:#ff6fa5; --ice:#ece9ff; --white:#fff;
+  --display:'Bricolage Grotesque','Trebuchet MS',system-ui,sans-serif; --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--body);color:var(--ice);background:var(--night);line-height:1.6;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:3px solid var(--mint);outline-offset:3px;border-radius:8px}
+.wrap{width:min(1120px,92%);margin:0 auto}
+h1,h2,h3{font-family:var(--display);line-height:1.05;color:var(--white)}
+
+/* nav */
+nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);background:rgba(29,18,80,.7);border-bottom:1px solid rgba(255,255,255,.08)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:68px;gap:16px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:800;font-size:1.35rem;color:var(--white)}
+.logo small{font-family:var(--body);font-weight:400;font-size:.8rem;opacity:.65;display:block;line-height:1}
+.links{display:flex;gap:6px}
+.links a{padding:8px 14px;border-radius:99px;font-weight:600;font-size:.95rem;transition:background .2s}
+.links a:hover{background:rgba(255,255,255,.12)}
+.links a.cta{background:var(--butter);color:var(--night)}
+.burger{display:none;width:44px;height:44px;border:0;border-radius:14px;background:rgba(255,255,255,.1);cursor:pointer;position:relative;flex:none}
+.burger span{position:absolute;left:12px;right:12px;height:3px;border-radius:3px;background:var(--white);transition:transform .3s cubic-bezier(.3,1.6,.5,1),opacity .2s}
+.burger span:nth-child(1){top:14px}.burger span:nth-child(2){top:21px}.burger span:nth-child(3){top:28px}
+.menu-open .burger span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.menu-open .burger span:nth-child(2){opacity:0}
+.menu-open .burger span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+@media(max-width:1000px){
+  .burger{display:block}
+  .tools{margin-left:auto}
+  .links{position:absolute;left:0;right:0;top:100%;flex-direction:column;gap:4px;padding:12px 4% 20px;background:rgba(29,18,80,.97);border-bottom:1px solid rgba(255,255,255,.1);opacity:0;transform:translateY(-10px);pointer-events:none;transition:opacity .25s,transform .3s cubic-bezier(.3,1.4,.5,1)}
+  .menu-open .links{opacity:1;transform:none;pointer-events:auto}
+  .links a{padding:14px 18px;font-size:1.05rem;border-radius:16px}
+  .links a.cta{text-align:center;margin-top:6px}
+}
+.tools{display:flex;align-items:center;gap:10px}
+.dd{position:relative}
+.dd-btn,.wallet{font:600 .92rem var(--body);color:var(--white);background:rgba(255,255,255,.1);border:0;border-radius:99px;padding:9px 16px;cursor:pointer;box-shadow:inset 0 0 0 2px rgba(255,255,255,.22);transition:background .2s,transform .2s cubic-bezier(.3,1.8,.5,1);display:flex;align-items:center;gap:8px}
+.dd-btn:hover,.wallet:hover{background:rgba(255,255,255,.2);transform:translateY(-2px)}
+.dd-btn i{font-style:normal;transition:transform .25s}
+.dd-btn[aria-expanded=true] i{transform:rotate(180deg)}
+.dd-menu{position:absolute;right:0;top:calc(100% + 10px);min-width:230px;background:var(--white);color:var(--night);border-radius:18px;padding:8px;list-style:none;padding-left:8px;box-shadow:0 16px 40px rgba(0,0,0,.35);opacity:0;transform:translateY(-8px) scale(.96);transform-origin:top right;pointer-events:none;transition:opacity .2s,transform .3s cubic-bezier(.3,1.6,.5,1)}
+.dd.open .dd-menu{opacity:1;transform:none;pointer-events:auto}
+.dd-menu button{width:100%;text-align:left;font:600 .95rem var(--body);color:inherit;background:none;border:0;border-radius:12px;padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.dd-menu button:hover{background:var(--ice)}
+.dd-menu small{font-weight:400;opacity:.6}
+.dd-menu button[aria-checked=true]::after{content:"✓";color:var(--violet)}
+.wallet{background:var(--mint);color:var(--night);box-shadow:none}
+.wallet:hover{background:#7bf5cf}
+.wallet.on{background:rgba(77,240,187,.16);color:var(--mint);box-shadow:inset 0 0 0 2px var(--mint)}
+.wallet.on::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--mint)}
+.dd-btn,.wallet{min-height:44px;white-space:nowrap}
+.wallet{max-width:150px;overflow:hidden;text-overflow:ellipsis;justify-content:center}
+@media(max-width:700px){.dd-label,.logo small{display:none}.tools{gap:8px}.dd-btn,.wallet{padding:8px 14px}}
+@media(max-width:560px){.wx{display:none}.dd-menu{min-width:210px}nav .wrap{gap:8px}}
+@media(max-width:420px){.logo span{display:none}}
+
+/* hero */
+.hero{position:relative;padding:72px 0 96px;background:radial-gradient(900px 500px at 78% 30%,var(--violet),transparent 70%),radial-gradient(600px 400px at 0% 100%,#3a1fa8,transparent 70%)}
+.hero .wrap{display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center}
+@media(max-width:860px){.hero .wrap{grid-template-columns:1fr}}
+.pill{display:inline-block;background:rgba(77,240,187,.15);color:var(--mint);padding:6px 14px;border-radius:99px;font-weight:600;font-size:.9rem;margin-bottom:20px}
+.pill::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mint);margin-right:8px;animation:ping 1.6s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(77,240,187,.7)}100%{box-shadow:0 0 0 10px rgba(77,240,187,0)}}
+h1{font-size:clamp(2.6rem,6.4vw,5rem);font-weight:800;letter-spacing:-.02em}
+h1 .w{display:inline-block;opacity:0;transform:translateY(40px) rotate(4deg);animation:rise .8s cubic-bezier(.2,1.3,.4,1) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+.lead{font-size:1.2rem;max-width:34em;margin:24px 0 32px;color:#d7d1ff}
+.btns{display:flex;gap:14px;flex-wrap:wrap}
+.btn{display:inline-block;padding:15px 26px;border-radius:16px;font-weight:600;font-size:1.05rem;transition:transform .2s cubic-bezier(.3,1.8,.5,1),box-shadow .2s}
+.btn.p{background:var(--butter);color:var(--night);box-shadow:0 6px 0 #c99a00}
+.btn.p:hover{transform:translateY(-3px) rotate(-1.5deg);box-shadow:0 9px 0 #c99a00}
+.btn.p:active{transform:translateY(4px);box-shadow:0 2px 0 #c99a00}
+.btn.s{background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 2px rgba(255,255,255,.3)}
+.btn.s:hover{background:rgba(255,255,255,.2);transform:translateY(-3px)}
+
+/* mascot stage */
+.stage{position:relative;aspect-ratio:1;max-width:440px;width:100%;margin:0 auto}
+.stage svg.kip{width:100%;height:100%;overflow:visible;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kipwrap{animation:bob 3.4s ease-in-out infinite;transform-origin:50% 90%}
+@keyframes bob{50%{transform:translateY(-16px) rotate(1.5deg)}}
+.shadow{animation:shad 3.4s ease-in-out infinite;transform-origin:110px 238px;transform-box:view-box}
+@keyframes shad{50%{transform:scale(.8);opacity:.5}}
+.shackle{transform-origin:150px 80px;transition:transform .55s cubic-bezier(.3,1.7,.5,1)}
+.open .shackle{transform:translateY(-14px) rotate(-30deg)}
+.eye{animation:blink 5s infinite;transform-box:fill-box;transform-origin:center}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.08)}}
+.mouth{transition:d .3s}
+.open .smile{opacity:0}.open .grin{opacity:1}
+.grin{opacity:0;transition:opacity .2s}.smile{transition:opacity .2s}
+.coin{position:absolute;width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3b0,var(--butter) 55%,#e0a800);display:grid;place-items:center;font-family:var(--display);font-weight:800;color:#8a6200;box-shadow:inset 0 -4px 0 rgba(0,0,0,.12);animation:orbit 7s ease-in-out infinite}
+.coin:nth-of-type(1){top:6%;left:4%}
+.coin:nth-of-type(2){top:18%;right:2%;animation-delay:-2s;width:34px;height:34px;font-size:.8rem}
+.coin:nth-of-type(3){bottom:20%;left:-2%;animation-delay:-4s;width:30px;height:30px;font-size:.75rem}
+.coin:nth-of-type(4){bottom:8%;right:8%;animation-delay:-5.5s}
+@keyframes orbit{0%,100%{transform:translate(0,0) rotateY(0)}25%{transform:translate(10px,-18px) rotateY(180deg)}50%{transform:translate(-6px,-6px) rotateY(360deg)}75%{transform:translate(-12px,-20px) rotateY(540deg)}}
+.bubble{position:absolute;top:-6px;right:-4px;background:var(--white);color:var(--night);font-weight:600;padding:10px 16px;border-radius:18px 18px 4px 18px;font-size:.95rem;max-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.25);transition:opacity .3s,transform .3s}
+.bubble.out{opacity:0;transform:translateY(8px) scale(.92)}
+
+/* sections */
+section{padding:96px 0}
+.head{max-width:640px;margin-bottom:48px}
+h2{font-size:clamp(2rem,4.4vw,3.2rem);font-weight:800;letter-spacing:-.01em}
+.head p{margin-top:14px;font-size:1.1rem;color:#cfc8ff}
+
+/* steps */
+.steps{background:var(--ice);color:var(--night)}
+.steps h2{color:var(--night)}.steps .head p{color:#4a4380}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:22px}
+.step{position:relative;background:var(--white);border-radius:28px;padding:30px 26px 32px;transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
+.step:nth-child(1){background:var(--mint)}.step:nth-child(2){background:var(--butter)}.step:nth-child(3){background:var(--pink)}.step:nth-child(4){background:#b9a8ff}
+.step:hover{transform:translateY(-8px) rotate(-1.2deg)}
+.step .n{width:44px;height:44px;border-radius:50%;background:var(--night);color:var(--white);display:grid;place-items:center;font-family:var(--display);font-weight:800;margin-bottom:18px}
+.step h3{color:var(--night);font-size:1.5rem;margin-bottom:8px}
+.step p{font-size:1rem}
+.step svg{position:absolute;right:18px;top:18px;width:56px;height:56px}
+.step:hover svg{animation:wig .6s}
+@keyframes wig{25%{transform:rotate(-14deg) scale(1.1)}75%{transform:rotate(14deg) scale(1.1)}}
+
+/* unlock demo */
+.demo{background:linear-gradient(180deg,var(--night),var(--deep))}
+.panel{display:grid;grid-template-columns:.8fr 1.2fr;gap:36px;align-items:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:36px;padding:36px}
+@media(max-width:820px){.panel{grid-template-columns:1fr}}
+.panel .stage{max-width:260px}
+.fdv{font-family:var(--display);font-weight:800;font-size:clamp(2.6rem,6vw,4rem);color:var(--butter);line-height:1}
+.sub{opacity:.8;margin:6px 0 22px}
+input[type=range]{width:100%;height:14px;border-radius:99px;appearance:none;-webkit-appearance:none;background:linear-gradient(90deg,var(--mint) var(--p,0%),rgba(255,255,255,.18) var(--p,0%));cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;border-radius:50%;background:var(--butter);border:4px solid var(--night);box-shadow:0 0 0 3px var(--butter)}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:var(--butter);border:4px solid var(--night)}
+.tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:26px}
+.tier{border-radius:18px;padding:14px 8px;text-align:center;background:rgba(255,255,255,.08);transition:background .3s,color .3s,transform .4s cubic-bezier(.3,1.8,.5,1)}
+.tier b{display:block;font-family:var(--display);font-size:1.3rem}
+.tier span{font-size:.85rem}
+.tier.on{background:var(--mint);color:var(--night);transform:translateY(-6px) scale(1.04)}
+.note{margin-top:18px;font-size:.9rem;opacity:.7}
+.burst{position:fixed;pointer-events:none;z-index:50;width:14px;height:14px;border-radius:50%;background:var(--butter);animation:fly .9s ease-out forwards}
+@keyframes fly{to{transform:translate(var(--x),var(--y)) scale(.2);opacity:0}}
+
+/* launches */
+.launches{background:var(--deep)}
+.lhead{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:40px}
+.card{background:var(--white);color:var(--night);border-radius:28px;padding:26px;transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
+.card:hover{transform:translateY(-8px)}
+.card .top{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.av{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:1.5rem}
+.card h3{color:var(--night);font-size:1.35rem}
+.card .tag{font-size:.8rem;opacity:.6}
+.bar{height:12px;border-radius:99px;background:#e4defd;overflow:hidden;margin:6px 0 12px}
+.bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--pink));transition:width 1.4s cubic-bezier(.2,.9,.3,1)}
+.row{display:flex;justify-content:space-between;font-size:.92rem}
+.empty{text-align:center;margin-top:34px;opacity:.75}
+
+footer{padding:40px 0;background:var(--night);font-size:.9rem;color:#a99fe6}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
+
+.rev{opacity:0;transform:translateY(30px);transition:opacity .7s,transform .7s cubic-bezier(.2,.9,.3,1)}
+.rev.in{opacity:1;transform:none}
+@media(hover:none){
+  .step:hover,.card:hover,.btn.p:hover,.btn.s:hover,.dd-btn:hover,.wallet:hover,.links a:hover{transform:none}
+  .step:hover svg{animation:none}
+}
+@media(max-width:900px){
+  .hero{padding:48px 0 72px}
+  .hero .wrap{text-align:center}
+  .lead{margin-left:auto;margin-right:auto}
+  .btns{justify-content:center}
+  .stage{max-width:360px}
+  section{padding:72px 0}
+}
+@media(max-width:560px){
+  .btns .btn{flex:1 1 100%;text-align:center;padding:16px 20px}
+  .stage{max-width:300px;margin-top:64px}
+  .bubble{top:-58px;left:0;right:0;margin:0 auto;width:max-content;max-width:250px;text-align:center;border-radius:18px}
+  .coin{transform:scale(.8)}
+  .panel{padding:22px;border-radius:28px}
+  .panel .stage{max-width:200px;margin-top:0}
+  .tiers{grid-template-columns:repeat(2,1fr)}
+  .lhead{flex-direction:column;align-items:flex-start}
+  .lhead .btn{width:100%;text-align:center}
+  .step svg{width:44px;height:44px}
+  footer .wrap{flex-direction:column}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  h1 .w,.rev{opacity:1;transform:none}
+}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="kipsvg">
+      <ellipse class="shadow" cx="110" cy="238" rx="70" ry="9" fill="#000" opacity=".28"/>
+      <g class="kipwrap">
+        <g class="shackle"><path d="M72 84V58a38 38 0 0 1 76 0v26" fill="none" stroke="#ece9ff" stroke-width="18" stroke-linecap="round"/></g>
+        <rect x="26" y="80" width="168" height="150" rx="48" fill="#ffd23f"/>
+        <path d="M44 100q50-22 130 0" stroke="#fff3b0" stroke-width="8" fill="none" stroke-linecap="round" opacity=".8"/>
+        <circle cx="62" cy="168" r="13" fill="#ff6fa5" opacity=".75"/><circle cx="158" cy="168" r="13" fill="#ff6fa5" opacity=".75"/>
+        <g class="eye"><circle cx="80" cy="140" r="19" fill="#fff"/><circle class="pupil" cx="80" cy="141" r="9" fill="#1d1250"/><circle cx="83" cy="137" r="3" fill="#fff"/></g>
+        <g class="eye"><circle cx="140" cy="140" r="19" fill="#fff"/><circle class="pupil" cx="140" cy="141" r="9" fill="#1d1250"/><circle cx="143" cy="137" r="3" fill="#fff"/></g>
+        <path class="smile" d="M96 176q14 14 28 0" stroke="#1d1250" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <path class="grin" d="M92 172q18 26 36 0z" fill="#1d1250"/>
+        <path class="grin" d="M100 183q10 8 20 0" stroke="#ff6fa5" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <circle cx="110" cy="208" r="7" fill="#c99a00"/><rect x="107" y="208" width="6" height="12" rx="3" fill="#c99a00"/>
+      </g>
+    </g>
+  </defs>
+</svg>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="https://kycabal.fun/" aria-label="KYP home">
+      <svg width="36" height="36" viewBox="20 0 180 240" aria-hidden="true"><path d="M72 84V58a38 38 0 0 1 76 0v26" fill="none" stroke="#ece9ff" stroke-width="22" stroke-linecap="round"/><rect x="26" y="80" width="168" height="150" rx="48" fill="#ffd23f"/><circle cx="80" cy="150" r="16" fill="#1d1250"/><circle cx="140" cy="150" r="16" fill="#1d1250"/></svg>
+      <span>KYP<small>Know Your Presalers</small></span>
+    </a>
+    <div class="links" id="links">
+      <a href="https://kycabal.fun/">Launches</a>
+      <a href="https://kycabal.fun/how-it-works">How it works</a>
+      <a href="https://kycabal.fun/test-wallets">Test wallets</a>
+      <a class="cta" href="https://kycabal.fun/create">Create a launch</a>
+    </div>
+    <div class="tools">
+      <div class="dd" id="dd">
+        <button class="dd-btn" id="dd-btn" aria-haspopup="true" aria-expanded="false"><span class="dd-label">Pool:</span> <span id="dd-val">RHEA DCL</span> <i aria-hidden="true">▾</i></button>
+        <ul class="dd-menu" role="menu" aria-label="Pool adapter">
+          <li role="none"><button role="menuitemradio" aria-checked="true" data-v="RHEA DCL">RHEA DCL <small>Live pool</small></button></li>
+          <li role="none"><button role="menuitemradio" aria-checked="false" data-v="Mock adapter">Mock adapter <small>Demo</small></button></li>
+        </ul>
+      </div>
+      <button class="wallet" id="wallet">Connect<span class="wx"> wallet</span></button>
+    </div>
+    <button class="burger" id="burger" aria-expanded="false" aria-controls="links" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="wrap">
+    <div>
+      <span class="pill">NEAR testnet MVP</span>
+      <h1 id="title">Know who holds the early supply. And know they can't dump it.</h1>
+      <p class="lead">KYP is an optional presale for meme launches. Launchers hand-pick presalers, everyone buys at one price inside the launch transaction, and the tokens go straight into a lock that opens only at public, ambitious market-cap milestones.</p>
+      <div class="btns">
+        <a class="btn p" href="https://kycabal.fun/create">Create a launch</a>
+        <a class="btn s" href="https://kycabal.fun/how-it-works">How it works</a>
+      </div>
+    </div>
+    <div class="stage" id="hero-stage">
+      <span class="coin" aria-hidden="true">N</span><span class="coin" aria-hidden="true">N</span><span class="coin" aria-hidden="true">N</span><span class="coin" aria-hidden="true">N</span>
+      <svg class="kip" viewBox="0 0 220 250" role="img" aria-label="Kip, the KYP padlock mascot. Click Kip to open the lock."><use href="#kipsvg"/></svg>
+      <div class="bubble" id="bubble" aria-live="polite">Hi, I'm Kip. I keep presale tokens safe.</div>
+    </div>
+  </div>
+</header>
+
+<section class="steps" id="how">
+  <div class="wrap">
+    <div class="head rev"><h2>Four rules every launch follows</h2><p>The terms are public before anyone buys, and the lock is built into the launch itself.</p></div>
+    <div class="grid">
+      <article class="step rev"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="12" fill="#1d1250"/><path d="M4 32q28-34 56 0q-28 34-56 0z" fill="none" stroke="#1d1250" stroke-width="5"/><circle cx="36" cy="28" r="4" fill="#fff"/></svg><div class="n">1</div><h3>Everyone's visible</h3><p>Size, terms and milestones are public. Wallets are revealed in waves after launch, smallest first.</p></article>
+      <article class="step rev"><svg viewBox="0 0 64 64" aria-hidden="true"><rect x="12" y="28" width="40" height="28" rx="9" fill="#1d1250"/><path d="M20 30V22a12 12 0 0 1 24 0v8" stroke="#1d1250" stroke-width="6" fill="none" stroke-linecap="round"/></svg><div class="n">2</div><h3>Everyone's locked</h3><p>Presale tokens enter the lock in the same transaction that opens the pool.</p></article>
+      <article class="step rev"><svg viewBox="0 0 64 64" aria-hidden="true"><circle cx="32" cy="32" r="24" fill="#1d1250"/><path d="M22 34h20M22 26h20" stroke="#ff6fa5" stroke-width="6" stroke-linecap="round"/></svg><div class="n">3</div><h3>One price</h3><p>All fills settle together at the opening price. Nobody gets a cheaper entry.</p></article>
+      <article class="step rev"><svg viewBox="0 0 64 64" aria-hidden="true"><path d="M8 54L26 30l12 12 18-26" stroke="#1d1250" stroke-width="6" fill="none" stroke-linecap="round" stroke-linejoin="round"/><circle cx="56" cy="16" r="5" fill="#1d1250"/></svg><div class="n">4</div><h3>Unlock at milestones</h3><p>TWAP-verified FDV targets, such as $10m. The community roots for presalers to get there.</p></article>
+    </div>
+  </div>
+</section>
+
+<section class="demo" id="demo">
+  <div class="wrap">
+    <div class="head rev"><h2>Drag the market cap and watch Kip</h2><p>Each milestone opens a slice of the locked supply. The tiers below are an example, since every launcher sets their own.</p></div>
+    <div class="panel rev">
+      <div class="stage" id="demo-stage">
+        <svg class="kip" viewBox="0 0 220 250" role="img" aria-label="Kip reacts to the market cap you choose"><use href="#kipsvg"/></svg>
+      </div>
+      <div>
+        <div class="fdv" id="fdv">$0m</div>
+        <p class="sub" id="unl">0% of presale tokens unlocked</p>
+        <input type="range" id="range" min="0" max="30" step="0.5" value="0" aria-label="Fully diluted valuation in millions of dollars">
+        <div class="tiers" id="tiers"></div>
+        <p class="note">Example values only. Unlocks are verified by TWAP, not a single spike.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="launches" id="launches">
+  <div class="wrap">
+    <div class="lhead rev"><div><h2>Launches</h2></div><a class="btn p" href="https://kycabal.fun/create">+ New launch</a></div>
+    <div class="grid" id="cards"></div>
+    <p class="empty rev">These three are sample cards for the design. Live launches will appear here.</p>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span>KYP MVP · NEAR testnet · not financial advice</span>
+    <span>Contracts: coordinator · lock · NEP-141 token · RHEA DCL (mock adapter in demo)</span>
+  </div>
+</footer>
+
+<script>
+(function(){
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var tpl = document.getElementById('kipsvg');
+  [].forEach.call(document.querySelectorAll('svg.kip'), function(k){ k.innerHTML = tpl.innerHTML; });
+
+  // headline: split into words that spring in one after another
+  var h = document.getElementById('title'), words = h.textContent.trim().split(' ');
+  h.setAttribute('aria-label', h.textContent.trim());
+  h.innerHTML = words.map(function(w,i){return '<span class="w" aria-hidden="true" style="animation-delay:'+(0.1+i*0.07)+'s">'+w+'</span>'}).join(' ');
+
+  // mascots: eyes follow the pointer
+  var kips = [].slice.call(document.querySelectorAll('svg.kip'));
+  function look(e){
+    kips.forEach(function(k){
+      var r = k.getBoundingClientRect(), cx = r.left + r.width*0.5, cy = r.top + r.height*0.56;
+      var dx = e.clientX - cx, dy = e.clientY - cy, d = Math.hypot(dx,dy) || 1, m = Math.min(6, d/40);
+      [].forEach.call(k.querySelectorAll('.pupil'), function(p){
+        p.style.transform = 'translate('+(dx/d*m)+'px,'+(dy/d*m)+'px)';
+      });
+    });
+  }
+  if(!reduce) addEventListener('pointermove', look);
+
+  // hero Kip: click toggles the lock, bubble cycles messages
+  var hero = document.querySelector('#hero-stage svg.kip'), bubble = document.getElementById('bubble');
+  hero.addEventListener('click', function(){ hero.classList.toggle('open'); say(hero.classList.contains('open') ? 'Only at a public milestone. Not yet!' : 'Locked up tight.'); });
+  var lines = ['Hi, I\'m Kip. I keep presale tokens safe.','Everyone buys at one price.','Locked until the milestone hits.','Wallets get revealed, smallest first.','Click me to peek inside!'], li = 0;
+  function say(t){ bubble.classList.add('out'); setTimeout(function(){ bubble.textContent = t; bubble.classList.remove('out'); }, 280); }
+  if(!reduce) setInterval(function(){ li = (li+1) % lines.length; say(lines[li]); }, 4200);
+
+  // unlock demo
+  var tiers = [{m:2,p:10},{m:5,p:20},{m:10,p:30},{m:25,p:40}];
+  var tw = document.getElementById('tiers'), range = document.getElementById('range'), fdv = document.getElementById('fdv'), unl = document.getElementById('unl'), dk = document.querySelector('#demo-stage svg.kip');
+  tw.innerHTML = tiers.map(function(t){ return '<div class="tier"><b>$'+t.m+'m</b><span>+'+t.p+'% opens</span></div>'; }).join('');
+  var els = [].slice.call(tw.children), last = 0;
+  function burst(){
+    if(reduce) return;
+    var r = dk.getBoundingClientRect(), x = r.left + r.width/2, y = r.top + r.height*0.3;
+    for(var i=0;i<16;i++){
+      var b = document.createElement('i'); b.className = 'burst';
+      var a = Math.random()*Math.PI*2, d = 60 + Math.random()*90;
+      b.style.left = x+'px'; b.style.top = y+'px';
+      b.style.setProperty('--x', Math.cos(a)*d+'px'); b.style.setProperty('--y', (Math.sin(a)*d-40)+'px');
+      b.style.background = ['#ffd23f','#4df0bb','#ff6fa5'][i%3];
+      document.body.appendChild(b); setTimeout(function(n){ n.remove(); }, 950, b);
+    }
+  }
+  function update(){
+    var v = +range.value, n = 0, pct = 0;
+    tiers.forEach(function(t,i){ var on = v >= t.m; els[i].classList.toggle('on', on); if(on){ n++; pct = t.p + (i ? 0 : 0); } });
+    var total = 0; tiers.forEach(function(t){ if(v >= t.m) total += t.p; });
+    fdv.textContent = '$' + v + 'm';
+    unl.textContent = total + '% of presale tokens unlocked';
+    range.style.setProperty('--p', (v/30*100)+'%');
+    dk.classList.toggle('open', n > 0);
+    if(n > last) burst();
+    last = n;
+  }
+  range.addEventListener('input', update); update();
+
+  // RHEA pool dropdown
+  var dd = document.getElementById('dd'), ddBtn = document.getElementById('dd-btn'), ddVal = document.getElementById('dd-val');
+  function ddSet(o){ dd.classList.toggle('open', o); ddBtn.setAttribute('aria-expanded', o); }
+  ddBtn.addEventListener('click', function(e){ e.stopPropagation(); ddSet(!dd.classList.contains('open')); });
+  [].forEach.call(dd.querySelectorAll('.dd-menu button'), function(b){
+    b.addEventListener('click', function(){
+      [].forEach.call(dd.querySelectorAll('.dd-menu button'), function(x){ x.setAttribute('aria-checked', x === b); });
+      ddVal.textContent = b.dataset.v; ddSet(false); say('Pool set to ' + b.dataset.v + '.');
+    });
+  });
+  document.addEventListener('click', function(){ ddSet(false); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') ddSet(false); });
+
+  // connect wallet (front-end placeholder: replace the body with your NEAR wallet-selector call)
+  var wb = document.getElementById('wallet'), account = null;
+  wb.addEventListener('click', function(){
+    account = account ? null : 'demo.testnet';
+    wb.classList.toggle('on', !!account);
+    if(account) wb.textContent = account; else wb.innerHTML = 'Connect<span class="wx"> wallet</span>';
+    say(account ? 'Wallet connected. Welcome in!' : 'Wallet disconnected.');
+  });
+
+  // mobile / tablet menu
+  var navEl = document.querySelector('nav'), burger = document.getElementById('burger');
+  function menu(o){ navEl.classList.toggle('menu-open', o); burger.setAttribute('aria-expanded', o); }
+  burger.addEventListener('click', function(e){ e.stopPropagation(); menu(!navEl.classList.contains('menu-open')); });
+  [].forEach.call(document.querySelectorAll('.links a'), function(a){ a.addEventListener('click', function(){ menu(false); }); });
+  document.addEventListener('click', function(e){ if(!navEl.contains(e.target)) menu(false); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape') menu(false); });
+  addEventListener('resize', function(){ if(innerWidth > 1000) menu(false); });
+
+  // sample launch cards
+  var data = [
+    {n:'Pixel Heron', t:'$HERON', e:'🪶', c:'#b9a8ff', fill:72, raise:'120 NEAR', ms:'$10m'},
+    {n:'Wrap Frog', t:'$WRAP', e:'🐸', c:'#4df0bb', fill:41, raise:'60 NEAR', ms:'$5m'},
+    {n:'Moon Toast', t:'$TOAST', e:'🍞', c:'#ff6fa5', fill:94, raise:'250 NEAR', ms:'$25m'}
+  ];
+  document.getElementById('cards').innerHTML = data.map(function(d){
+    return '<article class="card rev"><div class="top"><div class="av" style="background:'+d.c+'">'+d.e+'</div><div><h3>'+d.n+'</h3><div class="tag">'+d.t+' · sample</div></div></div>'
+      +'<div class="row"><span>Presale filled</span><b>'+d.fill+'%</b></div><div class="bar"><i data-w="'+d.fill+'"></i></div>'
+      +'<div class="row"><span>Raise '+d.raise+'</span><span>First unlock '+d.ms+'</span></div></article>';
+  }).join('');
+
+  // reveal on scroll, fill bars when cards appear
+  var io = new IntersectionObserver(function(es){
+    es.forEach(function(e){
+      if(!e.isIntersecting) return;
+      e.target.classList.add('in');
+      var b = e.target.querySelector('.bar i'); if(b) b.style.width = b.dataset.w + '%';
+      io.unobserve(e.target);
+    });
+  }, {threshold:.15});
+  [].forEach.call(document.querySelectorAll('.rev'), function(el, i){ el.style.transitionDelay = (i%4)*0.08+'s'; io.observe(el); });
+})();
+</script>
+</body>
+</html>

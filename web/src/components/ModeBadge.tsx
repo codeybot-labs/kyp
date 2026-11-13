@@ -1,24 +1,62 @@
-import { Show } from "solid-js";
+import { createSignal, For, onMount, Show } from "solid-js";
 import { api, setMode } from "../lib/source";
-import { TESTNET_CONFIGURED, CONFIG, NETWORK, NETWORK_NAME, INSTANCES, INSTANCE, setInstance } from "../lib/config";
+import { TESTNET_CONFIGURED, CONFIG, NETWORK_NAME, INSTANCES, INSTANCE, setInstance } from "../lib/config";
 import { resetDemo } from "../lib/demo";
 
 export default function ModeBadge() {
   const m = api.mode();
+  const [open, setOpen] = createSignal(false);
+  const label = () => (m === "demo" ? "Demo mode" : NETWORK_NAME);
+  let root!: HTMLDivElement;
+
+  onMount(() => {
+    const close = (e: MouseEvent) => { if (!root.contains(e.target as Node)) setOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === "Escape") setOpen(false); };
+    document.addEventListener("click", close);
+    document.addEventListener("keydown", esc);
+  });
+
+  const toggle = (fn: () => void) => { fn(); setOpen(false); };
+
   return (
-    <div class="row" style={{ gap: "8px" }}>
-      <Show when={m === "demo"} fallback={<span class="pill live" title={`coordinator ${CONFIG.coordinator}`}><span class="dot" />{NETWORK_NAME}</span>}>
-        <span class="pill violet" title="Simulated chain in your browser. Nothing is signed or sent."><span class="dot" />Demo mode</span>
-        <button class="btn sm ghost" title="Reset demo data" onClick={() => { resetDemo(); location.reload(); }}>Reset</button>
-      </Show>
-      <Show when={m !== "demo" && INSTANCES.length > 1}>
-        <select class="btn sm" data-testid="instance" title="Which testnet deployment the site reads and signs against" value={INSTANCE} onChange={(e) => setInstance(e.currentTarget.value as "primary" | "alt")}>
-          {INSTANCES.map((i) => <option value={i.id}>{i.label}</option>)}
-        </select>
-      </Show>
-      <Show when={TESTNET_CONFIGURED}>
-        <button class="btn sm" onClick={() => setMode(m === "demo" ? "testnet" : "demo")}>{m === "demo" ? `Use ${NETWORK}` : "Use demo"}</button>
-      </Show>
+    <div class="dd" ref={root}>
+      <button class="dd-btn" aria-haspopup="true" aria-expanded={open()} onClick={() => setOpen(!open())}>
+        <span class="dd-label">Mode:</span>
+        <span>{label()}</span>
+        <i aria-hidden="true">▾</i>
+      </button>
+      <ul class="dd-menu" role="menu" aria-label="Network mode">
+        <li role="none">
+          <button role="menuitemradio" aria-checked={m === "demo"} onClick={() => toggle(() => { if (m !== "demo") setMode("demo"); })}>
+            Demo mode <small>Simulated chain</small>
+          </button>
+        </li>
+        <Show when={TESTNET_CONFIGURED}>
+          <li role="none">
+            <button role="menuitemradio" aria-checked={m !== "demo"} onClick={() => toggle(() => { if (m === "demo") setMode(api.mode() === "demo" ? "testnet" : "testnet"); })}>
+              Testnet mode <small>{NETWORK_NAME}</small>
+            </button>
+          </li>
+        </Show>
+        <Show when={INSTANCES.length > 1}>
+          <For each={INSTANCES}>
+            {(i) => (
+              <li role="none">
+                <button role="menuitemradio" aria-checked={INSTANCE === i.id} onClick={() => toggle(() => setInstance(i.id as "primary" | "alt"))}>
+                  {i.label} <small>instance</small>
+                </button>
+              </li>
+            )}
+          </For>
+        </Show>
+        <Show when={m === "demo"}>
+          <li role="none">
+            <button onClick={() => toggle(() => { resetDemo(); location.reload(); })}>
+              Reset demo data
+            </button>
+          </li>
+        </Show>
+      </ul>
     </div>
   );
 }

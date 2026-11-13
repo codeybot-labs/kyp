@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Create a launch · KYP</title>
+<meta name="description" content="KYP — Know Your Presalers. Locked, public, milestone-unlocked presales for NEAR meme launches.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect x='10' y='28' width='44' height='30' rx='10' fill='%23ffd23f'/><path d='M20 30V22a12 12 0 0 1 24 0v8' stroke='%23fff' stroke-width='6' fill='none' stroke-linecap='round'/></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --night:#1d1250; --deep:#2b1a78; --violet:#5b3df5; --butter:#ffd23f; --mint:#4df0bb; --pink:#ff6fa5; --ice:#ece9ff; --white:#fff;
+  --display:'Bricolage Grotesque','Trebuchet MS',system-ui,sans-serif; --body:'Figtree',system-ui,-apple-system,'Segoe UI',sans-serif;
+}
+*{box-sizing:border-box;margin:0}
+html{scroll-behavior:smooth}
+body{font-family:var(--body);color:var(--ice);background:var(--night);line-height:1.6;overflow-x:hidden}
+a{color:inherit;text-decoration:none}
+:focus-visible{outline:3px solid var(--mint);outline-offset:3px;border-radius:8px}
+.wrap{width:min(1120px,92%);margin:0 auto}
+h1,h2,h3{font-family:var(--display);line-height:1.05;color:var(--white)}
+
+/* nav */
+nav{position:sticky;top:0;z-index:20;backdrop-filter:blur(14px);background:rgba(29,18,80,.7);border-bottom:1px solid rgba(255,255,255,.08)}
+nav .wrap{display:flex;align-items:center;justify-content:space-between;height:68px;gap:16px}
+.logo{display:flex;align-items:center;gap:10px;font-family:var(--display);font-weight:800;font-size:1.35rem;color:var(--white)}
+.logo small{font-family:var(--body);font-weight:400;font-size:.8rem;opacity:.65;display:block;line-height:1}
+.links{display:flex;gap:6px}
+.links a{padding:8px 14px;border-radius:99px;font-weight:600;font-size:.95rem;transition:background .2s}
+.links a:hover{background:rgba(255,255,255,.12)}
+.links a.cta{background:var(--butter);color:var(--night)}
+.burger{display:none;width:44px;height:44px;border:0;border-radius:14px;background:rgba(255,255,255,.1);cursor:pointer;position:relative;flex:none}
+.burger span{position:absolute;left:12px;right:12px;height:3px;border-radius:3px;background:var(--white);transition:transform .3s cubic-bezier(.3,1.6,.5,1),opacity .2s}
+.burger span:nth-child(1){top:14px}.burger span:nth-child(2){top:21px}.burger span:nth-child(3){top:28px}
+.menu-open .burger span:nth-child(1){transform:translateY(7px) rotate(45deg)}
+.menu-open .burger span:nth-child(2){opacity:0}
+.menu-open .burger span:nth-child(3){transform:translateY(-7px) rotate(-45deg)}
+@media(max-width:1000px){
+  .burger{display:block}
+  .tools{margin-left:auto}
+  .links{position:absolute;left:0;right:0;top:100%;flex-direction:column;gap:4px;padding:12px 4% 20px;background:rgba(29,18,80,.97);border-bottom:1px solid rgba(255,255,255,.1);opacity:0;transform:translateY(-10px);pointer-events:none;transition:opacity .25s,transform .3s cubic-bezier(.3,1.4,.5,1)}
+  .menu-open .links{opacity:1;transform:none;pointer-events:auto}
+  .links a{padding:14px 18px;font-size:1.05rem;border-radius:16px}
+  .links a.cta{text-align:center;margin-top:6px}
+}
+.tools{display:flex;align-items:center;gap:10px}
+.dd{position:relative}
+.dd-btn,.wallet{font:600 .92rem var(--body);color:var(--white);background:rgba(255,255,255,.1);border:0;border-radius:99px;padding:9px 16px;cursor:pointer;box-shadow:inset 0 0 0 2px rgba(255,255,255,.22);transition:background .2s,transform .2s cubic-bezier(.3,1.8,.5,1);display:flex;align-items:center;gap:8px}
+.dd-btn:hover,.wallet:hover{background:rgba(255,255,255,.2);transform:translateY(-2px)}
+.dd-btn i{font-style:normal;transition:transform .25s}
+.dd-btn[aria-expanded=true] i{transform:rotate(180deg)}
+.dd-menu{position:absolute;right:0;top:calc(100% + 10px);min-width:230px;background:var(--white);color:var(--night);border-radius:18px;padding:8px;list-style:none;padding-left:8px;box-shadow:0 16px 40px rgba(0,0,0,.35);opacity:0;transform:translateY(-8px) scale(.96);transform-origin:top right;pointer-events:none;transition:opacity .2s,transform .3s cubic-bezier(.3,1.6,.5,1)}
+.dd.open .dd-menu{opacity:1;transform:none;pointer-events:auto}
+.dd-menu button{width:100%;text-align:left;font:600 .95rem var(--body);color:inherit;background:none;border:0;border-radius:12px;padding:10px 12px;cursor:pointer;display:flex;justify-content:space-between;gap:10px}
+.dd-menu button:hover{background:var(--ice)}
+.dd-menu small{font-weight:400;opacity:.6}
+.dd-menu button[aria-checked=true]::after{content:"✓";color:var(--violet)}
+.wallet{background:var(--mint);color:var(--night);box-shadow:none}
+.wallet:hover{background:#7bf5cf}
+.wallet.on{background:rgba(77,240,187,.16);color:var(--mint);box-shadow:inset 0 0 0 2px var(--mint)}
+.wallet.on::before{content:"";width:8px;height:8px;border-radius:50%;background:var(--mint)}
+.dd-btn,.wallet{min-height:44px;white-space:nowrap}
+.wallet{max-width:150px;overflow:hidden;text-overflow:ellipsis;justify-content:center}
+@media(max-width:700px){.dd-label,.logo small{display:none}.tools{gap:8px}.dd-btn,.wallet{padding:8px 14px}}
+@media(max-width:560px){.wx{display:none}.dd-menu{min-width:210px}nav .wrap{gap:8px}}
+@media(max-width:420px){.logo span{display:none}}
+
+/* hero */
+.hero{position:relative;padding:72px 0 96px;background:radial-gradient(900px 500px at 78% 30%,var(--violet),transparent 70%),radial-gradient(600px 400px at 0% 100%,#3a1fa8,transparent 70%)}
+.hero .wrap{display:grid;grid-template-columns:1.15fr .85fr;gap:40px;align-items:center}
+@media(max-width:860px){.hero .wrap{grid-template-columns:1fr}}
+.pill{display:inline-block;background:rgba(77,240,187,.15);color:var(--mint);padding:6px 14px;border-radius:99px;font-weight:600;font-size:.9rem;margin-bottom:20px}
+.pill::before{content:"";display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--mint);margin-right:8px;animation:ping 1.6s infinite}
+@keyframes ping{0%{box-shadow:0 0 0 0 rgba(77,240,187,.7)}100%{box-shadow:0 0 0 10px rgba(77,240,187,0)}}
+h1{font-size:clamp(2.6rem,6.4vw,5rem);font-weight:800;letter-spacing:-.02em}
+h1 .w{display:inline-block;opacity:0;transform:translateY(40px) rotate(4deg);animation:rise .8s cubic-bezier(.2,1.3,.4,1) forwards}
+@keyframes rise{to{opacity:1;transform:none}}
+.lead{font-size:1.2rem;max-width:34em;margin:24px 0 32px;color:#d7d1ff}
+.btns{display:flex;gap:14px;flex-wrap:wrap}
+.btn{display:inline-block;padding:15px 26px;border-radius:16px;font-weight:600;font-size:1.05rem;transition:transform .2s cubic-bezier(.3,1.8,.5,1),box-shadow .2s}
+.btn.p{background:var(--butter);color:var(--night);box-shadow:0 6px 0 #c99a00}
+.btn.p:hover{transform:translateY(-3px) rotate(-1.5deg);box-shadow:0 9px 0 #c99a00}
+.btn.p:active{transform:translateY(4px);box-shadow:0 2px 0 #c99a00}
+.btn.s{background:rgba(255,255,255,.1);box-shadow:inset 0 0 0 2px rgba(255,255,255,.3)}
+.btn.s:hover{background:rgba(255,255,255,.2);transform:translateY(-3px)}
+
+/* mascot stage */
+.stage{position:relative;aspect-ratio:1;max-width:440px;width:100%;margin:0 auto}
+.stage svg.kip{width:100%;height:100%;overflow:visible;cursor:pointer;-webkit-tap-highlight-color:transparent}
+.kipwrap{animation:bob 3.4s ease-in-out infinite;transform-origin:50% 90%}
+@keyframes bob{50%{transform:translateY(-16px) rotate(1.5deg)}}
+.shadow{animation:shad 3.4s ease-in-out infinite;transform-origin:110px 238px;transform-box:view-box}
+@keyframes shad{50%{transform:scale(.8);opacity:.5}}
+.shackle{transform-origin:150px 80px;transition:transform .55s cubic-bezier(.3,1.7,.5,1)}
+.open .shackle{transform:translateY(-14px) rotate(-30deg)}
+.eye{animation:blink 5s infinite;transform-box:fill-box;transform-origin:center}
+@keyframes blink{0%,94%,100%{transform:scaleY(1)}97%{transform:scaleY(.08)}}
+.mouth{transition:d .3s}
+.open .smile{opacity:0}.open .grin{opacity:1}
+.grin{opacity:0;transition:opacity .2s}.smile{transition:opacity .2s}
+.coin{position:absolute;width:44px;height:44px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#fff3b0,var(--butter) 55%,#e0a800);display:grid;place-items:center;font-family:var(--display);font-weight:800;color:#8a6200;box-shadow:inset 0 -4px 0 rgba(0,0,0,.12);animation:orbit 7s ease-in-out infinite}
+.coin:nth-of-type(1){top:6%;left:4%}
+.coin:nth-of-type(2){top:18%;right:2%;animation-delay:-2s;width:34px;height:34px;font-size:.8rem}
+.coin:nth-of-type(3){bottom:20%;left:-2%;animation-delay:-4s;width:30px;height:30px;font-size:.75rem}
+.coin:nth-of-type(4){bottom:8%;right:8%;animation-delay:-5.5s}
+@keyframes orbit{0%,100%{transform:translate(0,0) rotateY(0)}25%{transform:translate(10px,-18px) rotateY(180deg)}50%{transform:translate(-6px,-6px) rotateY(360deg)}75%{transform:translate(-12px,-20px) rotateY(540deg)}}
+.bubble{position:absolute;top:-6px;right:-4px;background:var(--white);color:var(--night);font-weight:600;padding:10px 16px;border-radius:18px 18px 4px 18px;font-size:.95rem;max-width:200px;box-shadow:0 8px 24px rgba(0,0,0,.25);transition:opacity .3s,transform .3s}
+.bubble.out{opacity:0;transform:translateY(8px) scale(.92)}
+
+/* sections */
+section{padding:96px 0}
+.head{max-width:640px;margin-bottom:48px}
+h2{font-size:clamp(2rem,4.4vw,3.2rem);font-weight:800;letter-spacing:-.01em}
+.head p{margin-top:14px;font-size:1.1rem;color:#cfc8ff}
+
+/* steps */
+.steps{background:var(--ice);color:var(--night)}
+.steps h2{color:var(--night)}.steps .head p{color:#4a4380}
+.grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:22px}
+.step{position:relative;background:var(--white);border-radius:28px;padding:30px 26px 32px;transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
+.step:nth-child(1){background:var(--mint)}.step:nth-child(2){background:var(--butter)}.step:nth-child(3){background:var(--pink)}.step:nth-child(4){background:#b9a8ff}
+.step:hover{transform:translateY(-8px) rotate(-1.2deg)}
+.step .n{width:44px;height:44px;border-radius:50%;background:var(--night);color:var(--white);display:grid;place-items:center;font-family:var(--display);font-weight:800;margin-bottom:18px}
+.step h3{color:var(--night);font-size:1.5rem;margin-bottom:8px}
+.step p{font-size:1rem}
+.step svg{position:absolute;right:18px;top:18px;width:56px;height:56px}
+.step:hover svg{animation:wig .6s}
+@keyframes wig{25%{transform:rotate(-14deg) scale(1.1)}75%{transform:rotate(14deg) scale(1.1)}}
+
+/* unlock demo */
+.demo{background:linear-gradient(180deg,var(--night),var(--deep))}
+.panel{display:grid;grid-template-columns:.8fr 1.2fr;gap:36px;align-items:center;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:36px;padding:36px}
+@media(max-width:820px){.panel{grid-template-columns:1fr}}
+.panel .stage{max-width:260px}
+.fdv{font-family:var(--display);font-weight:800;font-size:clamp(2.6rem,6vw,4rem);color:var(--butter);line-height:1}
+.sub{opacity:.8;margin:6px 0 22px}
+input[type=range]{width:100%;height:14px;border-radius:99px;appearance:none;-webkit-appearance:none;background:linear-gradient(90deg,var(--mint) var(--p,0%),rgba(255,255,255,.18) var(--p,0%));cursor:pointer}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:34px;height:34px;border-radius:50%;background:var(--butter);border:4px solid var(--night);box-shadow:0 0 0 3px var(--butter)}
+input[type=range]::-moz-range-thumb{width:28px;height:28px;border-radius:50%;background:var(--butter);border:4px solid var(--night)}
+.tiers{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:26px}
+.tier{border-radius:18px;padding:14px 8px;text-align:center;background:rgba(255,255,255,.08);transition:background .3s,color .3s,transform .4s cubic-bezier(.3,1.8,.5,1)}
+.tier b{display:block;font-family:var(--display);font-size:1.3rem}
+.tier span{font-size:.85rem}
+.tier.on{background:var(--mint);color:var(--night);transform:translateY(-6px) scale(1.04)}
+.note{margin-top:18px;font-size:.9rem;opacity:.7}
+.burst{position:fixed;pointer-events:none;z-index:50;width:14px;height:14px;border-radius:50%;background:var(--butter);animation:fly .9s ease-out forwards}
+@keyframes fly{to{transform:translate(var(--x),var(--y)) scale(.2);opacity:0}}
+
+/* launches */
+.launches{background:var(--deep)}
+.lhead{display:flex;justify-content:space-between;align-items:end;gap:16px;flex-wrap:wrap;margin-bottom:40px}
+.card{background:var(--white);color:var(--night);border-radius:28px;padding:26px;transition:transform .3s cubic-bezier(.3,1.6,.5,1)}
+.card:hover{transform:translateY(-8px)}
+.card .top{display:flex;align-items:center;gap:12px;margin-bottom:18px}
+.av{width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:1.5rem}
+.card h3{color:var(--night);font-size:1.35rem}
+.card .tag{font-size:.8rem;opacity:.6}
+.bar{height:12px;border-radius:99px;background:#e4defd;overflow:hidden;margin:6px 0 12px}
+.bar i{display:block;height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--violet),var(--pink));transition:width 1.4s cubic-bezier(.2,.9,.3,1)}
+.row{display:flex;justify-content:space-between;font-size:.92rem}
+.empty{text-align:center;margin-top:34px;opacity:.75}
+
+footer{padding:40px 0;background:var(--night);font-size:.9rem;color:#a99fe6}
+footer .wrap{display:flex;flex-wrap:wrap;justify-content:space-between;gap:12px}
+
+.rev{opacity:0;transform:translateY(30px);transition:opacity .7s,transform .7s cubic-bezier(.2,.9,.3,1)}
+.rev.in{opacity:1;transform:none}
+@media(hover:none){
+  .step:hover,.card:hover,.btn.p:hover,.btn.s:hover,.dd-btn:hover,.wallet:hover,.links a:hover{transform:none}
+  .step:hover svg{animation:none}
+}
+@media(max-width:900px){
+  .hero{padding:48px 0 72px}
+  .hero .wrap{text-align:center}
+  .lead{margin-left:auto;margin-right:auto}
+  .btns{justify-content:center}
+  .stage{max-width:360px}
+  section{padding:72px 0}
+}
+@media(max-width:560px){
+  .btns .btn{flex:1 1 100%;text-align:center;padding:16px 20px}
+  .stage{max-width:300px;margin-top:64px}
+  .bubble{top:-58px;left:0;right:0;margin:0 auto;width:max-content;max-width:250px;text-align:center;border-radius:18px}
+  .coin{transform:scale(.8)}
+  .panel{padding:22px;border-radius:28px}
+  .panel .stage{max-width:200px;margin-top:0}
+  .tiers{grid-template-columns:repeat(2,1fr)}
+  .lhead{flex-direction:column;align-items:flex-start}
+  .lhead .btn{width:100%;text-align:center}
+  .step svg{width:44px;height:44px}
+  footer .wrap{flex-direction:column}
+}
+@media(prefers-reduced-motion:reduce){
+  *,*::before,*::after{animation:none!important;transition:none!important}
+  h1 .w,.rev{opacity:1;transform:none}
+}
+
+[hidden]{display:none!important}
+.phead{padding:48px 0 8px;background:radial-gradient(800px 420px at 90% 0%,var(--violet),transparent 70%)}
+.phead .wrap{display:flex;align-items:center;justify-content:space-between;gap:24px}
+.phead h1{font-size:clamp(2.2rem,5vw,3.4rem)}
+.phead p{max-width:720px;margin-top:12px;font-size:1.1rem;color:#d7d1ff}
+.phead .stage{width:150px;flex:none;margin:0}
+.layout{display:grid;grid-template-columns:minmax(0,1fr) 390px;gap:26px;align-items:start;padding:28px 0 96px}
+.stack{display:flex;flex-direction:column;gap:16px}
+.sec{position:relative;background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.14);border-radius:28px;padding:26px 28px;animation:secin .7s cubic-bezier(.2,.9,.3,1) both;animation-delay:calc(var(--i,0)*80ms)}
+.sec::before{content:"";position:absolute;left:0;top:26px;width:6px;height:30px;border-radius:0 6px 6px 0;background:var(--c,var(--mint))}
+.sec:nth-child(1){--i:1;--c:var(--mint)}.sec:nth-child(2){--i:2;--c:var(--butter)}.sec:nth-child(3){--i:3;--c:var(--pink)}.sec:nth-child(4){--i:4;--c:#b9a8ff}.sec:nth-child(5){--i:5;--c:var(--mint)}.sec:nth-child(6){--i:6;--c:var(--butter)}
+@keyframes secin{from{opacity:0;transform:translateY(24px)}}
+.sec h3,.rev-card h3{font-size:1.45rem}
+.g2,.g3{display:grid;gap:16px}
+.g2{grid-template-columns:repeat(2,minmax(0,1fr))}.g3{grid-template-columns:repeat(3,minmax(0,1fr))}
+.rw{display:flex;gap:12px;align-items:center;flex-wrap:wrap}
+.rw.between{justify-content:space-between}
+.field{display:flex;flex-direction:column;gap:6px;min-width:0}
+.field>span{font-weight:600;font-size:.92rem}
+.field small,.sub{font-size:.9rem;opacity:.75;line-height:1.5}
+input[type=text],input[type=number],input:not([type]),select,textarea,input[type=datetime-local]{width:100%;min-height:48px;border:2px solid transparent;border-radius:14px;padding:10px 14px;font:inherit;color:var(--night);background:var(--white)}
+textarea{min-height:110px;resize:vertical;font-family:ui-monospace,Menlo,Consolas,monospace;font-size:.92rem}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--mint);box-shadow:0 0 0 4px rgba(77,240,187,.25)}
+.chip{display:inline-flex;align-items:center;gap:8px;padding:6px 14px;border-radius:99px;background:rgba(255,255,255,.12);font-weight:600;font-size:.88rem;white-space:nowrap}
+.chip.live{background:rgba(77,240,187,.16);color:var(--mint)}
+.chip.live::before{content:"";width:8px;height:8px;border-radius:50%;background:currentColor;animation:ping 1.6s infinite}
+.chip.warn{background:rgba(255,111,165,.18);color:var(--pink)}
+.notice{border-radius:16px;padding:14px 16px;background:rgba(255,255,255,.1);font-size:.94rem;line-height:1.5}
+.notice.ok{background:rgba(77,240,187,.16);color:var(--mint)}
+.notice.bad{background:rgba(255,111,165,.16);color:#ffc1d8}
+.notice ul{margin:6px 0 0 18px;padding:0}
+.notice code,.sub code{font-family:ui-monospace,Menlo,Consolas,monospace;background:rgba(0,0,0,.25);padding:2px 6px;border-radius:6px;font-size:.88em}
+.tw{max-height:220px;overflow:auto;border-radius:16px;background:rgba(0,0,0,.2)}
+.t{width:100%;border-collapse:collapse;font-size:.9rem}
+.t th{position:sticky;top:0;background:#2a1a78;text-align:left;padding:10px 12px;font-size:.82rem}
+.t td{padding:9px 12px;border-top:1px solid rgba(255,255,255,.08)}
+.mono{font-family:ui-monospace,Menlo,Consolas,monospace}.dim{opacity:.6}
+.btn.sm{padding:10px 16px;font-size:.92rem;border-radius:12px;border:0;cursor:pointer;font-family:var(--body);min-height:44px;display:inline-flex;align-items:center;justify-content:center;color:var(--white);background:rgba(255,255,255,.14);transition:background .2s,transform .2s cubic-bezier(.3,1.8,.5,1)}
+.btn.sm:hover{background:rgba(255,255,255,.24);transform:translateY(-2px)}
+.btn.sm.p{background:var(--butter);color:var(--night);box-shadow:0 4px 0 #c99a00}
+.btn.sm.p:hover{background:var(--butter)}
+.btn.sm.p:disabled{opacity:.45;cursor:not-allowed;transform:none}
+.btn.sm.ghost{background:rgba(255,255,255,.08);padding:10px 14px}
+.btn.sm.ghost:hover{background:var(--pink);color:var(--night)}
+.ms{flex-wrap:nowrap;align-items:flex-end;animation:pop .35s cubic-bezier(.3,1.6,.5,1)}
+@keyframes pop{from{opacity:0;transform:scale(.94) translateY(-6px)}}
+.seg{display:flex;height:14px;border-radius:99px;overflow:hidden;background:rgba(255,255,255,.12)}
+.seg i{display:block;height:100%;transition:width .6s cubic-bezier(.2,.9,.3,1)}
+.seg i:nth-child(4n+1){background:var(--mint)}.seg i:nth-child(4n+2){background:var(--butter)}.seg i:nth-child(4n+3){background:var(--pink)}.seg i:nth-child(4n){background:#b9a8ff}
+.rev-card{background:linear-gradient(160deg,rgba(91,61,245,.55),rgba(255,255,255,.08));border:1px solid rgba(255,255,255,.22);border-radius:28px;padding:24px;animation:secin .7s .2s cubic-bezier(.2,.9,.3,1) both}
+.rk{width:56px;height:64px;flex:none}
+.rk svg{width:100%;height:100%;overflow:visible;cursor:pointer}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:10px 14px;font-size:.94rem}
+.kv span:nth-child(odd){opacity:.7}.kv span:nth-child(even){font-weight:600;text-align:right;overflow-wrap:anywhere}
+.label{font-weight:600;font-size:.9rem}
+details{border-radius:16px;background:rgba(0,0,0,.18);padding:12px 16px}
+details>summary{cursor:pointer;min-height:24px}
+details[open]>summary{margin-bottom:6px}
+pre.code{margin:10px 0 0;padding:14px;border-radius:14px;background:#140b3c;color:var(--mint);font:.8rem/1.55 ui-monospace,Menlo,Consolas,monospace;overflow:auto;max-height:320px;white-space:pre}
+.toast{position:fixed;left:50%;bottom:24px;transform:translate(-50%,30px);background:var(--white);color:var(--night);font-weight:600;padding:12px 18px;border-radius:16px;box-shadow:0 12px 32px rgba(0,0,0,.35);opacity:0;pointer-events:none;transition:opacity .25s,transform .35s cubic-bezier(.3,1.6,.5,1);z-index:60;max-width:92vw}
+.toast.on{opacity:1;transform:translate(-50%,0)}
+@media(max-width:980px){.layout{grid-template-columns:minmax(0,1fr)}.aside{position:static!important}}
+@media(max-width:700px){.g3{grid-template-columns:repeat(2,minmax(0,1fr))}.phead .stage{display:none}}
+@media(max-width:560px){.g2,.g3{grid-template-columns:minmax(0,1fr)}.sec{padding:22px 18px;border-radius:24px}.kv{grid-template-columns:1fr}.kv span:nth-child(even){text-align:left}}
+</style>
+</head>
+<body>
+
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <defs>
+    <g id="kipsvg">
+      <ellipse class="shadow" cx="110" cy="238" rx="70" ry="9" fill="#000" opacity=".28"/>
+      <g class="kipwrap">
+        <g class="shackle"><path d="M72 84V58a38 38 0 0 1 76 0v26" fill="none" stroke="#ece9ff" stroke-width="18" stroke-linecap="round"/></g>
+        <rect x="26" y="80" width="168" height="150" rx="48" fill="#ffd23f"/>
+        <path d="M44 100q50-22 130 0" stroke="#fff3b0" stroke-width="8" fill="none" stroke-linecap="round" opacity=".8"/>
+        <circle cx="62" cy="168" r="13" fill="#ff6fa5" opacity=".75"/><circle cx="158" cy="168" r="13" fill="#ff6fa5" opacity=".75"/>
+        <g class="eye"><circle cx="80" cy="140" r="19" fill="#fff"/><circle class="pupil" cx="80" cy="141" r="9" fill="#1d1250"/><circle cx="83" cy="137" r="3" fill="#fff"/></g>
+        <g class="eye"><circle cx="140" cy="140" r="19" fill="#fff"/><circle class="pupil" cx="140" cy="141" r="9" fill="#1d1250"/><circle cx="143" cy="137" r="3" fill="#fff"/></g>
+        <path class="smile" d="M96 176q14 14 28 0" stroke="#1d1250" stroke-width="6" fill="none" stroke-linecap="round"/>
+        <path class="grin" d="M92 172q18 26 36 0z" fill="#1d1250"/>
+        <path class="grin" d="M100 183q10 8 20 0" stroke="#ff6fa5" stroke-width="5" fill="none" stroke-linecap="round"/>
+        <circle cx="110" cy="208" r="7" fill="#c99a00"/><rect x="107" y="208" width="6" height="12" rx="3" fill="#c99a00"/>
+      </g>
+    </g>
+  </defs>
+</svg>
+
+<nav>
+  <div class="wrap">
+    <a class="logo" href="https://kycabal.fun/" aria-label="KYP home">
+      <svg width="36" height="36" viewBox="20 0 180 240" aria-hidden="true"><path d="M72 84V58a38 38 0 0 1 76 0v26" fill="none" stroke="#ece9ff" stroke-width="22" stroke-linecap="round"/><rect x="26" y="80" width="168" height="150" rx="48" fill="#ffd23f"/><circle cx="80" cy="150" r="16" fill="#1d1250"/><circle cx="140" cy="150" r="16" fill="#1d1250"/></svg>
+      <span>KYP<small>Know Your Presalers</small></span>
+    </a>
+    <div class="links" id="links">
+      <a href="https://kycabal.fun/">Launches</a>
+      <a href="https://kycabal.fun/how-it-works">How it works</a>
+      <a href="https://kycabal.fun/test-wallets">Test wallets</a>
+      <a class="cta" href="https://kycabal.fun/create" aria-current="page">Create a launch</a>
+    </div>
+    <div class="tools">
+      <div class="dd" id="dd">
+        <button class="dd-btn" id="dd-btn" aria-haspopup="true" aria-expanded="false"><span class="dd-label">Pool:</span> <span id="dd-val">RHEA DCL</span> <i aria-hidden="true">▾</i></button>
+        <ul class="dd-menu" role="menu" aria-label="Pool adapter">
+          <li role="none"><button role="menuitemradio" aria-checked="true" data-v="RHEA DCL">RHEA DCL <small>Live pool</small></button></li>
+          <li role="none"><button role="menuitemradio" aria-checked="false" data-v="Mock adapter">Mock adapter <small>Demo</small></button></li>
+        </ul>
+      </div>
+      <button class="wallet" id="wallet">Connect<span class="wx"> wallet</span></button>
+    </div>
+    <button class="burger" id="burger" aria-expanded="false" aria-controls="links" aria-label="Menu"><span></span><span></span><span></span></button>
+  </div>
+</nav>
+
+
+<main class="wrap" style="padding-bottom:0">
+<header class="phead"><div class="wrap" style="width:100%">
+  <div>
+    <h1>Create a KYP launch</h1>
+    <p>Pick your presalers, set public terms and ambitious unlock milestones. Everything except who is invited is public from the start.</p>
+  </div>
+  <div class="stage"><svg class="kip" viewBox="0 0 220 250" id="topkip" role="img" aria-label="Kip, the KYP padlock mascot. Click Kip to open the lock."></svg></div>
+</div></header>
+</main>
+
+<div class="wrap layout" id="kyp">
+  <div class="stack">
+
+    <section class="sec stack">
+      <h3>1 · Token</h3>
+      <div class="g2">
+        <label class="field"><span>Name</span><input id="name" value="Moon Moth" autocomplete="off"></label>
+        <label class="field"><span>Symbol</span><input id="sym" value="MOTH" autocomplete="off" autocapitalize="characters"></label>
+      </div>
+      <label class="field"><span>Description</span><input id="desc" value="Drawn to the light. Hand-picked presalers who ship memes, code and calls."></label>
+      <label class="field"><span>Icon URL (optional)</span><input id="icon" placeholder="https://… or data:image/svg+xml,…"></label>
+      <div class="sub">Supply 1,000,000,000 · 18 decimals · minted once to the coordinator · no owner, no further mint.</div>
+    </section>
+
+    <section class="sec stack">
+      <h3>2 · Price &amp; presale size</h3>
+      <div class="g2" style="align-items:start">
+        <label class="field"><span>Opening FDV (USD)</span><input id="fdv" type="number" step="500" value="5000"><small id="fdvs"></small></label>
+        <label class="field"><span>Presale cap: <b id="capl">25</b>% of supply</span><input id="cap" type="range" min="1" max="50" value="25"><small id="caps"></small></label>
+      </div>
+      <div class="g3">
+        <label class="field"><span>Min raise (wNEAR)</span><input id="minraise" type="number" step="1" value="50"></label>
+        <label class="field"><span>Per-wallet min</span><input id="wmin" type="number" step="1" value="5"></label>
+        <label class="field"><span>Per-wallet max</span><input id="wmax" type="number" step="1" value="100"></label>
+      </div>
+    </section>
+
+    <section class="sec stack">
+      <h3>3 · Presale window</h3>
+      <div class="g2">
+        <label class="field"><span>Opens</span><select id="opens"><option value="now">Now</option><option value="at">At a time (≤ 1 day out)</option></select></label>
+        <label class="field"><span>Length: <b id="lenl">5</b> days</span><input id="len" type="range" min="1" max="7" step="0.5" value="5"></label>
+      </div>
+      <label class="field" id="startwrap" hidden><span>Start time</span><input id="start" type="datetime-local"></label>
+      <div class="sub">You can launch any time once the minimum raise is in. If you don't launch by the end, presalers withdraw.</div>
+    </section>
+
+    <section class="sec stack">
+      <div class="rw between"><h3>4 · Presalers</h3><span class="chip" id="pcount"></span></div>
+      <label class="field"><span>Invited wallets (one per line)</span><textarea id="invited" spellcheck="false" autocapitalize="none">artist.testnet
+builder.testnet
+caller.testnet
+degen-dao.testnet
+memelord.testnet
+night-dev.testnet</textarea></label>
+      <label class="field"><span>Reserved slots for later (account, wNEAR)</span><textarea id="reserved" style="min-height:64px" spellcheck="false" autocapitalize="none">celebrity.testnet, 100</textarea><small>Reserved wallets buy after launch at the same presale price and lock on the same milestones. Unsold slots stay reserved.</small></label>
+      <div class="notice">Only <code>sha256("account:code")</code> goes on-chain. Send each wallet its code privately; it uses it to deposit.</div>
+      <div class="tw"><table class="t"><thead><tr><th>Wallet</th><th>Invite code</th><th>Slot hash</th></tr></thead><tbody id="ptable"></tbody></table></div>
+      <div class="rw"><a class="btn sm" id="csv" download="moth-invites.csv" href="#">Download invites (CSV)</a><span class="sub">Keep this file private.</span></div>
+    </section>
+
+    <section class="sec stack">
+      <div class="rw between"><h3>5 · Unlock milestones</h3><span class="chip live" id="alloc"></span></div>
+      <p class="sub">Make them ambitious. The community roots for presalers to get there. FDV = price × (minted − burned), measured as a TWAP.</p>
+      <div class="seg" id="seg" aria-hidden="true"></div>
+      <div class="stack" id="ms"></div>
+      <div class="rw"><button type="button" class="btn sm" id="addm">Add milestone</button><span class="sub" id="first"></span></div>
+    </section>
+
+    <section class="sec stack">
+      <h3>6 · TWAP, reveal &amp; fees</h3>
+      <div class="g3">
+        <label class="field"><span>TWAP window (min)</span><input id="twap" type="number" step="1" value="60"></label>
+        <label class="field"><span>Min observations</span><input id="minobs" type="number" step="1" value="6"></label>
+        <label class="field"><span>Obs spacing (min)</span><input id="spacing" type="number" step="1" value="5"></label>
+        <label class="field"><span>Claim delay (min)</span><input id="delay" type="number" step="1" value="60"></label>
+        <label class="field"><span>Min liquidity (raw)</span><input id="minliq" value="0"></label>
+        <label class="field"><span>Reveal waves</span><input id="waves" type="number" step="1" min="1" max="10" value="3"></label>
+      </div>
+      <label class="field"><span>Hours between waves</span><input id="hrs" type="number" step="1" value="24"></label>
+      <div class="g3">
+        <label class="field"><span>Holders <b id="l1">50</b>%</span><input id="f1" type="number" value="50"><input id="f1a" value="holders.moth.testnet" aria-label="Holders account" spellcheck="false" autocapitalize="none"></label>
+        <label class="field"><span>Liquidity <b id="l2">30</b>%</span><input id="f2" type="number" value="30"><input id="f2a" value="lp.moth.testnet" aria-label="Liquidity account" spellcheck="false" autocapitalize="none"></label>
+        <label class="field"><span>Competitions &amp; bounties <b id="l3">20</b>%</span><input id="f3" type="number" value="20"><input id="f3a" value="bounties.moth.testnet" aria-label="Competitions and bounties account" spellcheck="false" autocapitalize="none"></label>
+      </div>
+    </section>
+  </div>
+
+  <aside class="stack aside" style="position:sticky;top:84px">
+    <div class="rev-card stack">
+      <div class="rw between"><h3>Review</h3><div class="rk"><svg class="kip" viewBox="0 0 220 250" id="revkip" role="img" aria-label="Kip opens his lock when the terms are valid"></svg></div></div>
+      <div class="kv">
+        <span>Presale price</span><span id="r-price"></span>
+        <span>Opening FDV</span><span id="r-fdv"></span>
+        <span>Presale cap</span><span id="r-cap"></span>
+        <span>Window</span><span id="r-win"></span>
+        <span>Milestones</span><span id="r-ms"></span>
+        <span>Reveal</span><span id="r-rev"></span>
+        <span>Fees</span><span id="r-fee"></span>
+      </div>
+      <label class="field"><span>Launcher account</span><input id="launcher" autocomplete="off" spellcheck="false" autocapitalize="none"></label>
+      <div id="status"></div>
+      <div class="stack" id="connect"></div>
+      <details>
+        <summary class="sub">Or sign with NEAR CLI</summary>
+        <div class="stack" style="margin-top:12px">
+          <div class="rw between"><span class="label">Create on testnet (attach 2.6 NEAR: token account + launch storage)</span><button type="button" class="btn sm ghost" id="copy">Copy</button></div>
+          <pre class="code" id="cli"></pre>
+        </div>
+      </details>
+    </div>
+    <details>
+      <summary class="label">create_launch params (JSON)</summary>
+      <pre class="code" id="json" style="max-height:320px"></pre>
+    </details>
+  </aside>
+</div>
+
+<footer>
+  <div class="wrap">
+    <span>KYP MVP · NEAR testnet · not financial advice</span>
+    <span>Contracts: coordinator · lock · NEP-141 token · RHEA DCL (mock adapter in demo)</span>
+  </div>
+</footer>
+<div class="toast" id="toast" role="status"></div>
+
+<script>
+(function(){
+  var $ = function(s){ return document.querySelector(s); };
+  var $$ = function(s){ return [].slice.call(document.querySelectorAll(s)); };
+  var reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  var tpl = document.getElementById('kipsvg');
+  $$('svg.kip').forEach(function(k){ k.innerHTML = tpl.innerHTML; });
+  $('#topkip').addEventListener('click', function(){ $('#topkip').classList.toggle('open'); });
+
+  // eyes follow the pointer
+  var kips = $$('svg.kip');
+  if(!reduce) addEventListener('pointermove', function(e){
+    kips.forEach(function(k){
+      var r = k.getBoundingClientRect(); if(!r.width) return;
+      var dx = e.clientX - (r.left + r.width/2), dy = e.clientY - (r.top + r.height*0.56), d = Math.hypot(dx,dy) || 1, m = Math.min(6, d/40);
+      [].forEach.call(k.querySelectorAll('.pupil'), function(p){ p.style.transform = 'translate('+(dx/d*m)+'px,'+(dy/d*m)+'px)'; });
+    });
+  });
+
+  // nav: pool dropdown, wallet, menu
+  var dd = $('#dd'), ddBtn = $('#dd-btn');
+  function ddSet(o){ dd.classList.toggle('open', o); ddBtn.setAttribute('aria-expanded', o); }
+  ddBtn.addEventListener('click', function(e){ e.stopPropagation(); ddSet(!dd.classList.contains('open')); });
+  $$('.dd-menu button').forEach(function(b){
+    b.addEventListener('click', function(){
+      $$('.dd-menu button').forEach(function(x){ x.setAttribute('aria-checked', x === b); });
+      $('#dd-val').textContent = b.dataset.v; ddSet(false);
+    });
+  });
+  var wb = $('#wallet'), account = null;
+  function setAccount(a){
+    account = a; wb.classList.toggle('on', !!a);
+    if(a) wb.textContent = a; else wb.innerHTML = 'Connect<span class="wx"> wallet</span>';
+    var L = $('#launcher');
+    if(a && !L.value) L.value = a;
+    if(!a && L.value === 'demo.testnet') L.value = '';
+    calc();
+  }
+  wb.addEventListener('click', function(){ setAccount(account ? null : 'demo.testnet'); });
+  var navEl = document.querySelector('nav'), burger = $('#burger');
+  function menu(o){ navEl.classList.toggle('menu-open', o); burger.setAttribute('aria-expanded', o); }
+  burger.addEventListener('click', function(e){ e.stopPropagation(); menu(!navEl.classList.contains('menu-open')); });
+  $$('.links a').forEach(function(a){ a.addEventListener('click', function(){ menu(false); }); });
+  document.addEventListener('click', function(e){ ddSet(false); if(!navEl.contains(e.target)) menu(false); });
+  document.addEventListener('keydown', function(e){ if(e.key === 'Escape'){ ddSet(false); menu(false); } });
+  addEventListener('resize', function(){ if(innerWidth > 1000) menu(false); });
+
+  var SHA=(function(){
+  var K=[],H=[],p=2,c=0;
+  while(c<64){var ok=1;for(var d=2;d*d<=p;d++){if(p%d===0){ok=0;break}}
+    if(ok){if(c<8)H[c]=((Math.sqrt(p)%1)*4294967296)|0;K[c++]=((Math.cbrt(p)%1)*4294967296)|0}p++}
+  function r(x,n){return(x>>>n)|(x<<(32-n))}
+  return function(str){
+    var b=Array.prototype.slice.call(new TextEncoder().encode(str)),l=b.length*8,i,o;
+    b.push(128);while(b.length%64!==56)b.push(0);
+    for(i=7;i>=0;i--)b.push(i>3?0:(l>>>(i*8))&255);
+    var h=H.slice();
+    for(o=0;o<b.length;o+=64){
+      var w=[];for(i=0;i<16;i++)w[i]=(b[o+4*i]<<24)|(b[o+4*i+1]<<16)|(b[o+4*i+2]<<8)|b[o+4*i+3];
+      for(i=16;i<64;i++){var s0=r(w[i-15],7)^r(w[i-15],18)^(w[i-15]>>>3),s1=r(w[i-2],17)^r(w[i-2],19)^(w[i-2]>>>10);w[i]=(w[i-16]+s0+w[i-7]+s1)|0}
+      var a=h[0],bb=h[1],cc=h[2],dd=h[3],e=h[4],f=h[5],g=h[6],hh=h[7];
+      for(i=0;i<64;i++){
+        var t1=(hh+(r(e,6)^r(e,11)^r(e,25))+((e&f)^(~e&g))+K[i]+w[i])|0;
+        var t2=((r(a,2)^r(a,13)^r(a,22))+((a&bb)^(a&cc)^(bb&cc)))|0;
+        hh=g;g=f;f=e;e=(dd+t1)|0;dd=cc;cc=bb;bb=a;a=(t1+t2)|0}
+      var v=[a,bb,cc,dd,e,f,g,hh];for(i=0;i<8;i++)h[i]=(h[i]+v[i])|0}
+    return h.map(function(x){return('0000000'+(x>>>0).toString(16)).slice(-8)}).join('')}
+})();
+
+
+  // helpers
+  var NEAR_USD = 2, SUPPLY = 1e9, QUOTE = 'wrap.testnet', CONTRACT = 'kyp-sushmit-dcl.testnet';
+  var acctRe = /^([a-z0-9]+([._-][a-z0-9]+)*\.(near|testnet)|[0-9a-f]{64})$/;
+  var codes = {'artist.testnet':'8202f4aaa9afd4ac','builder.testnet':'31142c95d2c49d55','caller.testnet':'0a2d2c5cda3dabcc','degen-dao.testnet':'a52a51ed91489c83','memelord.testnet':'18ea59300c060ce2','night-dev.testnet':'e7880a3c127117e5','celebrity.testnet':'79a5864201690d1f'};
+  function code(a){
+    if(!codes[a]){
+      var u = new Uint8Array(8), c = window.crypto;
+      if(c && c.getRandomValues) c.getRandomValues(u); else for(var i = 0; i < 8; i++) u[i] = Math.random() * 256;
+      codes[a] = [].map.call(u, function(b){ return ('0' + b.toString(16)).slice(-2); }).join('');
+    }
+    return codes[a];
+  }
+  function esc(s){ return String(s).replace(/[&<>"']/g, function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function v(id){ var x = parseFloat($('#' + id).value); return isFinite(x) ? x : NaN; }
+  function fmt(x){ return isFinite(x) ? x.toLocaleString('en-US', {maximumFractionDigits: 2}) : '–'; }
+  function trim(x){ return String(+x.toFixed(2)); }
+  function tok(x){ return x >= 1e9 ? trim(x/1e9) + 'B' : x >= 1e6 ? trim(x/1e6) + 'M' : x >= 1e3 ? trim(x/1e3) + 'K' : trim(x); }
+  function usd(x){ return '$' + (x >= 1e6 ? trim(x/1e6) + 'm' : x >= 1e3 ? trim(x/1e3) + 'k' : trim(x)); }
+  function toY(x){ return isFinite(x) && x >= 0 ? (BigInt(Math.round(x * 1e6)) * BigInt(10) ** BigInt(18)).toString() : '0'; }
+  function setText(id, t){ $('#' + id).textContent = t; }
+  function toast(t){ var e = $('#toast'); e.textContent = t; e.classList.add('on'); clearTimeout(toast.t); toast.t = setTimeout(function(){ e.classList.remove('on'); }, 3200); }
+  function copy(t, btn){
+    function ok(){ var o = btn.textContent; btn.textContent = 'Copied'; setTimeout(function(){ btn.textContent = o; }, 1400); }
+    function fb(){ var ta = document.createElement('textarea'); ta.value = t; document.body.appendChild(ta); ta.select(); try{ document.execCommand('copy'); ok(); }catch(e){ toast('Select the text and copy it manually.'); } ta.remove(); }
+    if(navigator.clipboard && navigator.clipboard.writeText) navigator.clipboard.writeText(t).then(ok, fb); else fb();
+  }
+
+  // milestone rows
+  var ms = $('#ms');
+  function msRow(f, p){
+    var d = document.createElement('div'); d.className = 'rw ms';
+    d.innerHTML = '<label class="field" style="flex:2"><span>Target FDV (USD)</span><input type="number" step="100000" value="' + f + '"></label><label class="field" style="flex:1"><span>Unlock %</span><input type="number" value="' + p + '"></label><button type="button" class="btn sm ghost" style="margin-bottom:2px" aria-label="Remove milestone">✕</button>';
+    d.querySelector('button').addEventListener('click', function(){ d.remove(); calc(); });
+    ms.appendChild(d);
+  }
+  msRow(1000000, 20); msRow(10000000, 30); msRow(25000000, 50);
+  $('#addm').addEventListener('click', function(){ msRow('', ''); calc(); });
+
+  var feeDirty = {f1a: 0, f2a: 0, f3a: 0};
+  ['f1a','f2a','f3a'].forEach(function(id){ $('#' + id).addEventListener('input', function(){ feeDirty[id] = 1; }); });
+
+  function calc(){
+    var errs = [], sym = $('#sym').value.trim() || 'TOKEN', now = Math.floor(Date.now() / 1000);
+    var name = $('#name').value.trim(), icon = $('#icon').value.trim();
+    if(!name) errs.push('Add a token name.');
+    if(!/^[A-Za-z0-9]{2,10}$/.test(sym)) errs.push('Symbol must be 2 to 10 letters or digits.');
+    if(icon && !/^(https?:\/\/|data:)/i.test(icon)) errs.push('Icon URL must start with https:// or data:');
+    // keep default fee accounts in step with the symbol until edited
+    var low = sym.toLowerCase();
+    [['f1a','holders'],['f2a','lp'],['f3a','bounties']].forEach(function(p){ if(!feeDirty[p[0]] && /^[a-z0-9]{2,10}$/.test(low)) $('#' + p[0]).value = p[1] + '.' + low + '.testnet'; });
+
+    // price and size
+    var fdv = v('fdv'), cap = v('cap'), wn = fdv / NEAR_USD, perW = SUPPLY / wn, capTok = SUPPLY * cap / 100, capRaise = capTok / perW;
+    var minraise = v('minraise'), wmin = v('wmin'), wmax = v('wmax');
+    setText('capl', trim(cap)); $('#cap').style.setProperty('--p', ((cap - 1) / 49 * 100) + '%');
+    setText('fdvs', fdv > 0 ? fmt(wn) + ' wNEAR at $' + NEAR_USD + '/NEAR · ' + fmt(perW) + ' ' + sym + ' per wNEAR' : '');
+    setText('caps', fdv > 0 ? tok(capTok) + ' tokens, platform max 50% · open raise cap ' + fmt(capRaise) + ' wNEAR incl. reserved' : '');
+    if(!(fdv > 0)) errs.push('Opening FDV must be above 0.');
+    if(!(minraise >= 0) || !(wmin >= 0) || !(wmax > 0)) errs.push('Raise and per-wallet amounts must be numbers.');
+    else {
+      if(wmin > wmax) errs.push('Per-wallet min is above the max.');
+      if(minraise > capRaise) errs.push('Min raise is above the open raise cap.');
+    }
+
+    // window
+    var len = v('len'), opens = $('#opens').value;
+    setText('lenl', trim(len)); $('#len').style.setProperty('--p', ((len - 1) / 6 * 100) + '%');
+    $('#startwrap').hidden = opens !== 'at';
+    var start = now;
+    if(opens === 'at'){
+      start = Math.floor(new Date($('#start').value).getTime() / 1000);
+      if(!isFinite(start) || start < now - 60 || start > now + 86400) errs.push('Pick a start time within the next day.');
+    }
+    var end = Math.round(start + len * 86400);
+
+    // presalers
+    var inv = $('#invited').value.split(/\n/).map(function(s){ return s.trim().toLowerCase(); }).filter(Boolean);
+    var res = $('#reserved').value.split(/\n/).map(function(s){ return s.trim(); }).filter(Boolean).map(function(l){ var p = l.split(/[\s,]+/); return {a: (p[0] || '').toLowerCase(), amt: parseFloat(p[1])}; });
+    var seen = {};
+    inv.forEach(function(a){ if(!acctRe.test(a)) errs.push('Invalid invited wallet: ' + a); if(seen[a]) errs.push('Duplicate wallet: ' + a); seen[a] = 1; });
+    res.forEach(function(r){ if(!acctRe.test(r.a) || !(r.amt > 0)) errs.push('Reserved slot needs "account, wNEAR": ' + r.a); if(seen[r.a]) errs.push('Duplicate wallet: ' + r.a); seen[r.a] = 1; });
+    if(!inv.length) errs.push('Invite at least one wallet.');
+    var okInv = inv.filter(function(a, i){ return acctRe.test(a) && inv.indexOf(a) === i; });
+    var okRes = res.filter(function(r){ return acctRe.test(r.a) && r.amt > 0; });
+    setText('pcount', okInv.length + ' invited · ' + okRes.length + ' reserved');
+    var rows = okInv.map(function(a){ return {a: a, star: 0}; }).concat(okRes.map(function(r){ return {a: r.a, star: 1, amt: r.amt}; }));
+    rows.forEach(function(r){ r.c = code(r.a); r.h = SHA(r.a + ':' + r.c); });
+    $('#ptable').innerHTML = rows.map(function(r){ return '<tr><td>' + (r.star ? '★ ' : '') + esc(r.a) + '</td><td class="mono">' + r.c + '</td><td class="mono dim">' + r.h.slice(0, 10) + '…</td></tr>'; }).join('');
+    var csv = 'account,invite_code,slot_hash,kind\n' + rows.map(function(r){ return [r.a, r.c, r.h, r.star ? 'reserved' : 'open'].join(','); }).join('\n') + '\n';
+    var a = $('#csv'); a.href = 'data:text/csv;charset=utf-8,' + encodeURIComponent(csv); a.download = sym.toLowerCase() + '-invites.csv';
+
+    // milestones
+    var mrows = $$('#ms .ms').map(function(r){ var i = r.querySelectorAll('input'); return {f: parseFloat(i[0].value), p: parseFloat(i[1].value)}; });
+    var tot = 0, rising = mrows.length > 0, valid = mrows.length > 0;
+    mrows.forEach(function(m, i){ if(!(m.f > 0) || !(m.p > 0)) valid = false; if(i && !(m.f > mrows[i-1].f)) rising = false; if(m.p > 0) tot += m.p; });
+    var al = $('#alloc'); al.textContent = trim(tot) + '% allocated'; al.className = 'chip ' + (Math.abs(tot - 100) < 1e-9 ? 'live' : 'warn');
+    $('#seg').innerHTML = mrows.map(function(m){ return '<i style="width:' + (m.p > 0 ? m.p / Math.max(tot, 100) * 100 : 0) + '%"></i>'; }).join('');
+    var firstF = Math.min.apply(null, mrows.map(function(m){ return m.f; }).filter(function(x){ return x > 0; }));
+    setText('first', isFinite(firstF) && fdv > 0 ? 'first unlock at ' + trim(firstF / fdv) + '× the opening FDV' : '');
+    if(!valid) errs.push('Every milestone needs a target and an unlock %.');
+    else { if(!rising) errs.push('Milestone targets must rise in order.'); if(Math.abs(tot - 100) > 1e-9) errs.push('Unlocks add up to ' + trim(tot) + '%, not 100%.'); }
+
+    // TWAP, reveal, fees
+    var twap = v('twap'), minobs = v('minobs'), spacing = v('spacing'), delay = v('delay'), minliq = $('#minliq').value.trim(), waves = v('waves'), hrs = v('hrs');
+    if(!(twap > 0) || !(minobs >= 1) || !(spacing > 0) || !(delay >= 0)) errs.push('TWAP settings must be positive numbers.');
+    if(!/^\d+$/.test(minliq)) errs.push('Min liquidity must be a whole number.');
+    if(!(waves >= 1 && waves <= 10) || Math.floor(waves) !== waves) errs.push('Reveal waves must be a whole number from 1 to 10.');
+    if(!(hrs > 0)) errs.push('Hours between waves must be above 0.');
+    var f1 = v('f1'), f2 = v('f2'), f3 = v('f3');
+    setText('l1', isFinite(f1) ? trim(f1) : '0'); setText('l2', isFinite(f2) ? trim(f2) : '0'); setText('l3', isFinite(f3) ? trim(f3) : '0');
+    if(Math.abs(f1 + f2 + f3 - 100) > 1e-9) errs.push('Fee split must add up to 100%.');
+    ['f1a','f2a','f3a'].forEach(function(id){ if(!acctRe.test($('#' + id).value.trim())) errs.push('Check the fee split accounts.'); });
+
+    // review
+    setText('r-price', fdv > 0 ? fmt(perW) + ' ' + sym + ' / wNEAR' : '–');
+    setText('r-fdv', '$' + fmt(fdv)); setText('r-cap', trim(cap) + '% of supply'); setText('r-win', trim(len) + ' days');
+    setText('r-ms', mrows.filter(function(m){ return m.f > 0 && m.p > 0; }).map(function(m){ return usd(m.f) + '·' + trim(m.p) + '%'; }).join('  ') || '–');
+    setText('r-rev', trim(waves || 0) + ' waves · every ' + trim(hrs || 0) + 'h');
+    setText('r-fee', trim(f1 || 0) + '/' + trim(f2 || 0) + '/' + trim(f3 || 0));
+
+    // params
+    var fee = function(x){ return Math.round((x || 0) * 100); };
+    var params = {name: name, symbol: sym, icon: icon || null, description: $('#desc').value.trim(), terms_uri: null, quote_token_id: QUOTE, total_supply: null, decimals: null,
+      opening_fdv_quote: toY(wn), presale_cap_bps: Math.round(cap * 100), min_raise: toY(minraise), wallet_min: toY(wmin), wallet_max: toY(wmax),
+      allowlist: rows.filter(function(r){ return !r.star; }).map(function(r){ return r.h; }),
+      reserved: rows.filter(function(r){ return r.star; }).map(function(r){ return {hash: r.h, quote_amount: toY(r.amt)}; }),
+      sale_start: isFinite(start) ? start : now, sale_end: isFinite(end) ? end : now,
+      milestones: mrows.filter(function(m){ return m.f > 0 && m.p > 0; }).map(function(m){ return {target_fdv_quote: toY(m.f / NEAR_USD), unlock_bps: Math.round(m.p * 100)}; }),
+      twap: {window_sec: Math.round(twap * 60) || 0, min_observations: minobs || 0, min_liquidity: minliq, claim_delay_sec: Math.round(delay * 60) || 0, min_obs_interval_sec: Math.round(spacing * 60) || 0},
+      reveal: {waves: waves || 0, interval_sec: Math.round(hrs * 3600) || 0},
+      fee_split: {holders_bps: fee(f1), liquidity_bps: fee(f2), community_bps: fee(f3), holders_account: $('#f1a').value.trim(), liquidity_account: $('#f2a').value.trim(), community_account: $('#f3a').value.trim()}};
+    var payload = {params: params};
+    $('#json').textContent = JSON.stringify(payload, null, 2);
+    var launcher = $('#launcher').value.trim() || 'you.testnet';
+    $('#cli').textContent = 'near contract call-function as-transaction ' + CONTRACT + ' create_launch \\\n  json-args \'' + JSON.stringify(payload).replace(/'/g, "'\\''") + '\' \\\n  prepaid-gas \'300 Tgas\' attached-deposit \'2.6 NEAR\' \\\n  sign-as ' + launcher + ' network-config testnet sign-with-keychain send';
+
+    // status and connect area
+    var uniq = errs.filter(function(e, i){ return errs.indexOf(e) === i; }), good = uniq.length === 0;
+    $('#status').innerHTML = good ? '<div class="notice ok">Terms look valid. Same checks run on-chain.</div>' : '<div class="notice bad">Fix before creating:<ul>' + uniq.slice(0, 4).map(function(e){ return '<li>' + esc(e) + '</li>'; }).join('') + (uniq.length > 4 ? '<li>and ' + (uniq.length - 4) + ' more</li>' : '') + '</ul></div>';
+    $('#revkip').classList.toggle('open', good);
+    var cn = $('#connect');
+    if(!account){
+      cn.innerHTML = '<div class="notice rw between"><span>Connect a NEAR testnet wallet to create the launch.</span><button type="button" class="btn sm p" id="cbtn">Connect wallet</button></div>';
+      $('#cbtn').addEventListener('click', function(){ setAccount('demo.testnet'); });
+    } else {
+      cn.innerHTML = '<button type="button" class="btn sm p" id="cbtn"' + (good ? '' : ' disabled') + '>Create launch</button>';
+      $('#cbtn').addEventListener('click', function(){ toast('Demo page: signing is not wired up here. Use the NEAR CLI command below.'); });
+    }
+    return good;
+  }
+
+  $('#kyp').addEventListener('input', calc);
+  $('#kyp').addEventListener('change', calc);
+  $('#copy').addEventListener('click', function(){ copy($('#cli').textContent, $('#copy')); });
+  calc();
+})();
+</script>
+</body>
+</html>

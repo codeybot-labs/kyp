@@ -8,7 +8,6 @@ interface Props { title: string; active?: string; description?: string }
 const { title, active = "", description = "KYP — Know Your Presalers. Locked, public, milestone-unlocked presales for NEAR meme launches." } = Astro.props;
 const nav = [
   ["/", "Launches"],
-  ["/create", "Create"],
   ["/how-it-works", "How it works"],
   ...(TEST_WALLETS ? [["/test-wallets", "Test wallets"]] : []),
 ];
@@ -21,28 +20,69 @@ const nav = [
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="description" content={description} />
     <title>{title} · KYP</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;600&display=swap" rel="stylesheet" />
   </head>
   <body>
-    <header class="top">
+    <nav>
       <div class="wrap">
-        <a class="brand" href="/"><img src="/favicon.svg" alt="" /> KYP <small>Know Your Presalers</small></a>
-        <nav class="nav">
+        <a class="logo" href="/" aria-label="KYP home">
+          <svg width="36" height="36" viewBox="20 0 180 240" aria-hidden="true" fill="none">
+            <path d="M72 84V58a38 38 0 0 1 76 0v26" stroke="#ece9ff" stroke-width="22" stroke-linecap="round"/>
+            <rect x="26" y="80" width="168" height="150" rx="48" fill="#ffd23f"/>
+            <circle cx="80" cy="150" r="16" fill="#1d1250"/>
+            <circle cx="140" cy="150" r="16" fill="#1d1250"/>
+          </svg>
+          <span>KYP<small>Know Your Presalers</small></span>
+        </a>
+        <div class="links" id="links">
           {nav.map(([href, label]) => <a href={href} class={active === href ? "on" : ""}>{label}</a>)}
-        </nav>
-        <div class="spacer"></div>
-        <ModeBadge client:only="solid-js" />
-        <WalletButton client:only="solid-js" />
+          <a class="cta" href="/create">Create a launch</a>
+        </div>
+        <div class="tools">
+          <ModeBadge client:only="solid-js" />
+          <WalletButton client:only="solid-js" />
+        </div>
+        <button class="burger" id="burger" aria-expanded="false" aria-controls="links" aria-label="Menu">
+          <span></span><span></span><span></span>
+        </button>
       </div>
-    </header>
+    </nav>
+
     <main class="wrap">
       <slot />
     </main>
-    <footer class="foot">
-      <div class="wrap row between">
+
+    <footer>
+      <div class="wrap">
         <span>KYP MVP · {NETWORK_LABEL} · not financial advice</span>
         <span>Contracts: coordinator · lock · NEP-141 token · RHEA DCL (mock adapter in demo)</span>
       </div>
     </footer>
     <ToastHost client:only="solid-js" />
+
+    <script is:inline>
+      (function () {
+        var navEl = document.querySelector("nav");
+        var burger = document.getElementById("burger");
+        function menu(on) { navEl.classList.toggle("menu-open", on); burger.setAttribute("aria-expanded", String(on)); }
+        burger.addEventListener("click", function (e) { e.stopPropagation(); menu(!navEl.classList.contains("menu-open")); });
+        document.querySelectorAll("#links a").forEach(function (a) { a.addEventListener("click", function () { menu(false); }); });
+        document.addEventListener("click", function (e) { if (!navEl.contains(e.target)) menu(false); });
+        document.addEventListener("keydown", function (e) { if (e.key === "Escape") menu(false); });
+        window.addEventListener("resize", function () { if (innerWidth > 1000) menu(false); });
+
+        // reveal-on-scroll
+        if ("IntersectionObserver" in window) {
+          var io = new IntersectionObserver(function (es) {
+            es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
+          }, { threshold: 0.15 });
+          document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+        } else {
+          document.querySelectorAll(".reveal").forEach(function (el) { el.classList.add("in"); });
+        }
+      })();
+    </script>
   </body>
 </html>
