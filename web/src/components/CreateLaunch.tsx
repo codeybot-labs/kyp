@@ -294,23 +294,26 @@ export default function CreateLaunch() {
             </Show>
             <Show when={externalCmds().length}>
               <div style={{ "border-top": "1px solid rgba(255,255,255,0.10)", "padding-top": "16px", "margin-top": "12px" }}>
-                <h4 style={{ "font-size": "0.95rem", "margin-bottom": "8px" }}>Cross-launch commands</h4>
-                <p class="sub" style={{ "margin-bottom": "12px" }}>Run these after the KYP launch. They reuse the same name, symbol and icon.</p>
-                <For each={externalCmds()}>{(item) => (
-                  <div class="stack" style={{ "margin-bottom": "16px" }}>
-                    <div class="row" style={{ gap: "8px", "align-items": "center" }}>
-                      <span class="pill" style={{ "background-color": item.platform.color, color: "#06080d" }}>{item.platform.label}</span>
-                      <span class="sub">{item.note}</span>
-                    </div>
-                    <For each={item.commands}>{(c) => <Cli title={c.label} cmd={c.cmd} />}</For>
-                  </div>
-                )}</For>
+                <h4 style={{ "font-size": "0.95rem", "margin-bottom": "8px" }}>Cross-launch</h4>
+                <p class="sub" style={{ "margin-bottom": "12px" }}>Sign with your wallet to create the selected tokens automatically, using the same name, symbol and icon.</p>
                 <Show when={NETWORK === "mainnet"}>
                   <Signable note="Connect a mainnet wallet to sign the external launch transactions in one go.">
                     <button class="btn sm p" disabled={errors().length > 0} onClick={async () => { await sendTx(() => externalSignTxs(params(), selectedPlatforms()), "Cross-launched on external platforms"); }}>Sign external launch transactions</button>
                     <div class="sub">Your wallet will receive one transaction per selected launchpad.</div>
                   </Signable>
                 </Show>
+                <details style={{ "margin-top": "14px" }}>
+                  <summary class="sub" style={{ cursor: "pointer" }}>Or run the NEAR CLI commands manually</summary>
+                  <For each={externalCmds()}>{(item) => (
+                    <div class="stack" style={{ "margin-top": "12px", "margin-bottom": "16px" }}>
+                      <div class="row" style={{ gap: "8px", "align-items": "center" }}>
+                        <span class="pill" style={{ "background-color": item.platform.color, color: "#06080d" }}>{item.platform.label}</span>
+                        <span class="sub">{item.note}</span>
+                      </div>
+                      <For each={item.commands}>{(c) => <Cli title={c.label} cmd={c.cmd} />}</For>
+                    </div>
+                  )}</For>
+                </details>
               </div>
             </Show>
           </div>
