@@ -1,7 +1,6 @@
 ---
 import { TEST_WALLETS } from "../lib/config";
 import "../styles/global.css";
-import NetworkSwitch from "../components/NetworkSwitch.tsx";
 import ToastHost from "../components/ToastHost.tsx";
 import WalletButton from "../components/WalletButton.tsx";
 interface Props { title: string; active?: string; description?: string }
@@ -41,7 +40,6 @@ const nav = [
           <a class="cta" href="/create">Create a launch</a>
         </div>
         <div class="tools">
-          <NetworkSwitch client:only="solid-js" />
           <WalletButton client:only="solid-js" />
         </div>
         <button class="burger" id="burger" aria-expanded="false" aria-controls="links" aria-label="Menu">

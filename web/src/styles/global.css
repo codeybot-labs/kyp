@@ -293,12 +293,16 @@ nav > .wrap {
   flex: none;
 }
 .wallet {
+  display: inline-block;
+  vertical-align: middle;
   max-width: none;
   overflow: hidden;
   text-overflow: ellipsis;
-  justify-content: center;
+  text-align: center;
+  white-space: nowrap;
 }
-.wallet.on { max-width: 170px; }
+.wallet.on { max-width: 170px; display: inline-flex; }
+.wallet.on .wx { display: inline; }
 
 @media (max-width: 760px) {
   .logo small { display: none; }

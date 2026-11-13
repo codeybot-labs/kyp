@@ -9,6 +9,7 @@ import { act, Cli, fmtQ, fmtT, pct, usdOf, Signable, sendTx } from "./ui";
 import { account as wallet } from "../lib/wallet";
 import { createLaunchTx } from "../lib/actions.mjs";
 import { PLATFORMS, externalCommands, externalSignTxs } from "../lib/launchpads";
+import NetworkSwitch from "./NetworkSwitch";
 import KipSolid from "./KipSolid";
 
 const toQ = (wnear: number | string) => toRaw(String(wnear || 0), 24).toString();
@@ -106,14 +107,20 @@ export default function CreateLaunch() {
       <header class="phead full-bleed">
         <div class="wrap">
           <div>
-            <h1>Create a KYP launch</h1>
-            <p>Pick your presalers, set public terms and ambitious unlock milestones. Everything except who is invited is public from the start.</p>
+            <h1>{KYP_ENABLED ? "Create a KYP launch" : "Cross-launch a token"}</h1>
+            <p>{KYP_ENABLED ? "Pick your presalers, set public terms and ambitious unlock milestones. Everything except who is invited is public from the start." : "KYP presale is not on mainnet yet. Use this form to launch matching tokens on external NEAR launchpads."}</p>
           </div>
           <div class="stage small">
             <div class={topKipOpen() ? "open" : ""}><KipSolid alt="Kip, the KYP padlock mascot. Click Kip to open the lock." onClick={() => setTopKipOpen(!topKipOpen())} /></div>
           </div>
         </div>
       </header>
+      <div class="wrap">
+        <div class="row between" style={{ "margin-top": "20px", "margin-bottom": "-10px", "align-items": "center" }}>
+          <span class="sub">Launching on <b>{NETWORK_NAME}</b></span>
+          <NetworkSwitch />
+        </div>
+      </div>
 
       <div class="layout" id="kyp">
         <div class="stack">
