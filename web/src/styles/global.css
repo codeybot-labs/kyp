@@ -293,17 +293,18 @@ nav > .wrap {
   flex: none;
 }
 .wallet {
-  max-width: 170px;
+  max-width: none;
   overflow: hidden;
   text-overflow: ellipsis;
   justify-content: center;
 }
+.wallet.on { max-width: 170px; }
 
 @media (max-width: 760px) {
   .logo small { display: none; }
   .tools { gap: 8px; }
   .dd-btn, .wallet, .tools select { padding: 8px 14px; }
-  .dd-label, .wx { display: none; }
+  .dd-label { display: none; }
 }
 @media (max-width: 560px) { .tools select { display: none; } .dd-menu { min-width: 210px; } nav > .wrap { gap: 8px; } }
 @media (max-width: 420px) { .logo span { display: none; } nav > .wrap { gap: 8px; } }
