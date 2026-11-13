@@ -73,12 +73,22 @@ const nav = [
         document.addEventListener("keydown", function (e) { if (e.key === "Escape") menu(false); });
         window.addEventListener("resize", function () { if (innerWidth > 1000) menu(false); });
 
-        // reveal-on-scroll
+        // reveal-on-scroll (including dynamically added client components)
         if ("IntersectionObserver" in window) {
           var io = new IntersectionObserver(function (es) {
             es.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add("in"); io.unobserve(e.target); } });
           }, { threshold: 0.15 });
-          document.querySelectorAll(".reveal").forEach(function (el) { io.observe(el); });
+          function observeReveal(el) { if (el.classList.contains("reveal")) io.observe(el); }
+          document.querySelectorAll(".reveal").forEach(observeReveal);
+          new MutationObserver(function (ms) {
+            ms.forEach(function (m) {
+              [].forEach.call(m.addedNodes, function (n) {
+                if (n.nodeType !== 1) return;
+                observeReveal(n);
+                n.querySelectorAll && n.querySelectorAll(".reveal").forEach(observeReveal);
+              });
+            });
+          }).observe(document.body, { childList: true, subtree: true });
         } else {
           document.querySelectorAll(".reveal").forEach(function (el) { el.classList.add("in"); });
         }
