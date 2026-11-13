@@ -2,12 +2,13 @@ import { createEffect, createMemo, createSignal, For, Index, Show } from "solid-
 import { api } from "../lib/source";
 import { demo, validateParams } from "../lib/demo";
 import { cliCall } from "../lib/near";
-import { CONFIG, NETWORK, NETWORK_LABEL, NETWORK_NAME } from "../lib/config";
+import { CONFIG, KYP_ENABLED, NETWORK, NETWORK_LABEL, NETWORK_NAME } from "../lib/config";
 import { randomSalt, slotHash, toRaw, tokensForQuote, DEFAULT_SUPPLY } from "../lib/math.mjs";
 import type { LaunchParams } from "../lib/model";
 import { act, Cli, fmtQ, fmtT, pct, usdOf, Signable, sendTx } from "./ui";
 import { account as wallet } from "../lib/wallet";
 import { createLaunchTx } from "../lib/actions.mjs";
+import { PLATFORMS, externalCommands, externalSignTxs } from "../lib/launchpads";
 import KipSolid from "./KipSolid";
 
 const toQ = (wnear: number | string) => toRaw(String(wnear || 0), 24).toString();
@@ -18,9 +19,17 @@ interface Invite { account: string; salt: string; hash: string }
 export default function CreateLaunch() {
   const isDemo = api.mode() === "demo";
   const [topKipOpen, setTopKipOpen] = createSignal(false);
-  const [launcherInput, setLauncher] = createSignal("you.testnet");
-  const launcher = () => (!isDemo && wallet() ? wallet()! : launcherInput());
+  const [launcherInput, setLauncher] = createSignal(NETWORK === "mainnet" ? "you.near" : "you.testnet");
+  const launcher = () => wallet() ?? launcherInput();
   const [savedCodes, setSavedCodes] = createSignal(false);
+  const [selectedPlatforms, setSelectedPlatforms] = createSignal<("kyp" | "nearly" | "justhoot")[]>(KYP_ENABLED ? ["kyp"] : []);
+  const externalCmds = createMemo(() => externalCommands(params(), launcher(), selectedPlatforms()));
+  const togglePlatform = (id: "kyp" | "nearly" | "justhoot", on: boolean) => {
+    if (id === "kyp" || !PLATFORMS.find((p) => p.id === id)?.enabled) return;
+    const cur = selectedPlatforms();
+    if (on) setSelectedPlatforms([...new Set([...cur, id])]);
+    else setSelectedPlatforms(cur.filter((x) => x !== id));
+  };
 
   const [name, setName] = createSignal("Moon Moth");
   const [symbol, setSymbol] = createSignal("MOTH");
@@ -219,6 +228,28 @@ export default function CreateLaunch() {
               <label class="field"><span>Competitions & bounties <b>{fees().c}</b>%</span><input type="number" value={fees().c} onInput={(e) => setFees({ ...fees(), c: Number(e.currentTarget.value) })} /><input value={feeAcc().c} onInput={(e) => setFeeAcc({ ...feeAcc(), c: e.currentTarget.value })} spellcheck={false} autocapitalize="none" /></label>
             </div>
           </section>
+
+          <section class="sec stack">
+            <h3>7 · Launch platforms</h3>
+            <Show when={KYP_ENABLED} fallback={
+              <p class="sub">KYP's own presale contracts are not deployed to {NETWORK} yet. You can still use this form to cross-launch a token on the selected external launchpads. Each launchpad creates its own token and starts its own pool, independent of any KYP lock.</p>
+            }>
+              <p class="sub">KYP is your presale coordinator. You can also create a matching public token + pool on other NEAR launchpads for visibility. Each launchpad creates its own token and starts its own pool, independent of the KYP lock.</p>
+            </Show>
+            <Show when={NETWORK !== "mainnet"}><div class="notice warn">NEARly and JustHoot are only available on mainnet. On {NETWORK} you can still prepare the commands, but you will need a mainnet wallet to run them.</div></Show>
+            <div class="g3">
+              <For each={PLATFORMS}>{(p) => (
+                <label class="field" style={{ opacity: p.enabled ? 1 : 0.6 }}>
+                  <span style={{ display: "flex", "align-items": "center", gap: "8px" }}>
+                    <input type="checkbox" checked={selectedPlatforms().includes(p.id)} disabled={p.id === "kyp" || !p.enabled} onChange={(e) => togglePlatform(p.id, e.currentTarget.checked)} />
+                    <span style={{ "font-weight": 700, color: p.color }}>{p.label}</span>
+                    {p.id === "kyp" && <span class="chip live">required</span>}
+                  </span>
+                  {p.id === "kyp" ? <small>KYP presale with locked presalers and milestone unlocks.</small> : <small>Also create a token on <a class="link" href={p.website} target="_blank" rel="noopener">{p.website}</a>.</small>}
+                </label>
+              )}</For>
+            </div>
+          </section>
         </div>
 
         <aside class="stack aside" style={{ position: "sticky", top: "84px" }}>
@@ -242,21 +273,44 @@ export default function CreateLaunch() {
             <Show when={errors().length} fallback={<div class="notice ok">Terms look valid. Same checks run on-chain.</div>}>
               <div class="notice bad"><For each={errors()}>{(e) => <div>• {e}</div>}</For></div>
             </Show>
-            <Show when={isDemo} fallback={
-              <Signable note={`Connect a ${NETWORK_LABEL} wallet to create the launch.`} cli={<Cli title={`Create on ${NETWORK} (attach 2.6 NEAR: token account + launch storage)`} cmd={cliCall(CONFIG.coordinator, "create_launch", { params: params() }, { deposit: "2.6 NEAR", signer: launcher() })} />}>
-                <label class="rw" style={{ gap: "8px" }}><input type="checkbox" checked={savedCodes()} onChange={(e) => setSavedCodes(e.currentTarget.checked)} /><span class="sub">I downloaded the invite codes (they are not stored on-chain and can't be recovered).</span></label>
-                <button class="btn sm p" data-testid="create-sign" disabled={errors().length > 0 || !savedCodes()} onClick={async () => {
-                  try { localStorage.setItem(`kyp-invites-${symbol().toLowerCase()}-${Date.now()}`, csv()); } catch {}
-                  const h = await sendTx(async () => createLaunchTx(CONFIG.coordinator, params(), (await api.config()).token_account_deposit), `Launch created on ${NETWORK}`);
-                  if (h) location.href = "/";
-                }}>Create launch (sign with wallet)</button>
-                <div class="sub">Attaches the coordinator's token account deposit + 0.1 NEAR for storage.</div>
-              </Signable>
-            }>
-              <button class="btn sm p" disabled={errors().length > 0} onClick={async () => {
-                const id = await act(() => demo.create(launcher(), params(), invites()), "Launch created (demo)");
-                if (id) location.href = `/launch?id=${id}`;
-              }}>Create launch (demo)</button>
+            <Show when={KYP_ENABLED}>
+              <Show when={isDemo} fallback={
+                <Signable note={`Connect a ${NETWORK_LABEL} wallet to create the launch.`} cli={<Cli title={`Create on ${NETWORK} (attach 2.6 NEAR: token account + launch storage)`} cmd={cliCall(CONFIG.coordinator, "create_launch", { params: params() }, { deposit: "2.6 NEAR", signer: launcher() })} />}>
+                  <label class="rw" style={{ gap: "8px" }}><input type="checkbox" checked={savedCodes()} onChange={(e) => setSavedCodes(e.currentTarget.checked)} /><span class="sub">I downloaded the invite codes (they are not stored on-chain and can't be recovered).</span></label>
+                  <button class="btn sm p" data-testid="create-sign" disabled={errors().length > 0 || !savedCodes()} onClick={async () => {
+                    try { localStorage.setItem(`kyp-invites-${symbol().toLowerCase()}-${Date.now()}`, csv()); } catch {}
+                    const h = await sendTx(async () => createLaunchTx(CONFIG.coordinator, params(), (await api.config()).token_account_deposit), `Launch created on ${NETWORK}`);
+                    if (h) location.href = "/";
+                  }}>Create launch (sign with wallet)</button>
+                  <div class="sub">Attaches the coordinator's token account deposit + 0.1 NEAR for storage.</div>
+                </Signable>
+              }>
+                <button class="btn sm p" disabled={errors().length > 0} onClick={async () => {
+                  const id = await act(() => demo.create(launcher(), params(), invites()), "Launch created (demo)");
+                  if (id) location.href = `/launch?id=${id}`;
+                }}>Create launch (demo)</button>
+              </Show>
+            </Show>
+            <Show when={externalCmds().length}>
+              <div style={{ "border-top": "1px solid rgba(255,255,255,0.10)", "padding-top": "16px", "margin-top": "12px" }}>
+                <h4 style={{ "font-size": "0.95rem", "margin-bottom": "8px" }}>Cross-launch commands</h4>
+                <p class="sub" style={{ "margin-bottom": "12px" }}>Run these after the KYP launch. They reuse the same name, symbol and icon.</p>
+                <For each={externalCmds()}>{(item) => (
+                  <div class="stack" style={{ "margin-bottom": "16px" }}>
+                    <div class="row" style={{ gap: "8px", "align-items": "center" }}>
+                      <span class="pill" style={{ "background-color": item.platform.color, color: "#06080d" }}>{item.platform.label}</span>
+                      <span class="sub">{item.note}</span>
+                    </div>
+                    <For each={item.commands}>{(c) => <Cli title={c.label} cmd={c.cmd} />}</For>
+                  </div>
+                )}</For>
+                <Show when={NETWORK === "mainnet"}>
+                  <Signable note="Connect a mainnet wallet to sign the external launch transactions in one go.">
+                    <button class="btn sm p" disabled={errors().length > 0} onClick={async () => { await sendTx(() => externalSignTxs(params(), selectedPlatforms()), "Cross-launched on external platforms"); }}>Sign external launch transactions</button>
+                    <div class="sub">Your wallet will receive one transaction per selected launchpad.</div>
+                  </Signable>
+                </Show>
+              </div>
             </Show>
           </div>
           <details>

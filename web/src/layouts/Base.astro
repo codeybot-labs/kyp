@@ -1,7 +1,8 @@
 ---
-import { NETWORK_LABEL, TEST_WALLETS } from "../lib/config";
+import { NETWORK, NETWORK_LABEL, TEST_WALLETS } from "../lib/config";
 import "../styles/global.css";
 import ModeBadge from "../components/ModeBadge.tsx";
+import NetworkSwitch from "../components/NetworkSwitch.tsx";
 import ToastHost from "../components/ToastHost.tsx";
 import WalletButton from "../components/WalletButton.tsx";
 interface Props { title: string; active?: string; description?: string }
@@ -41,6 +42,7 @@ const nav = [
           <a class="cta" href="/create">Create a launch</a>
         </div>
         <div class="tools">
+          <NetworkSwitch current={NETWORK} client:only="solid-js" />
           <ModeBadge client:only="solid-js" />
           <WalletButton client:only="solid-js" />
         </div>

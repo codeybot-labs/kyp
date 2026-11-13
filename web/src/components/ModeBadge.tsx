@@ -6,7 +6,7 @@ import { resetDemo } from "../lib/demo";
 export default function ModeBadge() {
   const m = api.mode();
   const [open, setOpen] = createSignal(false);
-  const label = () => (m === "demo" ? "Demo mode" : NETWORK_NAME);
+  const label = () => (m === "demo" ? (NETWORK_NAME === "Mainnet" ? "Mainnet preview" : "Demo mode") : NETWORK_NAME);
   let root!: HTMLDivElement;
 
   onMount(() => {
