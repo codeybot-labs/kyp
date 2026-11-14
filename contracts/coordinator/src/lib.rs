@@ -17,7 +17,7 @@
 //!    the launcher's or presalers' wallets. LP positions are owned by this contract and there
 //!    is no method to remove them.
 //! 4. Post-launch: `reveal_next_wave` (permissionless, on schedule), `BuyReserved` for named
-//!    reserved slots, fee routing via `Fees` + `distribute_fees`, `collect_fees` to claim DCL trading fees, `approve_bounty` then permissionless `pay_bounty` from the community share, and optional holder pull claims.
+//!    reserved slots, fee routing via `Fees` + `distribute_fees`, `collect_fees` to claim DCL trading fees, `approve_bounty` then permissionless `pay_bounty` from the community share, optional holder pull claims, and `deploy_fee_liquidity` for extra DCL bands.
 //! 5. If the launcher never launches by `sale_end`, or cancels, presalers `withdraw`.
 
 mod types;
@@ -26,7 +26,7 @@ pub use types::*;
 
 use kyp_common::{
     aligned_bounds, assert_valid_milestones, dcl_pool_id, dcl_safe_left, dcl_safe_right, init_point_for_fdv, mul_div,
-    tokens_for_quote, FeeExtra, LockAddMsg, LockFundMsg, LockMsg, BPS_DENOM, DEFAULT_DECIMALS,
+    tokens_for_quote, DclPoolView, FeeExtra, LockAddMsg, LockFundMsg, LockMsg, BPS_DENOM, DEFAULT_DECIMALS,
     DEFAULT_TOTAL_SUPPLY, MAX_POINT, MAX_PRESALE_CAP_BPS, MAX_PRESALERS, MAX_SALE_WINDOW_SEC,
 };
 use std::collections::HashMap;
@@ -226,6 +226,47 @@ fn write_holder_claim_pend(launch_id: u64, epoch: u64, account: &AccountId, amou
     }
 }
 
+
+fn liq_deployed_key(launch_id: u64, token_id: &AccountId) -> Vec<u8> {
+    format!("fee_ld:{launch_id}:{token_id}").into_bytes()
+}
+fn read_liq_deployed(launch_id: u64, token_id: &AccountId) -> u128 {
+    env::storage_read(&liq_deployed_key(launch_id, token_id))
+        .and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+        .unwrap_or(0)
+}
+fn write_liq_deployed(launch_id: u64, token_id: &AccountId, amount: u128) {
+    let key = liq_deployed_key(launch_id, token_id);
+    if amount == 0 {
+        env::storage_remove(&key);
+    } else {
+        env::storage_write(&key, &near_sdk::borsh::to_vec(&amount).unwrap());
+    }
+}
+
+fn fee_liq_pend_key(launch_id: u64) -> Vec<u8> {
+    format!("fee_lpend:{launch_id}").into_bytes()
+}
+
+/// In-flight fee-liquidity deploy. New key; Launch Borsh is unchanged.
+#[near(serializers = [borsh])]
+#[derive(Clone)]
+struct FeeLiqPending {
+    token_id: AccountId,
+    amount_left: u128,
+}
+
+fn read_fee_liq_pending(launch_id: u64) -> Option<FeeLiqPending> {
+    env::storage_read(&fee_liq_pend_key(launch_id)).and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+}
+fn write_fee_liq_pending(launch_id: u64, p: Option<&FeeLiqPending>) {
+    let key = fee_liq_pend_key(launch_id);
+    match p {
+        Some(v) => { env::storage_write(&key, &near_sdk::borsh::to_vec(v).unwrap()); }
+        None => { env::storage_remove(&key); }
+    }
+}
+
 fn buyback_bps_key(launch_id: u64) -> Vec<u8> {
     format!("fee_bb:{launch_id}").into_bytes()
 }
@@ -286,6 +327,13 @@ const NUDGE_STEPS: i32 = 7;
 const MAX_LIQ_TRIES: u8 = 40;
 /// Max far-end moves (point_delta each) when searching for a range the DCL can settle.
 const SAFE_RANGE_STEPS: u32 = 48;
+/// Width of the near-price fee band, in point_delta units.
+const FEE_LIQ_AROUND_DELTAS: i32 = 20;
+/// Width of the deeper support band, in point_delta units.
+const FEE_LIQ_SUPPORT_DELTAS: i32 = 80;
+/// Share of deployed fee liquidity that goes into the near-price band (rest is support).
+const FEE_LIQ_AROUND_BPS: u128 = 6_000;
+const GAS_CB_FEE_LIQ: Gas = Gas::from_tgas(40);
 
 #[near(serializers = [borsh])]
 #[derive(BorshStorageKey)]
@@ -784,6 +832,51 @@ impl Contract {
         }
     }
 
+    /// Quote-only fee bands around the current price (tighter) and further out (support).
+    /// Token-as-x: quote is y, so both bands sit below the price. Token-as-y: quote is x, above.
+    pub(crate) fn fee_liquidity_ranges(current: i32, token_is_x: bool, point_delta: i32, around: u128, support: u128) -> Vec<(i32, i32, u128, u128)> {
+        let (lo, hi) = aligned_bounds(point_delta);
+        let hi = if hi >= MAX_POINT { hi - point_delta } else { hi };
+        let c = current.div_euclid(point_delta) * point_delta;
+        let around_w = FEE_LIQ_AROUND_DELTAS * point_delta;
+        let support_w = FEE_LIQ_SUPPORT_DELTAS * point_delta;
+        let mut out = vec![];
+        if token_is_x {
+            // y-only below the price (quote bids)
+            if around > 0 {
+                let right = c;
+                let left = dcl_safe_left(lo.max(c - around_w), right, point_delta, around, SAFE_RANGE_STEPS);
+                if right - left >= point_delta {
+                    out.push((left, right, 0, around));
+                }
+            }
+            if support > 0 {
+                let right = c - around_w;
+                let left = dcl_safe_left(lo.max(c - around_w - support_w), right, point_delta, support, SAFE_RANGE_STEPS);
+                if right - left >= point_delta && right <= c {
+                    out.push((left, right, 0, support));
+                }
+            }
+        } else {
+            // x-only above the price (quote bids when the token is y)
+            if around > 0 {
+                let left = c;
+                let right = dcl_safe_right(left, hi.min(c + around_w), point_delta, around, SAFE_RANGE_STEPS);
+                if right - left >= point_delta {
+                    out.push((left, right, around, 0));
+                }
+            }
+            if support > 0 {
+                let left = c + around_w;
+                let right = dcl_safe_right(left, hi.min(c + around_w + support_w), point_delta, support, SAFE_RANGE_STEPS);
+                if right - left >= point_delta && left >= c {
+                    out.push((left, right, support, 0));
+                }
+            }
+        }
+        out
+    }
+
     fn next_step(&mut self, launch_id: u64) -> PromiseOrValue<bool> {
         let cfg = self.config.clone();
         let l = self.launches.get(&launch_id).unwrap().clone();
@@ -1116,11 +1209,13 @@ impl Contract {
         let extra = read_fee_extra(launch_id);
         let c_prepaid = read_community_paid(launch_id, &token_id);
         let b_prepaid = read_buyback_paid(launch_id, &token_id);
-        let (h, lq, c, op, ai) = fs.split_with_extra(amount + c_prepaid + b_prepaid, extra.as_ref());
+        let d_prepaid = read_liq_deployed(launch_id, &token_id);
+        let (h, lq, c, op, ai) = fs.split_with_extra(amount + c_prepaid + b_prepaid + d_prepaid, extra.as_ref());
         let c = c.saturating_sub(c_prepaid);
-        let lq = lq.saturating_sub(b_prepaid);
+        let lq = lq.saturating_sub(b_prepaid).saturating_sub(d_prepaid);
         write_community_paid(launch_id, &token_id, 0);
         write_buyback_paid(launch_id, &token_id, 0);
+        write_liq_deployed(launch_id, &token_id, 0);
         let mut destinations: Vec<(AccountId, u128)> = vec![];
         if read_holder_pull(launch_id) && h > 0 {
             write_holder_pending(launch_id, &token_id, read_holder_pending(launch_id, &token_id) + h);
@@ -1720,10 +1815,11 @@ impl Contract {
         let bal = l.fee_balances.iter().find(|(t, _)| t == token_id).map(|(_, b)| *b).unwrap_or(0);
         let c_prepaid = read_community_paid(launch_id, token_id);
         let b_prepaid = read_buyback_paid(launch_id, token_id);
-        let virtual_pot = bal + c_prepaid + b_prepaid;
+        let d_prepaid = read_liq_deployed(launch_id, token_id);
+        let virtual_pot = bal + c_prepaid + b_prepaid + d_prepaid;
         let extra = read_fee_extra(launch_id);
         let (_, lq, _, _, _) = l.fee_split.split_with_extra(virtual_pot, extra.as_ref());
-        let from_liq = lq.saturating_sub(b_prepaid);
+        let from_liq = lq.saturating_sub(b_prepaid).saturating_sub(d_prepaid);
         let from_bps = (virtual_pot.saturating_mul(bps as u128) / 10_000).saturating_sub(b_prepaid);
         from_liq.min(from_bps)
     }
@@ -2040,6 +2136,231 @@ impl Contract {
                 .with_static_gas(GAS_CB_BUYBACK)
                 .on_buyback_output(launch_id, token, pool),
         )
+    }
+
+
+    // ------------------------------------------------------------------ fee liquidity bands
+
+    fn liquidity_deploy_available_of(&self, launch_id: u64, token_id: &AccountId) -> u128 {
+        let Some(l) = self.launches.get(&launch_id) else { return 0 };
+        let bal = l.fee_balances.iter().find(|(t, _)| t == token_id).map(|(_, b)| *b).unwrap_or(0);
+        let c_prepaid = read_community_paid(launch_id, token_id);
+        let b_prepaid = read_buyback_paid(launch_id, token_id);
+        let d_prepaid = read_liq_deployed(launch_id, token_id);
+        let extra = read_fee_extra(launch_id);
+        let (_, lq, _, _, _) = l.fee_split.split_with_extra(bal + c_prepaid + b_prepaid + d_prepaid, extra.as_ref());
+        lq.saturating_sub(b_prepaid).saturating_sub(d_prepaid)
+    }
+
+    fn refund_fee_liq(&mut self, launch_id: u64, token_id: &AccountId, amount: u128) {
+        if amount == 0 {
+            return;
+        }
+        let l = self.launches.get_mut(&launch_id).expect("no launch");
+        match l.fee_balances.iter_mut().find(|(t, _)| t == token_id) {
+            Some((_, b)) => *b += amount,
+            None => l.fee_balances.push((token_id.clone(), amount)),
+        }
+        if *token_id == l.quote_token_id {
+            l.fees_distributed_quote = l.fees_distributed_quote.saturating_sub(amount);
+        }
+        let prepaid = read_liq_deployed(launch_id, token_id).saturating_sub(amount);
+        write_liq_deployed(launch_id, token_id, prepaid);
+    }
+
+    pub fn liquidity_deploy_available(&self, launch_id: u64) -> U128 {
+        let Some(l) = self.launches.get(&launch_id) else { return U128(0) };
+        U128(self.liquidity_deploy_available_of(launch_id, &l.quote_token_id))
+    }
+
+    /// Permissionless: take `amount` of the remaining liquidity fee share (quote) and add
+    /// coordinator-owned DCL bands around the current price and further below (or above, if
+    /// the quote is token x) as support. A failed deposit or add_liquidity refunds leftover quote.
+    pub fn deploy_fee_liquidity(&mut self, launch_id: u64, amount: U128) -> Promise {
+        require!(amount.0 > 0, "amount must be > 0");
+        require!(read_fee_liq_pending(launch_id).is_none(), "fee liquidity already in progress");
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(l.status == LaunchStatus::Live, "launch not live");
+        require!(!l.pool_id.is_empty(), "no pool");
+        let available = self.liquidity_deploy_available_of(launch_id, &l.quote_token_id);
+        require!(amount.0 <= available, "amount exceeds the remaining liquidity share");
+        let need = self.config.liquidity_deposit.as_yoctonear().saturating_mul(2);
+        require!(env::attached_deposit().as_yoctonear() >= need, "attach liquidity_deposit for each band");
+        let pool = l.pool_contract.clone();
+        let pool_id = l.pool_id.clone();
+        Promise::new(pool.clone())
+            .function_call(
+                "get_pool",
+                json!({"pool_id": pool_id}).to_string().into_bytes(),
+                NearToken::from_yoctonear(0),
+                GAS_DCL_VIEW,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CB_FEE_LIQ)
+                    .with_attached_deposit(env::attached_deposit())
+                    .on_fee_liq_pool(launch_id, amount),
+            )
+    }
+
+    #[private]
+    #[payable]
+    pub fn on_fee_liq_pool(&mut self, launch_id: u64, amount: U128, #[callback_result] pool: Result<DclPoolView, PromiseError>) -> Promise {
+        let Ok(pool) = pool else {
+            env::panic_str("get_pool failed");
+        };
+        let l = self.launches.get(&launch_id).expect("no launch");
+        let quote = l.quote_token_id.clone();
+        let token_is_x = l.token_is_x;
+        let pool_contract = l.pool_contract.clone();
+        let pool_id = l.pool_id.clone();
+        let msg = self.config.pool_deposit_msg.clone();
+        let point_delta = self.config.point_delta as i32;
+        let around = mul_div(amount.0, FEE_LIQ_AROUND_BPS, BPS_DENOM as u128);
+        let support = amount.0.saturating_sub(around);
+        let ranges = Self::fee_liquidity_ranges(pool.current_point, token_is_x, point_delta, around, support);
+        require!(!ranges.is_empty(), "no legal fee-liquidity range at this price");
+        let pos = l.fee_balances.iter().position(|(t, _)| *t == quote).expect("no fees for token");
+        // re-check under the mutable launch
+        drop(l);
+        let l = self.launches.get_mut(&launch_id).unwrap();
+        require!(l.fee_balances[pos].1 >= amount.0, "not enough undistributed fees");
+        l.fee_balances[pos].1 -= amount.0;
+        if quote == l.quote_token_id {
+            l.fees_distributed_quote += amount.0;
+        }
+        write_liq_deployed(launch_id, &quote, read_liq_deployed(launch_id, &quote) + amount.0);
+        write_fee_liq_pending(launch_id, Some(&FeeLiqPending { token_id: quote.clone(), amount_left: amount.0 }));
+        emit(
+            "fee_liquidity_started",
+            json!({"launch_id": launch_id, "amount": amount, "current_point": pool.current_point, "ranges": ranges.len()}),
+        );
+        Self::deposit_to_pool(&quote, &pool_contract, amount.0, &msg).then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_CB_FEE_LIQ)
+                .with_attached_deposit(env::attached_deposit())
+                .on_fee_liq_deposited(launch_id, amount, pool_contract, pool_id, ranges),
+        )
+    }
+
+    #[private]
+    #[payable]
+    pub fn on_fee_liq_deposited(
+        &mut self,
+        launch_id: u64,
+        amount: U128,
+        pool: AccountId,
+        pool_id: String,
+        ranges: Vec<(i32, i32, u128, u128)>,
+        #[callback_result] res: Result<U128, PromiseError>,
+    ) -> Promise {
+        let deposited = res.ok().map(|r| r.0).unwrap_or(0);
+        if deposited == 0 {
+            self.refund_fee_liq(launch_id, &self.launches.get(&launch_id).unwrap().quote_token_id.clone(), amount.0);
+            write_fee_liq_pending(launch_id, None);
+            log!("fee liquidity deposit failed; refunded");
+            return Promise::new(env::predecessor_account_id());
+        }
+        self.add_next_fee_liq_range(launch_id, pool, pool_id, ranges, 0)
+    }
+
+    fn add_next_fee_liq_range(&mut self, launch_id: u64, pool: AccountId, pool_id: String, ranges: Vec<(i32, i32, u128, u128)>, index: u64) -> Promise {
+        let i = index as usize;
+        require!(i < ranges.len(), "no range");
+        let (left, right, ax, ay) = ranges[i];
+        let dep = self.config.liquidity_deposit;
+        Promise::new(pool.clone())
+            .function_call("add_liquidity", Self::add_liquidity_args(&pool_id, left, right, ax, ay), dep, GAS_ADD_LIQUIDITY)
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CB_FEE_LIQ)
+                    .with_attached_deposit(env::attached_deposit().saturating_sub(dep))
+                    .on_fee_liq_added(launch_id, pool, pool_id, ranges, index),
+            )
+    }
+
+    #[private]
+    #[payable]
+    pub fn on_fee_liq_added(
+        &mut self,
+        launch_id: u64,
+        pool: AccountId,
+        pool_id: String,
+        ranges: Vec<(i32, i32, u128, u128)>,
+        index: u64,
+        #[callback_result] res: Result<String, PromiseError>,
+    ) -> Promise {
+        let i = index as usize;
+        let used = ranges[i].2.max(ranges[i].3);
+        if res.is_ok() {
+            if let Some(mut p) = read_fee_liq_pending(launch_id) {
+                p.amount_left = p.amount_left.saturating_sub(used);
+                if p.amount_left == 0 || i + 1 >= ranges.len() {
+                    // leftover (a range that could not be formed, or rounding) stays as prepaid
+                    // only if it is still in the DCL account; withdraw and refund leftover.
+                    if p.amount_left > 0 {
+                        return self.withdraw_and_refund_fee_liq(launch_id, pool, p);
+                    }
+                    write_fee_liq_pending(launch_id, None);
+                    emit("fee_liquidity_added", json!({"launch_id": launch_id, "ranges": i + 1}));
+                    return Promise::new(env::current_account_id());
+                }
+                write_fee_liq_pending(launch_id, Some(&p));
+                return self.add_next_fee_liq_range(launch_id, pool, pool_id, ranges, index + 1);
+            }
+            return Promise::new(env::current_account_id());
+        }
+        // this range failed; withdraw leftover (including this range's tokens still in DCL)
+        if let Some(p) = read_fee_liq_pending(launch_id) {
+            return self.withdraw_and_refund_fee_liq(launch_id, pool, p);
+        }
+        Promise::new(env::current_account_id())
+    }
+
+    fn withdraw_and_refund_fee_liq(&mut self, launch_id: u64, pool: AccountId, pending: FeeLiqPending) -> Promise {
+        if pending.amount_left == 0 {
+            write_fee_liq_pending(launch_id, None);
+            return Promise::new(env::current_account_id());
+        }
+        Promise::new(pool)
+            .function_call(
+                "withdraw_asset",
+                json!({"token_id": pending.token_id, "amount": U128(pending.amount_left)}).to_string().into_bytes(),
+                NearToken::from_yoctonear(1),
+                GAS_DCL_WITHDRAW,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CB)
+                    .on_fee_liq_withdrawn(launch_id, pending.token_id, U128(pending.amount_left)),
+            )
+    }
+
+    #[private]
+    pub fn on_fee_liq_withdrawn(
+        &mut self,
+        launch_id: u64,
+        token_id: AccountId,
+        amount: U128,
+        #[callback_result] res: Result<(), PromiseError>,
+    ) -> bool {
+        write_fee_liq_pending(launch_id, None);
+        if res.is_ok() {
+            self.refund_fee_liq(launch_id, &token_id, amount.0);
+            log!("fee liquidity leftover withdrawn and refunded");
+            true
+        } else {
+            log!("fee liquidity withdraw failed; call resume_fee_liquidity");
+            write_fee_liq_pending(launch_id, Some(&FeeLiqPending { token_id, amount_left: amount.0 }));
+            false
+        }
+    }
+
+    /// Permissionless: retry withdrawing leftover quote from a failed fee-liquidity deploy.
+    pub fn resume_fee_liquidity(&mut self, launch_id: u64) -> Promise {
+        let p = read_fee_liq_pending(launch_id).expect("no fee liquidity pending");
+        let l = self.launches.get(&launch_id).expect("no launch");
+        self.withdraw_and_refund_fee_liq(launch_id, l.pool_contract.clone(), p)
     }
 
     // ------------------------------------------------------------------ reveal

@@ -38,6 +38,8 @@ export const resumeBuybackTx = (coordinator, launchId) => ({ receiverId: coordin
 export const enableHolderPullTx = (coordinator, launchId, enabled) => ({ receiverId: coordinator, actions: [fc("enable_holder_pull", { launch_id: launchId, enabled }, 30)] });
 export const openHolderEpochTx = (coordinator, launchId, tokenId) => ({ receiverId: coordinator, actions: [fc("open_holder_epoch", { launch_id: launchId, token_id: tokenId }, 80)] });
 export const prepareHolderClaimTx = (coordinator, launchId, epoch) => ({ receiverId: coordinator, actions: [fc("prepare_holder_claim", { launch_id: launchId, epoch }, 80)] });
+export const deployFeeLiquidityTx = (coordinator, launchId, amount, deposit = "0") => ({ receiverId: coordinator, actions: [fc("deploy_fee_liquidity", { launch_id: launchId, amount }, 300, deposit)] });
+export const resumeFeeLiquidityTx = (coordinator, launchId) => ({ receiverId: coordinator, actions: [fc("resume_fee_liquidity", { launch_id: launchId }, 200)] });
 export const claimHolderFeesTx = (coordinator, launchId, epoch) => ({ receiverId: coordinator, actions: [fc("claim_holder_fees", { launch_id: launchId, epoch }, 120)] });
 export const collectFeesTx = (coordinator, launchId) => ({ receiverId: coordinator, actions: [fc("collect_fees", { launch_id: launchId }, 300)] });
 export const approveBountyTx = (coordinator, launchId, bountyRef, receiver, maxAmount, tokenId) => ({ receiverId: coordinator, actions: [fc("approve_bounty", { launch_id: launchId, bounty_ref: bountyRef, receiver_id: receiver, max_amount: maxAmount, token_id: tokenId }, 30)] });

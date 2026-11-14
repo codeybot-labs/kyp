@@ -30,6 +30,7 @@ export const api = {
   list: (): Promise<LaunchView[]> => (getMode() === "demo" ? demo.list() : view<LaunchView[]>(c(), "get_launches", { from_index: 0, limit: 50 }).then((x) => x.reverse())),
   launch: (id: number): Promise<LaunchView | null> => (getMode() === "demo" ? demo.launch(id) : view(c(), "get_launch", { launch_id: id })),
   buybackAvailable: (id: number): Promise<string> => (getMode() === "demo" ? Promise.resolve("0") : view<string>(c(), "buyback_available", { launch_id: id }).then((x) => (x as any)?.toString?.() ?? String(x ?? "0"))),
+  liquidityDeployAvailable: (id: number): Promise<string> => (getMode() === "demo" ? Promise.resolve("0") : view<string>(c(), "liquidity_deploy_available", { launch_id: id }).then((x) => (x as any)?.toString?.() ?? String(x ?? "0"))),
   holderFeePending: (id: number, tokenId: string): Promise<string> => (getMode() === "demo" ? Promise.resolve("0") : view<string>(c(), "holder_fee_pending", { launch_id: id, token_id: tokenId }).then((x) => (x as any)?.toString?.() ?? String(x ?? "0"))),
   holderEpochCount: (id: number): Promise<number> => (getMode() === "demo" ? Promise.resolve(0) : view<number>(c(), "holder_epoch_count", { launch_id: id }).then((x) => Number(x || 0))),
   holderEpoch: (id: number, epoch: number): Promise<{ epoch: number; token_id: string; pot: string; claimed: string; eligible_supply: string } | null> => (

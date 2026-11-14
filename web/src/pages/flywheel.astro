@@ -39,9 +39,9 @@ const destinations = [
   },
   {
     title: "Smarter liquidity",
-    mark: "Planned",
-    kind: "planned",
-    body: "Fees fund liquidity in price bands below the current price for support, and around the current price to earn more fees. Today the liquidity share is paid to the liquidity account the launcher names.",
+    mark: "Live",
+    kind: "live",
+    body: "Anyone can call `deploy_fee_liquidity` to take some of the remaining liquidity fee share (after any lock buyback already reserved) and add coordinator-owned RHEA DCL bands: a tighter band around the current price to earn more fees, and a deeper band below it (or above, if the quote is token x) for support. Leftover quote from a failed add is withdrawn and credited back; `resume_fee_liquidity` retries a stuck withdraw. The rest of the liquidity share can still be paid to the liquidity account on `distribute_fees`.",
   },
   {
     title: "Partner pools",
@@ -71,7 +71,7 @@ const destinations = [
   <section class="fly" style="padding-top: 24px; padding-bottom: 96px">
     <div class="card reveal fly-now">
       <h3>What's live today, and what is planned</h3>
-      <p class="muted" style="margin-top: 8px">On testnet, reserved-slot proceeds and any fees sent to the coordinator are split on-chain. The default split is 50% holders, 30% liquidity, 20% community (competitions and bounties). Each launch can also add two capped legs — operations (max 30%) and NEAR AI credits (max 20%) — paid to the accounts the launcher names. Anyone can trigger the payout. After a Corner vote, the launcher or the community account records `approve_bounty` on-chain; anyone can then pay the claimant from the undistributed community fee share. Anyone can call `collect_fees` to claim charged RHEA DCL trading fees from the coordinator-owned permanent LP into the fee pool. The launcher can set a lock buyback share (from the liquidity slice, max 20%); anyone can then swap that quote on the pool into the token for the permanent lock. The launcher can also turn on holder pull claims, so unlocked token holders claim the holders share themselves. The remaining destinations below are still planned.</p>
+      <p class="muted" style="margin-top: 8px">On testnet, reserved-slot proceeds and any fees sent to the coordinator are split on-chain. The default split is 50% holders, 30% liquidity, 20% community (competitions and bounties). Each launch can also add two capped legs — operations (max 30%) and NEAR AI credits (max 20%) — paid to the accounts the launcher names. Anyone can trigger the payout. After a Corner vote, the launcher or the community account records `approve_bounty` on-chain; anyone can then pay the claimant from the undistributed community fee share. Anyone can call `collect_fees` to claim charged RHEA DCL trading fees from the coordinator-owned permanent LP into the fee pool. The launcher can set a lock buyback share (from the liquidity slice, max 20%); anyone can then swap that quote on the pool into the token for the permanent lock. The launcher can also turn on holder pull claims, so unlocked token holders claim the holders share themselves. Anyone can deploy leftover liquidity-share fees into extra DCL bands around and below the current price. The remaining destinations below are still planned.</p>
     </div>
 
     <figure class="fly-flow reveal" aria-label="Fee flow: trading fees and reserved slots feed a pool that splits to holders, liquidity and community, then to planned uses">
@@ -93,11 +93,11 @@ const destinations = [
         <div class="fly-box on">NEAR AI credits<span>Live</span></div>
         <div class="fly-box dim">Content</div>
         <div class="fly-box on">The lock<span>Live</span></div>
-        <div class="fly-box dim">Smarter LP</div>
+        <div class="fly-box on">Smarter LP<span>Live</span></div>
         <div class="fly-box dim">Partner pools</div>
         <div class="fly-box on">Open bounties<span>Live</span></div>
       </div>
-      <figcaption>The holders (including optional pull claims), liquidity, community, operations, NEAR AI credit, lock buyback and vote-triggered bounty payouts are live. Content, smarter LP, partner pools and open NEARN listings are still partly live or planned.</figcaption>
+      <figcaption>The holders (including optional pull claims), liquidity, community, operations, NEAR AI credit, lock buyback, smarter LP bands and vote-triggered bounty payouts are live. Content, partner pools and open NEARN listings are still partly live or planned.</figcaption>
     </figure>
 
     <div class="head reveal" style="margin-top: 56px; margin-bottom: 24px">

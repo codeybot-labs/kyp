@@ -7,7 +7,7 @@ import { toRaw } from "../lib/math.mjs";
 import { MilestoneLadder } from "./Terms";
 import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, Stat, act, Cli, Signable, sendTx, toast } from "./ui";
 import { account as wallet } from "../lib/wallet";
-import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx, collectFeesTx, setBuybackBpsTx, buybackToLockTx, resumeBuybackTx, enableHolderPullTx, openHolderEpochTx, prepareHolderClaimTx, claimHolderFeesTx } from "../lib/actions.mjs";
+import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx, collectFeesTx, setBuybackBpsTx, buybackToLockTx, resumeBuybackTx, enableHolderPullTx, openHolderEpochTx, prepareHolderClaimTx, claimHolderFeesTx, deployFeeLiquidityTx, resumeFeeLiquidityTx } from "../lib/actions.mjs";
 import type { LaunchView } from "../lib/model";
 
 // lazy: the chart + lightweight-charts load as separate chunks, only when a launch is Live
@@ -189,6 +189,7 @@ function TestnetActions(p: { l: LaunchView }) {
             <button class="btn primary" onClick={() => sendTx(() => qualifyTx(CONFIG.lock, p.l.id), "Milestones checked")}>Qualify milestones</button>
             <a class="btn ghost" href={`/claim?id=${p.l.id}`}>Go to claim →</a>
           </div>
+          <FeeLiquidityControls l={p.l} />
           <HolderPullControls l={p.l} me={wallet()} />
           <div class="sub">Anyone can poke and qualify. Each call is a small gas-only transaction.</div>
         </Show>
@@ -261,6 +262,25 @@ function HolderPullControls(p: { l: LaunchView; me: string | null }) {
         <button class="btn sm" type="button" disabled={!(BigInt(pending() || "0") > 0n)} onClick={() => sendTx(() => openHolderEpochTx(CONFIG.coordinator, p.l.id, p.l.quote_token_id), "Holder epoch opened").then(refresh)}>Open epoch</button>
         <button class="btn sm" type="button" disabled={!p.me || !epoch() || !!claimed()} onClick={() => sendTx(() => prepareHolderClaimTx(CONFIG.coordinator, p.l.id, epoch()), "Claim prepared; wait one block, then claim").then(refresh)}>Prepare claim</button>
         <button class="btn sm primary" type="button" disabled={!p.me || !epoch() || !prep() || !!claimed()} onClick={() => sendTx(() => claimHolderFeesTx(CONFIG.coordinator, p.l.id, epoch()), "Holder fees claimed").then(refresh)}>Claim holder fees</button>
+      </div>
+    </div>
+  );
+}
+
+function FeeLiquidityControls(p: { l: LaunchView }) {
+  const [amt, setAmt] = createSignal("");
+  const [avail, { refetch }] = createResource(() => p.l.id, (id) => api.liquidityDeployAvailable(id));
+  return (
+    <div class="stack" style={{ gap: "8px", "margin-top": "8px" }}>
+      <span class="sub">Smarter liquidity: use the remaining liquidity fee share to add coordinator-owned DCL bands around the current price and further out for support. {avail.loading ? "…" : fmtQ(avail() || "0")} available.</span>
+      <div class="cc-inline">
+        <input placeholder="wNEAR amount" value={amt()} onInput={(e) => setAmt(e.currentTarget.value)} aria-label="Fee liquidity amount" />
+        <button class="btn sm primary" type="button" onClick={() => {
+          const raw = toRaw(amt() || "0", 24);
+          if (raw <= 0n) { toast("Enter an amount in wNEAR", "bad"); return; }
+          sendTx(() => deployFeeLiquidityTx(CONFIG.coordinator, p.l.id, raw.toString()), "Fee liquidity bands submitted").then(() => refetch());
+        }}>Add fee bands</button>
+        <button class="btn sm ghost" type="button" onClick={() => sendTx(() => resumeFeeLiquidityTx(CONFIG.coordinator, p.l.id), "Fee liquidity resumed").then(() => refetch())}>Resume</button>
       </div>
     </div>
   );

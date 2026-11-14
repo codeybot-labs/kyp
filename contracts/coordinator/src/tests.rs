@@ -1135,3 +1135,104 @@ fn holder_pull_epoch_and_claim() {
     let _ = project; // token id exists
 }
 
+#[test]
+fn fee_liquidity_bands_and_refund() {
+    let around = 6 * NEAR;
+    let support = 4 * NEAR;
+    let bands = Contract::fee_liquidity_ranges(0, true, 200, around, support);
+    assert_eq!(bands.len(), 2);
+    // token-as-x: both y-only, around touches 0, support sits further below
+    assert_eq!(bands[0].1, 0);
+    assert!(bands[0].2 == 0 && bands[0].3 == around);
+    assert_eq!(bands[1].1, -20 * 200);
+    assert!(bands[1].2 == 0 && bands[1].3 == support);
+    assert!(bands[0].0 < bands[0].1 && bands[1].0 < bands[1].1);
+
+    let above = Contract::fee_liquidity_ranges(0, false, 200, around, support);
+    assert_eq!(above.len(), 2);
+    assert_eq!(above[0].0, 0);
+    assert!(above[0].2 == around && above[0].3 == 0);
+    assert_eq!(above[1].0, 20 * 200);
+    assert!(above[1].2 == support && above[1].3 == 0);
+
+    let mut c = new_contract();
+    set("launcher.testnet", T0, 8 * NEAR);
+    let launch = c.build_launch(acc("launcher.testnet"), params());
+    let id = launch.id;
+    c.launches.insert(id, launch);
+    c.launches.get_mut(&id).unwrap().status = LaunchStatus::Live;
+    c.launches.get_mut(&id).unwrap().pool_id = "tok|wrap.testnet|10000".into();
+    c.launches.get_mut(&id).unwrap().token_is_x = true;
+
+    set("wrap.testnet", T0 + 1, 0);
+    let _ = c.ft_on_transfer(
+        acc("someone.testnet"),
+        U128(100 * NEAR),
+        serde_json::to_string(&CoordinatorMsg::Fees { launch_id: id }).unwrap(),
+    );
+    assert_eq!(c.liquidity_deploy_available(id).0, 30 * NEAR);
+
+    // too much rejected
+    set("keeper.testnet", T0 + 2, 100 * NEAR);
+    let over = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = c.deploy_fee_liquidity(id, U128(31 * NEAR));
+    }));
+    assert!(over.is_err());
+
+    set("keeper.testnet", T0 + 3, 100 * NEAR);
+    let _ = c.deploy_fee_liquidity(id, U128(10 * NEAR));
+    let pool = kyp_common::DclPoolView {
+        pool_id: "tok|wrap.testnet|10000".into(),
+        token_x: acc("tok.testnet"),
+        token_y: acc("wrap.testnet"),
+        current_point: 0,
+        liquidity: U128(1),
+        state: None,
+    };
+    set("kyp.testnet", T0 + 4, 100 * NEAR);
+    let _ = c.on_fee_liq_pool(id, U128(10 * NEAR), Ok(pool.clone()));
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1.0, 90 * NEAR);
+    assert_eq!(c.liquidity_deploy_available(id).0, 20 * NEAR);
+
+    // deposit fails: refund
+    set("kyp.testnet", T0 + 5, 0);
+    let _ = c.on_fee_liq_deposited(id, U128(10 * NEAR), acc("pool.kyp.testnet"), "tok|wrap.testnet|10000".into(), bands.clone(), Err(near_sdk::PromiseError::Failed));
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1.0, 100 * NEAR);
+    assert_eq!(c.liquidity_deploy_available(id).0, 30 * NEAR);
+
+    // successful deploy of 10, then distribute remaining 90 + 10 prepaid
+    set("keeper.testnet", T0 + 6, 100 * NEAR);
+    let _ = c.deploy_fee_liquidity(id, U128(10 * NEAR));
+    set("kyp.testnet", T0 + 7, 100 * NEAR);
+    let _ = c.on_fee_liq_pool(id, U128(10 * NEAR), Ok(pool));
+    let ranges = Contract::fee_liquidity_ranges(0, true, 200, 6 * NEAR, 4 * NEAR);
+    set("kyp.testnet", T0 + 8, 100 * NEAR);
+    let _ = c.on_fee_liq_deposited(id, U128(10 * NEAR), acc("pool.kyp.testnet"), "tok|wrap.testnet|10000".into(), ranges.clone(), Ok(U128(10 * NEAR)));
+    set("kyp.testnet", T0 + 9, 50 * NEAR);
+    let _ = c.on_fee_liq_added(id, acc("pool.kyp.testnet"), "tok|wrap.testnet|10000".into(), ranges.clone(), 0, Ok("lpt-a".into()));
+    set("kyp.testnet", T0 + 10, 0);
+    let _ = c.on_fee_liq_added(id, acc("pool.kyp.testnet"), "tok|wrap.testnet|10000".into(), ranges, 1, Ok("lpt-b".into()));
+    assert_eq!(c.liquidity_deploy_available(id).0, 20 * NEAR);
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1.0, 90 * NEAR);
+
+    set("keeper.testnet", T0 + 11, 0);
+    let _ = c.distribute_fees(id, acc("wrap.testnet"));
+    set_with_results("kyp.testnet", T0 + 12, vec![
+        PromiseResult::Successful(vec![]),
+        PromiseResult::Successful(vec![]),
+        PromiseResult::Successful(vec![]),
+    ]);
+    // remaining 90 + 10 prepaid split 50/30/20; liquidity leg 30-10 prepaid = 20
+    let failed = c.on_fees_distributed(
+        id,
+        acc("wrap.testnet"),
+        vec![
+            (acc("holders.kyp.testnet"), U128(50 * NEAR)),
+            (acc("lp.kyp.testnet"), U128(20 * NEAR)),
+            (acc("bounties.kyp.testnet"), U128(20 * NEAR)),
+        ],
+    );
+    assert_eq!(failed.0, 0);
+    assert_eq!(c.liquidity_deploy_available(id).0, 0);
+}
+
