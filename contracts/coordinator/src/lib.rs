@@ -25,7 +25,7 @@ mod types;
 pub use types::*;
 
 use kyp_common::{
-    aligned_bounds, assert_valid_milestones, dcl_pool_id, init_point_for_fdv, mul_div,
+    aligned_bounds, assert_valid_milestones, dcl_pool_id, dcl_safe_left, dcl_safe_right, init_point_for_fdv, mul_div,
     tokens_for_quote, LockAddMsg, LockFundMsg, LockMsg, BPS_DENOM, DEFAULT_DECIMALS,
     DEFAULT_TOTAL_SUPPLY, MAX_POINT, MAX_PRESALE_CAP_BPS, MAX_PRESALERS, MAX_SALE_WINDOW_SEC,
 };
@@ -54,6 +54,8 @@ const LIQ_TRY_PREFIX: &[u8] = b"lq_try";
 /// Far-end shrink per failed add_liquidity attempt, in point_delta units (7 x 200 = 1400 points).
 const NUDGE_STEPS: i32 = 7;
 const MAX_LIQ_TRIES: u8 = 40;
+/// Max far-end moves (point_delta each) when searching for a range the DCL can settle.
+const SAFE_RANGE_STEPS: u32 = 48;
 
 #[near(serializers = [borsh])]
 #[derive(BorshStorageKey)]
@@ -513,9 +515,10 @@ impl Contract {
 
     /// RHEA DCL sometimes charges a few hundred million yocto MORE than `amount_x` for a
     /// single-sided range and then panics computing the refund ("attempt to subtract with
-    /// overflow", testnet launch #5, range -23000..776800). The rounding depends on the range, so
-    /// after each failed attempt the next one pulls the far end of the range in by
-    /// `NUDGE_POINTS * attempt` delta-aligned points (never the end at the price).
+    /// overflow", dcl_liquidity_api.rs:209). The ranges are checked with an exact port of the
+    /// DCL's rounding (`kyp_common::dcl`) and the far end moved in until it settles. As a
+    /// fallback, each failed attempt also pulls the far end in by `NUDGE_STEPS * attempt` points
+    /// (never the end at the price).
     pub(crate) fn liquidity_ranges_nudged(l: &Launch, point_delta: i32, attempt: u8) -> [(i32, i32, u128, u128); 2] {
         let nudge = NUDGE_STEPS * point_delta * attempt as i32;
         // RHEA DCL (iZi-style) rejects right_point >= MAX_POINT and ranges with
@@ -527,6 +530,12 @@ impl Contract {
         let above = (a + point_delta, hi.min(a + point_delta + max_width) - nudge);
         let below = (lo.max(a - max_width) + nudge, a);
         let (tok, quo) = (l.lp_tokens, l.total_raised);
+        // The range above the price is x-only, the one below y-only. Move each far end in until
+        // RHEA DCL's own rounding charges no more than we offer (see kyp_common::dcl); otherwise
+        // add_liquidity panics computing the refund.
+        let (amt_x, amt_y) = if l.token_is_x { (tok, quo) } else { (quo, tok) };
+        let above = (above.0, dcl_safe_right(above.0, above.1, point_delta, amt_x, SAFE_RANGE_STEPS));
+        let below = (dcl_safe_left(below.0, below.1, point_delta, amt_y, SAFE_RANGE_STEPS), below.1);
         if l.token_is_x {
             // x-only above the price (token for sale), y-only below (quote bids)
             [(above.0, above.1, tok, 0), (below.0, below.1, 0, quo)]

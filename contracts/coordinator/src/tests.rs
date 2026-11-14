@@ -648,11 +648,43 @@ fn liquidity_ranges_nudge_far_end_only_and_stay_legal() {
         let r = Contract::liquidity_ranges_nudged(&l, 200, t);
         assert_eq!(r[0].0, r0[0].0, "token range still starts one delta above the price");
         assert_eq!(r[1].1, r0[1].1, "quote range still ends at the price");
-        assert_eq!(r[0].1, r0[0].1 - 1400 * t as i32);
-        assert_eq!(r[1].0, r0[1].0 + 1400 * t as i32);
+        // un-adjusted far ends: min(799_800, a + 200 + 799_800) and max(-799_800, a - 799_800)
+        let (far_hi, far_lo) = (799_800.min(l.init_point + 200 + 799_800), (-799_800).max(l.init_point - 799_800));
+        assert!(r[0].1 <= far_hi - 1400 * t as i32);
+        assert!(r[1].0 >= far_lo + 1400 * t as i32);
         for (lft, rgt, ..) in r {
             assert!(lft < rgt && lft % 200 == 0 && rgt % 200 == 0 && rgt - lft < 800_000);
         }
         assert_eq!((r[0].2, r[1].3), (r0[0].2, r0[1].3), "amounts unchanged");
     }
+}
+
+/// Testnet launches #6 and #8 (lp 975M tokens, 2.5 wNEAR raised, init point -23200) failed
+/// add_liquidity with RHEA's refund underflow on -23000..776800 and -23000..775400. The chosen
+/// ranges must be ones the DCL settles: need <= offered, checked with the exact DCL rounding.
+#[test]
+fn liquidity_ranges_settle_on_rhea_dcl() {
+    use kyp_common::{dcl_need_x, dcl_need_y};
+    let mut c = new_contract();
+    go_live(&mut c);
+    let mut l = c.launches.get(&1).unwrap().clone();
+    l.init_point = -23_200;
+    l.lp_tokens = 975_000_000 * 10u128.pow(18);
+    l.total_raised = 25 * 10u128.pow(23);
+    for t in 0..=3u8 {
+        for is_x in [true, false] {
+            l.token_is_x = is_x;
+            let r = Contract::liquidity_ranges_nudged(&l, 200, t);
+            let (above, below) = if is_x { (r[0], r[1]) } else { (r[1], r[0]) };
+            let ax = above.2;
+            assert!(dcl_need_x(above.0, above.1, ax).unwrap() <= ax, "x {t} {is_x} {:?}", above);
+            let ay = below.3;
+            assert!(dcl_need_y(below.0, below.1, ay).unwrap() <= ay, "y {t} {is_x} {:?}", below);
+        }
+    }
+    l.token_is_x = true;
+    // the old range for attempt 0 over-charged; the new one is a few deltas in
+    let r = Contract::liquidity_ranges_nudged(&l, 200, 0);
+    assert!(dcl_need_x(-23_000, 776_800, l.lp_tokens).unwrap() > l.lp_tokens);
+    assert!(r[0].1 < 776_800 && r[0].1 >= 776_800 - 48 * 200);
 }
