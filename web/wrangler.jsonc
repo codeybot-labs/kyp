@@ -22,7 +22,7 @@
     "run_worker_first": ["/api/*"]
   },
   "d1_databases": [
-    { "binding": "CORNER_DB", "database_name": "kyp-corner", "database_id": "REPLACE_WITH_D1_DATABASE_ID", "migrations_dir": "migrations" }
+    { "binding": "CORNER_DB", "database_name": "kyp-corner", "database_id": "b82d2714-c92d-44be-a5e7-dff39e27f857", "migrations_dir": "migrations" }
   ],
   "vars": {
     "CORNER_COORDINATORS": "testnet:kyp-sushmit-dcl.testnet,testnet:kyp-sushmit.testnet",
