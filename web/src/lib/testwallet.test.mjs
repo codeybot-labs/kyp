@@ -133,3 +133,16 @@ test("fallback: a funded test wallet creates + funds a new account via the testn
   await assert.rejects(createFundedByWallet({ network: "testnet", rpc: "https://rpc.testnet.fastnear.com", funder: { accountId: "rich.testnet", secretKey: KEY }, send: async () => ({ hash: "H" }), fetchImpl: async () => ({ json: async () => ({ error: {} }) }) }), /did not create/);
   await assert.rejects(createFundedByWallet({ network: "mainnet", rpc: "https://rpc.mainnet.near.org", funder: {} }), /testnet-only/);
 });
+
+import { isUncertainSendError, waitForTx, txHash } from "./testwallet.mjs";
+test("uncertain send errors are looked up on chain before failing", async () => {
+  assert.ok(isUncertainSendError(new Error("Transaction has expired")));
+  assert.ok(isUncertainSendError({ type: "TimeoutError", message: "x" }));
+  assert.ok(!isUncertainSendError(new Error("Smart contract panicked: launcher only")));
+  let calls = 0;
+  const provider = { viewTransactionStatus: async () => { if (++calls < 3) throw new Error("[-32000] UNKNOWN_TRANSACTION"); return { status: { SuccessValue: "" } }; } };
+  assert.deepEqual(await waitForTx({ provider, hash: "h", accountId: "a.testnet", sleep: async () => {} }), { status: { SuccessValue: "" } });
+  const never = { viewTransactionStatus: async () => { throw new Error("UNKNOWN_TRANSACTION"); } };
+  assert.equal(await waitForTx({ provider: never, hash: "h", accountId: "a.testnet", tries: 2, sleep: async () => {} }), null);
+  assert.equal((await txHash(new Uint8Array([1, 2, 3]))).length > 40, true);
+});

@@ -103,6 +103,9 @@ export function missionsFor({ account, skills, symbol = "TOKEN", day = dayKey(),
 
 /** Majority of the roster (min 2) agrees a bounty or approves a delivery. */
 export function majority(rosterSize) { return Math.max(2, Math.floor(Math.max(1, rosterSize) / 2) + 1); }
+/** Approvals a delivery needs: a majority of the caballeros who can approve it (everyone but
+ * the deliverer), at least 1, so a 2-person roster can still finish a bounty. */
+export function approvalsNeeded(rosterSize) { const eligible = Math.max(1, rosterSize - 1); return Math.max(1, Math.floor(eligible / 2) + 1); }
 export function bountyStatus(b, rosterSize) {
   const votes = new Set(b.votes ?? []).size;
   const needed = majority(rosterSize);
@@ -205,7 +208,7 @@ export function applyAction(state, actor, a, now = Date.now()) {
       if (b.status !== "submitted") err("Nothing to approve yet");
       if (b.claimant === actor.id) err("You can't approve your own delivery");
       b.approvals = toggleIn(b.approvals, actor.id);
-      if (b.approvals.length >= majority(roster() - 1)) { b.status = "done"; log("done", `"${b.title}" approved, reward due from the fee pool`, b.id); }
+      if (b.approvals.length >= approvalsNeeded(roster())) { b.status = "done"; log("done", `"${b.title}" approved, reward due from the fee pool`, b.id); }
       else log("approve", `approved "${b.title}"`, b.id);
       return s;
     }

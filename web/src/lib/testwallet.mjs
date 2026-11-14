@@ -140,6 +140,31 @@ export function failureMessage(outcome) {
   return f?.ActionError?.kind?.FunctionCallError?.ExecutionError ?? JSON.stringify(f).slice(0, 200);
 }
 
+/** Errors after which a tx may still have landed (so check its status instead of failing). */
+export function isUncertainSendError(e) {
+  return /expired|time(d)?[ _-]?out|TIMEOUT|408|502|503|504|fetch failed|network ?error/i.test(String(e?.message ?? e) + " " + String(e?.type ?? ""));
+}
+
+/** NEAR tx hash = base58(sha256(borsh(Transaction))). */
+export async function txHash(encoded) {
+  const { baseEncode } = await import("@near-js/utils");
+  return baseEncode(new Uint8Array(await globalThis.crypto.subtle.digest("SHA-256", encoded)));
+}
+
+/** Poll tx status until it is found (returns the outcome) or `tries` run out (returns null). */
+export async function waitForTx({ provider, hash, accountId, tries = 12, gapMs = 3000, sleep = (ms) => new Promise((r) => setTimeout(r, ms)) }) {
+  for (let i = 0; i < tries; i++) {
+    try {
+      const o = await provider.viewTransactionStatus(hash, accountId, "EXECUTED_OPTIMISTIC");
+      if (o?.status && (o.status.SuccessValue !== undefined || o.status.Failure || o.status.SuccessReceiptId)) return o;
+    } catch (e) {
+      if (!/UNKNOWN_TRANSACTION|doesn't exist|not exist|timeout|expired/i.test(String(e?.message ?? e) + " " + String(e?.type ?? ""))) throw e;
+    }
+    await sleep(gapMs);
+  }
+  return null;
+}
+
 /** Sign one site tx with a test wallet and send it to the testnet RPC. Returns { hash, outcome }. */
 export async function signAndSendWithTestWallet({ network, rpc, wallet, tx }) {
   assertTestnet(network, rpc);
@@ -147,8 +172,19 @@ export async function signAndSendWithTestWallet({ network, rpc, wallet, tx }) {
   const [{ Account }, { JsonRpcProvider }, { KeyPairSigner }] = await Promise.all([import("@near-js/accounts"), import("@near-js/providers"), import("@near-js/signers")]);
   const provider = new JsonRpcProvider({ url: rpc });
   const account = new Account(wallet.accountId, provider, KeyPairSigner.fromSecretKey(wallet.secretKey));
-  const outcome = await account.signAndSendTransaction({ receiverId: tx.receiverId, actions: await toNearActions(tx), throwOnFailure: false });
-  const hash = outcome?.transaction?.hash ?? outcome?.transaction_outcome?.id ?? null;
+  const signed = await account.createSignedTransaction(tx.receiverId, await toNearActions(tx));
+  const sentHash = await txHash(signed.transaction.encode());
+  let outcome;
+  try {
+    outcome = await provider.sendTransactionUntil(signed, "EXECUTED_OPTIMISTIC");
+  } catch (e) {
+    // "Transaction has expired" / RPC timeouts can come back even though the tx landed (the RPC
+    // re-broadcast a tx that already executed, or gave up waiting). Look it up before failing.
+    if (!isUncertainSendError(e)) throw e;
+    outcome = await waitForTx({ provider, hash: sentHash, accountId: wallet.accountId });
+    if (!outcome) { const err = new Error(`${e?.message ?? e} (not found on chain after waiting; nothing was sent, safe to retry)`); err.hash = sentHash; throw err; }
+  }
+  const hash = outcome?.transaction?.hash ?? outcome?.transaction_outcome?.id ?? sentHash;
   const err = failureMessage(outcome);
   if (err) { const e = new Error(err); e.hash = hash; throw e; }
   return { hash, outcome };

@@ -127,3 +127,22 @@ test("reuse: funded stored wallets fill launcher/presaler slots before the fauce
   assert.equal(q.state.ps[0].accountId, "mid.testnet", "poor wallet skipped");
   assert.equal(gen.length, 2);
 }, );
+
+test("create_launch that reports 'Transaction has expired' but landed is adopted, not reported as failed", async () => {
+  const { ctx, sent } = mockChain();
+  const send = ctx.send;
+  ctx.send = async (w, tx) => {
+    const r = await send(w, tx);
+    if (tx.actions.at(-1).method === "create_launch") throw new Error("Transaction has expired");
+    return r;
+  };
+  const logs = [];
+  const st = await quickStart(ctx, {}, (e) => logs.push(e)).runAll();
+  assert.equal(st.launchId, 1);
+  assert.ok(logs.some((l) => /landed/.test(l.step)));
+  assert.ok(sent.some((x) => x.m === "launch"));
+  // ...and a create that really failed still fails
+  const b = mockChain();
+  b.ctx.send = async (w, tx) => { if (tx.actions.at(-1).method === "create_launch") throw new Error("Transaction has expired"); return { hash: "h" }; };
+  await assert.rejects(quickStart(b.ctx).runAll(), /expired/);
+});

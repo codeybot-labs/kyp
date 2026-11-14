@@ -6,19 +6,31 @@ import { applyAction, maskState, emptyState, activity, agentAnswer, LIMITS } fro
 import { retrieve } from "../src/lib/corner-kb.mjs";
 import { verifySignature, issuedAtOf, signInMessage, unb64, hex } from "../src/lib/nep413.mjs";
 
-const RPC = { testnet: "https://rpc.testnet.fastnear.com", mainnet: "https://rpc.mainnet.fastnear.com" };
+const RPC = { testnet: ["https://rpc.testnet.fastnear.com", "https://rpc.testnet.near.org"], mainnet: ["https://rpc.mainnet.fastnear.com", "https://rpc.mainnet.near.org"] };
 const SESSION_TTL = 7 * 86400e3;
 const json = (body, status = 200, extra = {}) => new Response(JSON.stringify(body), { status, headers: { "content-type": "application/json", "cache-control": "no-store", ...extra } });
 const fail = (msg, status = 400) => json({ error: msg }, status);
 
 const allowed = (env) => new Set(String(env.CORNER_COORDINATORS ?? "").split(",").map((s) => s.trim()).filter(Boolean));
-const rpcFor = (env, network) => (network === "mainnet" ? env.RPC_MAINNET || RPC.mainnet : env.RPC_TESTNET || RPC.testnet);
+const rpcFor = (env, network) => {
+  const own = network === "mainnet" ? env.RPC_MAINNET : env.RPC_TESTNET;
+  return [...(own ? [own] : []), ...RPC[network === "mainnet" ? "mainnet" : "testnet"]];
+};
 
-async function rpc(url, params) {
-  const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: "kyp", method: "query", params }) });
-  const j = await r.json();
-  if (j.error) throw new Error(j.error?.cause?.name || j.error.message || "RPC error");
-  return j.result;
+/** JSON-RPC query with fallback: a rate-limited or flaky RPC (429/5xx/non-JSON) tries the next one.
+ * (An HTML 429 page from the first RPC used to surface as an HTTP 500 during fast wallet switching.) */
+async function rpc(urls, params) {
+  let last;
+  for (const url of [].concat(urls)) {
+    try {
+      const r = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: "kyp", method: "query", params }) });
+      if (!r.ok) throw new Error(`RPC ${r.status}`);
+      const j = await r.json();
+      if (j.error) { const e = new Error(j.error?.cause?.name || j.error.message || "RPC error"); e.final = true; throw e; }
+      return j.result;
+    } catch (e) { last = e; if (e?.final) throw e; }
+  }
+  throw last ?? new Error("RPC unavailable");
 }
 async function view(env, network, contract, method, args) {
   const res = await rpc(rpcFor(env, network), { request_type: "call_function", finality: "optimistic", account_id: contract, method_name: method, args_base64: btoa(JSON.stringify(args)) });
@@ -32,10 +44,17 @@ async function publicInfo(env, network, coordinator, id) {
   const k = `${network}:${coordinator}:${id}`;
   const hit = pubCache.get(k);
   if (hit && hit.at > Date.now() - 30e3) return hit;
-  const [launch, presalers] = await Promise.all([
-    view(env, network, coordinator, "get_launch", { launch_id: id }),
-    view(env, network, coordinator, "get_presalers", { launch_id: id }).catch(() => []),
-  ]);
+  let launch, presalers;
+  try {
+    [launch, presalers] = await Promise.all([
+      view(env, network, coordinator, "get_launch", { launch_id: id }),
+      view(env, network, coordinator, "get_presalers", { launch_id: id }).catch(() => []),
+    ]);
+  } catch (e) {
+    if (hit) return hit; // RPC hiccup: a slightly stale reveal list beats an error
+    // Unknown who is public: show everyone but the viewer as an alias (fail closed), don't error.
+    return { at: 0, launcher: null, symbol: "", revealed: new Map(), degraded: true };
+  }
   if (!launch) throw Object.assign(new Error("No such launch"), { status: 404 });
   const revealed = new Map(presalers.filter((p) => p.account_id).map((p) => [p.account_id, p.wave]));
   const v = { at: Date.now(), launcher: launch.launcher, symbol: launch.symbol, revealed };

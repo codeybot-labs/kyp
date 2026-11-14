@@ -117,8 +117,17 @@ export function quickStart(ctx, state = {}, log = () => {}) {
       state.salts = state.ps.map((_, i) => state.salts?.[i] ?? randomSalt());
       const params = await sampleLaunchParams({ launcher: state.launcher.accountId, presalers: state.ps.map((w, i) => ({ account: w.accountId, salt: state.salts[i] })), now: ctx.now(), quote: ctx.quote, tag: state.launcher.accountId.slice(-12, -8) });
       const cfg = await ctx.view(ctx.coordinator, "get_config", {});
-      await send(`create launch (launcher, ${n} presalers, ${params.reveal.waves} reveal waves)`, state.launcher, createLaunchTx(ctx.coordinator, params, cfg.token_account_deposit));
-      for (let i = 0; i < 10 && !state.launchId; i++) { state.launchId = await findLaunchBy(ctx.view, ctx.coordinator, state.launcher.accountId); if (!state.launchId) await sleep(1500); }
+      const before = Number(await ctx.view(ctx.coordinator, "get_launch_count", {}).catch(() => 0));
+      const newer = async () => { const id = await findLaunchBy(ctx.view, ctx.coordinator, state.launcher.accountId); return id && id > before ? id : null; };
+      try {
+        await send(`create launch (launcher, ${n} presalers, ${params.reveal.waves} reveal waves)`, state.launcher, createLaunchTx(ctx.coordinator, params, cfg.token_account_deposit));
+      } catch (e) {
+        // e.g. "Transaction has expired" although create_launch landed: adopt the launch if it exists
+        for (let i = 0; i < 6 && !state.launchId; i++) { state.launchId = await newer(); if (!state.launchId) await sleep(2000); }
+        if (!state.launchId) throw e;
+        log({ step: `create launch: wallet reported "${String(e?.message ?? e).slice(0, 60)}" but launch #${state.launchId} landed` });
+      }
+      for (let i = 0; i < 10 && !state.launchId; i++) { state.launchId = await newer(); if (!state.launchId) await sleep(1500); }
       if (!state.launchId) throw new Error("launch created but not found yet; retry this step");
       log({ step: `launch #${state.launchId} created` });
     },

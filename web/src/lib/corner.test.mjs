@@ -167,3 +167,20 @@ test("NEP-413: payload layout and signature verification", async () => {
   assert.equal(await verifySignature({ publicKey, signature: b64(sig), message, nonce, recipient: "evil.example" }), false);
   assert.equal(base58Decode(publicKey.slice(8)).length, 32);
 });
+
+import { approvalsNeeded } from "./corner.mjs";
+test("approvals: majority of the non-deliverers, min 1, so a 2-person roster can finish a bounty", () => {
+  assert.deepEqual([1, 2, 3, 4, 5].map(approvalsNeeded), [1, 1, 2, 2, 3]);
+  let s = emptyState();
+  s = applyAction(s, A, { type: "join", skills: ["dev"] }, T0);
+  s = applyAction(s, B, { type: "join", skills: ["creator"] }, T0);
+  s = applyAction(s, A, { type: "propose", kind: "bounty", title: "Logo", skill: "designer", reward: "5%" }, T0);
+  const id = s.bounties[0].id;
+  s = applyAction(s, B, { type: "vote", id }, T0 + 1);
+  assert.equal(s.bounties[0].status, "agreed");
+  s = applyAction(s, B, { type: "claim", id }, T0 + 2);
+  s = applyAction(s, B, { type: "submit", id, link: "https://example.com/logo" }, T0 + 3);
+  assert.throws(() => applyAction(s, B, { type: "approve", id }, T0 + 4), /own/);
+  s = applyAction(s, A, { type: "approve", id }, T0 + 4);
+  assert.equal(s.bounties[0].status, "done");
+});

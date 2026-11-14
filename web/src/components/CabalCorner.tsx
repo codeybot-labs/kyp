@@ -7,7 +7,7 @@ import { api } from "../lib/source";
 import { CONFIG, NETWORK_NAME } from "../lib/config";
 import { account as wallet } from "../lib/wallet";
 import { WithLaunch, useLive, fmtQ, TokenBadge, StatusPill, connectWallet, toast, tok } from "./ui";
-import { SKILLS, skillById, cleanSkills, teamMix, missionsFor, bountyStatus, majority, activity, agentAnswer, dayKey, isAlias } from "../lib/corner.mjs";
+import { SKILLS, skillById, cleanSkills, teamMix, missionsFor, bountyStatus, majority, approvalsNeeded, activity, agentAnswer, dayKey, isAlias } from "../lib/corner.mjs";
 import * as store from "../lib/corner-store";
 import { KB } from "../lib/corner-kb.mjs";
 import type { LaunchView, PresalerView } from "../lib/model";
@@ -63,10 +63,19 @@ function Corner(p: { l: LaunchView }) {
   const [tick, setTick] = createSignal(0);
   const synced = () => mode() === "synced";
 
+  let seq = 0;
   const load = async () => {
     if (!mode()) return;
-    try { setView(synced() ? await store.remoteGet(l().id) : store.localGet(l().id)); setLoadErr(null); }
-    catch (e: any) { setLoadErr(e?.message ?? String(e)); if (!view()) setView(store.localGet(l().id)); }
+    const mine = ++seq; // fast wallet switching: only the newest response may update the view
+    try {
+      let v: store.CornerView;
+      if (!synced()) v = store.localGet(l().id);
+      else {
+        try { v = await store.remoteGet(l().id); }
+        catch { await new Promise((r) => setTimeout(r, 800)); if (mine !== seq) return; v = await store.remoteGet(l().id); } // one quiet retry
+      }
+      if (mine === seq) { setView(v); setLoadErr(null); }
+    } catch (e: any) { if (mine !== seq) return; setLoadErr(e?.message ?? String(e)); if (!view()) setView(store.localGet(l().id)); }
   };
   createResource(() => [mode(), wallet(), store.session()?.token, tick()] as const, load);
   const iv = setInterval(() => synced() && setTick((t) => t + 1), 20000);
@@ -195,7 +204,7 @@ function Corner(p: { l: LaunchView }) {
         </div>
       </div>
 
-      <Bounties l={l()} st={st} act={act} me={me()} rosterSize={roster().length} W={W} />
+      <Bounties l={l()} st={st} act={act} me={me()} rosterSize={roster().length} W={W} synced={synced()} />
 
       <div class="grid g2">
         <AgentPanel l={l()} mix={mix} roster={() => roster().length} passengers={passengers} bounties={() => st().bounties} />
@@ -224,7 +233,7 @@ function Identity(p: { synced: boolean; me: string | null; joined: boolean; onJo
           <Match when={needsSignIn()}>
             <div class="cc-head"><h3>Sign in as <span class="mono">{short(wallet()!)}</span></h3>
               <button class="btn sm primary" disabled={busy()} onClick={async () => { setBusy(true); try { await store.signInCorner(); toast("Signed in to Cabal Corner", "ok"); p.refresh(); } catch (e: any) { toast(e?.message ?? String(e), "bad"); } finally { setBusy(false); } }}>{busy() ? "Waiting for wallet…" : "Sign message"}</button></div>
-            <p class="sub">Your wallet signs a short message (NEP-413) so caballeros know it's really you. It is not a transaction and cannot move funds. Until your presale wave is revealed, others see you as an alias.</p>
+            <p class="sub" data-testid="corner-signin-copy">New wallet connected. Already joined with <span class="mono">{short(wallet()!)}</span>? Sign once to load your profile, skills and votes. Your wallet signs a short message (NEP-413) so caballeros know it's really you; it is not a transaction and cannot move funds. This browser remembers each wallet's sign-in for 7 days, so switching back won't ask again. Until your presale wave is revealed, others see you as an alias.</p>
           </Match>
           <Match when={p.me}>
             <div class="cc-head"><h3>Join the corner as <span class="mono">{display(p.me)}</span></h3><button class="btn sm primary" data-testid="corner-join" onClick={p.onJoin}>Join the roster</button></div>
@@ -249,7 +258,7 @@ const STATUS_LABEL: Record<string, [string, string]> = {
   claimed: ["violet", "In progress"], submitted: ["warn", "Delivered · needs approval"], done: ["live", "Done"],
 };
 
-function Bounties(p: { l: LaunchView; st: () => any; act: (a: any, ok?: string) => Promise<boolean>; me: string | null; rosterSize: number; W: (x: { id: string | null }) => any }) {
+function Bounties(p: { l: LaunchView; st: () => any; act: (a: any, ok?: string) => Promise<boolean>; me: string | null; rosterSize: number; W: (x: { id: string | null }) => any; synced: boolean }) {
   const [kind, setKind] = createSignal<"bounty" | "competition">("bounty");
   const [title, setTitle] = createSignal("");
   const [details, setDetails] = createSignal("");
@@ -271,7 +280,7 @@ function Bounties(p: { l: LaunchView; st: () => any; act: (a: any, ok?: string) 
         <span class="sub">Funded from the fee pool · community share {share()}% → <span class="mono">{short(p.l.fee_split.community_account)}</span>{pool() ? ` · fees waiting ${pool()}` : ""}</span>
       </div>
       <p class="sub">Propose → a majority ({majority(p.rosterSize)} of {p.rosterSize}) agrees → bounties are claimed, delivered and approved by majority; competitions take entries and close on votes. Rewards are tracked here and paid by the community account; v1 moves no funds.</p>
-      <Show when={joined()} fallback={<p class="sub" style={{ "margin-top": "8px" }}>Join the roster to propose and vote.</p>}>
+      <Show when={joined()} fallback={<p class="sub" style={{ "margin-top": "8px" }}>{wallet() && !store.session() && p.synced ? `Sign in as ${short(wallet()!)} above to propose and vote (if this wallet already joined, signing in brings your profile back).` : "Join the roster to propose and vote."}</p>}>
         <form class="cc-form" onSubmit={propose}>
           <div class="cc-seg" role="tablist">
             <button type="button" class={kind() === "bounty" ? "on" : ""} onClick={() => setKind("bounty")}>Bounty</button>
@@ -335,7 +344,7 @@ function BountyItem(p: { b: any; act: (a: any, ok?: string) => Promise<boolean>;
         <div class="cc-rowtop">
           <a class="link" href={b().submission.link} target="_blank" rel="noopener noreferrer nofollow">{b().submission.link}</a>
           <Show when={b().status === "submitted"}>
-            <span class="sub">{b().approvals.length}/{majority(p.rosterSize - 1)} approvals</span>
+            <span class="sub">{b().approvals.length}/{approvalsNeeded(p.rosterSize)} approvals</span>
             <Show when={p.joined && b().claimant !== p.me}><button class="btn sm ghost" onClick={() => p.act({ type: "approve", id: b().id })}>{b().approvals.includes(p.me) ? "Unapprove" : "Approve"}</button></Show>
           </Show>
         </div>

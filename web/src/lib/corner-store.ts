@@ -12,19 +12,30 @@ export type StoreMode = "synced" | "local";
 export interface CornerView { state: any; viewer: string | null; verified: boolean; reveals: Record<string, number>; launcher?: string }
 
 const GUEST_KEY = "kyp-corner-guest";
-const sessKey = () => `kyp-corner-session:${NETWORK}`;
+const sessKey = () => `kyp-corner-sessions:${NETWORK}`;
+const oldSessKey = () => `kyp-corner-session:${NETWORK}`;
 const localKey = (id: number) => `kyp-corner-v2:${api.mode()}:${CONFIG.coordinator || "demo"}:${id}`;
 
 export const getGuest = () => { try { return localStorage.getItem(GUEST_KEY) ?? ""; } catch { return ""; } };
 export const setGuestName = (n: string) => { try { n ? localStorage.setItem(GUEST_KEY, n) : localStorage.removeItem(GUEST_KEY); } catch {} };
 
 interface Session { token: string; accountId: string; exp: number }
-function getSession(): Session | null {
-  try { const s = JSON.parse(localStorage.getItem(sessKey()) ?? "null"); return s && s.exp > Date.now() ? s : null; } catch { return null; }
+type Sessions = Record<string, Session>;
+/** One corner session per wallet account (switching test wallets doesn't need a new signature). */
+function loadSessions(): Sessions {
+  try {
+    const all: Sessions = JSON.parse(localStorage.getItem(sessKey()) ?? "{}") ?? {};
+    const old = JSON.parse(localStorage.getItem(oldSessKey()) ?? "null");
+    if (old?.accountId && !all[old.accountId]) all[old.accountId] = old;
+    for (const k of Object.keys(all)) if (!(all[k]?.exp > Date.now())) delete all[k];
+    return all;
+  } catch { return {}; }
 }
-const [session, setSession] = createSignal<Session | null>(typeof localStorage === "undefined" ? null : getSession());
-export { session };
-export function signOutCorner() { try { localStorage.removeItem(sessKey()); } catch {} setSession(null); }
+function saveSessions(all: Sessions) { try { localStorage.setItem(sessKey(), JSON.stringify(all)); localStorage.removeItem(oldSessKey()); } catch {} }
+const [sessions, setSessions] = createSignal<Sessions>(typeof localStorage === "undefined" ? {} : loadSessions());
+/** The corner session of the connected wallet, if it has signed in on this browser. */
+export const session = (): Session | null => { const w = wallet(); const s = w ? sessions()[w] : null; return s && s.exp > Date.now() ? s : null; };
+export function signOutCorner() { const w = wallet(); const all = { ...sessions() }; if (w) delete all[w]; saveSessions(all); setSessions(all); }
 
 let healthP: Promise<{ ok: boolean; ai: boolean }> | null = null;
 export function apiHealth() {
@@ -44,15 +55,16 @@ export async function signInCorner() {
   const r = await fetch("/api/corner/auth", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ accountId: signed.accountId || acct, publicKey: signed.publicKey, signature: signed.signature, message, nonce: b64(nonce), recipient, network: NETWORK }) });
   const j = await r.json();
   if (!r.ok) throw new Error(j.error ?? "Sign-in failed");
-  localStorage.setItem(sessKey(), JSON.stringify(j));
-  setSession(j);
+  const all = { ...loadSessions(), [j.accountId]: j };
+  saveSessions(all);
+  setSessions(all);
   return j as Session;
 }
 
 function headers(): Record<string, string> {
   const h: Record<string, string> = { "content-type": "application/json" };
   const s = session();
-  if (s && s.accountId === wallet()) h.authorization = `Bearer ${s.token}`;
+  if (s) h.authorization = `Bearer ${s.token}`;
   else if (getGuest()) h["x-corner-guest"] = getGuest();
   return h;
 }

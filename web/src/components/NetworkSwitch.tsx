@@ -13,7 +13,7 @@ export default function NetworkSwitch() {
       style={{ display: "inline-block", width: "auto", "padding-right": "30px", "background-image": `url("${arrow}")`, "background-repeat": "no-repeat", "background-position": "right 12px center", cursor: "pointer" }}
     >
       <option value="testnet">Testnet</option>
-      <option value="mainnet">Mainnet</option>
+      <option value="mainnet">Mainnet (preview)</option>
     </select>
   );
 }

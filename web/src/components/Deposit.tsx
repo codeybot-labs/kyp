@@ -17,7 +17,9 @@ function Body(p: { l: LaunchView }) {
   // Testnet + connected wallet: you act as the wallet account. Demo: any account (simulated).
   const account = () => (!isDemo && wallet() ? wallet()! : accountInput());
   const [salt, setSalt] = createSignal("");
-  const [amount, setAmount] = createSignal("10");
+  // Default to the most this wallet can put in (per-wallet max, capped by room left), never more.
+  const [amount, setAmount] = createSignal("");
+  const [edited, setEdited] = createSignal(false);
   const [hash, setHash] = createSignal("");
   createEffect(async () => {
     const a = account().trim(), s = salt().trim();
@@ -26,7 +28,13 @@ function Body(p: { l: LaunchView }) {
   const [slot, { refetch }] = createResource(() => [hash(), l().total_raised] as const, ([h]) => (h ? api.slot(l().id, h) : Promise.resolve(null)));
   const [invites] = useLive(() => (isDemo ? demo.invites(l().id) : Promise.resolve([])));
 
-  const amountRaw = () => { try { return toRaw(amount() || "0", 24); } catch { return 0n; } };
+  const typedRaw = () => { try { return toRaw(amount() || "0", 24); } catch { return 0n; } };
+  const already = () => (slot() && !isReserved(slot()!.kind) ? BigInt(slot()!.deposit || "0") : 0n);
+  /** Most this wallet can still deposit: wallet_max minus what it already put in, capped by the room left. */
+  const maxRaw = () => { const m = BigInt(l().wallet_max) - already(), r = roomCap(); const v = m < r ? m : r; return v > 0n ? v : 0n; };
+  const amountRaw = () => { const t = typedRaw(), m = maxRaw(); return t > m ? m : t; };
+  const toWhole = (raw: bigint) => { const d = 10n ** 24n, w = raw / d, f = (raw % d).toString().padStart(24, "0").slice(0, 6).replace(/0+$/, ""); return f ? `${w}.${f}` : `${w}`; };
+  createEffect(() => { const m = maxRaw(); if (!edited()) setAmount(toWhole(m)); });
   const tokens = () => tokensForQuote(amountRaw(), l().total_supply, l().opening_fdv_quote);
   const reserved = () => slot() && isReserved(slot()!.kind);
   const open = () => l().status === "Open" && now() >= l().sale_start && now() < l().sale_end;
@@ -37,7 +45,7 @@ function Body(p: { l: LaunchView }) {
 
   const cli = () => (
     <>
-            <Cli title="1. Wrap NEAR (if needed)" cmd={cliCall(CONFIG.quote, "near_deposit", {}, { deposit: `${amount() || "0"} NEAR`, gas: "30 Tgas", signer: account() || undefined })} />
+            <Cli title="1. Wrap NEAR (if needed)" cmd={cliCall(CONFIG.quote, "near_deposit", {}, { deposit: `${toWhole(amountRaw())} NEAR`, gas: "30 Tgas", signer: account() || undefined })} />
             <Cli title={`2. ${reserved() ? "Buy reserved slot" : "Deposit"} (ft_transfer_call)`} cmd={cliCall(CONFIG.quote, "ft_transfer_call", {
               receiver_id: CONFIG.coordinator,
               amount: reserved() ? (slot()!.kind as any).Reserved.quote_amount : amountRaw().toString(),
@@ -61,7 +69,7 @@ function Body(p: { l: LaunchView }) {
             <Match when={gate().reason === "filled"}><div class="notice ok">Your reserved slot is filled.</div></Match>
             <Match when={gate().reason === "deposit"}>
               <div class="stack">
-              <button class="btn primary" data-testid="deposit-sign" disabled={amountRaw() <= 0n} onClick={() => sendTx(() => buildDeposit(wallet()!, amountRaw(), depositMsg("Deposit", l().id, salt().trim())), `Deposited up to ${fmtQ(amountRaw())}`, () => refetch())}>Deposit {fmtQ(amountRaw())}</button>
+              <button class="btn primary" data-testid="deposit-sign" disabled={amountRaw() <= 0n || (already() === 0n && amountRaw() < BigInt(l().wallet_min))} onClick={() => sendTx(() => buildDeposit(wallet()!, amountRaw(), depositMsg("Deposit", l().id, salt().trim())), `Deposited up to ${fmtQ(amountRaw())}`, () => refetch())}>Deposit {fmtQ(amountRaw())}</button>
               <small class="sub">One wallet transaction to wNEAR: registers storage and wraps NEAR if needed, then <code>ft_transfer_call</code> to the coordinator. Any excess is refunded.</small>
               </div>
             </Match>
@@ -102,7 +110,9 @@ function Body(p: { l: LaunchView }) {
         </Show>
         <Show when={!reserved() && (isDemo || !wallet() || gate().ok)}>
           <label class="field"><span>Amount</span>
-            <div class="input-suffix"><input inputmode="decimal" value={amount()} onInput={(e) => setAmount(e.currentTarget.value)} /><em>wNEAR</em></div>
+            <div class="input-suffix"><input inputmode="decimal" value={amount()} onInput={(e) => { setEdited(true); setAmount(e.currentTarget.value); }} /><em>wNEAR</em></div>
+            <Show when={typedRaw() > maxRaw()}><small class="warn-text" data-testid="deposit-clamped">Max for this wallet is {fmtQ(maxRaw())}, so {fmtQ(maxRaw())} will be deposited (nothing extra is wrapped).</small></Show>
+            <Show when={amountRaw() > 0n && amountRaw() < BigInt(l().wallet_min) && already() === 0n}><small class="warn-text">Minimum per wallet is {fmtQ(l().wallet_min)}.</small></Show>
             <small>Per wallet {fmtQ(l().wallet_min, 0)} – {fmtQ(l().wallet_max, 0)} · {fmtQ(roomCap() > 0n ? roomCap() : 0n, 0)} left under the cap. Any excess is refunded automatically.</small>
           </label>
           <div class="kv">

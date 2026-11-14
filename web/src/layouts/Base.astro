@@ -57,6 +57,18 @@ const nav = [
     </nav>
 
     <main class="wrap">
+      <div id="mainnet-preview" class="notice warn" style="display:none;margin-top:12px">
+        <b>Mainnet preview.</b> KYP's contracts are on NEAR testnet only; on Mainnet, launch data is simulated in your browser. <a class="link" href="#" id="mainnet-preview-back">Switch back to Testnet</a>
+      </div>
+      <script is:inline>
+        (function () {
+          try {
+            if (localStorage.getItem("kyp-network") !== "mainnet") return;
+            var b = document.getElementById("mainnet-preview"); b.style.display = "block";
+            document.getElementById("mainnet-preview-back").addEventListener("click", function (e) { e.preventDefault(); localStorage.setItem("kyp-network", "testnet"); location.reload(); });
+          } catch (e) {}
+        })();
+      </script>
       <slot />
     </main>
 
@@ -64,7 +76,7 @@ const nav = [
       <div class="wrap">
         <div class="foot-col">
           <b>KYP · Know Your Presalers</b>
-          <span><span class="pill violet foot-net">{NET_NAME}</span> No mainnet contracts. Testnet tokens have no value.</span>
+          <span><span class="pill violet foot-net">{NET_NAME}</span> KYP contracts run on NEAR testnet. Mainnet: coming soon (the Mainnet switch shows a simulated preview). Testnet tokens have no value.</span>
           <span>Built for the NEAR Hackathon · <a class="link" href="https://github.com/codeybot-labs/kyp" target="_blank" rel="noopener">GitHub</a> · MIT license</span>
         </div>
         {FOOT.coordinator && (

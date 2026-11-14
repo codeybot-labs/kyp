@@ -92,10 +92,10 @@ export default function TestWallets() {
         <div class="card-title"><h2>Test mode quick start</h2><span class="pill">{INSTANCES.length ? INSTANCES.find((i) => i.id === INSTANCE)?.label : ""} · {CONFIG.coordinator}</span></div>
         <p class="sub">One click: generate a launcher and {nPs()} presaler wallet{nPs() > 1 ? "s" : ""} (10 testnet NEAR each from the faucet), wrap wNEAR, create a sample launch with every presaler allowlisted ({Math.min(3, nPs())} reveal wave{nPs() > 1 ? "s" : ""}), deposit sample amounts ({Array.from({ length: nPs() }, (_, i) => sampleAmount(i)).join(", ")} wNEAR), launch{CONFIG.pool.startsWith("dclv2") ? " (plus resume_launch steps for the RHEA DCL pool, 1000 Tgas each)" : ""}, and record 3 TWAP observations. Every step is signed in this browser and linked on nearblocks. Takes about a minute.</p>
         <div class="row" style={{ gap: "8px", "flex-wrap": "wrap" }}>
-          <label class="sub">Presalers <select data-testid="tw-presalers" value={nPs()} disabled={!!busy() || !!qs().launchId} onChange={(e) => setNPs(Number(e.currentTarget.value))}>
+          <label class="sub inline-field">Presalers <select data-testid="tw-presalers" value={nPs()} disabled={!!busy() || !!qs().launchId} onChange={(e) => setNPs(Number(e.currentTarget.value))}>
             {Array.from({ length: MAX_PRESALERS }, (_, i) => <option value={i + 1}>{i + 1}</option>)}
           </select> + launcher = {nPs() + 1} wallets</label>
-          <label class="sub"><input type="checkbox" data-testid="tw-reuse" checked={reuse()} disabled={!!busy()} onChange={(e) => setReuse(e.currentTarget.checked)} /> reuse funded wallets I already have</label>
+          <label class="sub inline-field"><input type="checkbox" data-testid="tw-reuse" checked={reuse()} disabled={!!busy()} onChange={(e) => setReuse(e.currentTarget.checked)} /> reuse funded wallets I already have</label>
           <button class="btn primary" data-testid="tw-quickstart" disabled={!!busy()} onClick={runAll}>{busy() === "quick start" ? "Running…" : "Run quick start"}</button>
           <button class="btn sm" data-testid="tw-qs-wallets" disabled={!!busy()} onClick={() => step("generate test-mode wallets", "wallets")}>1 · Generate launcher + {nPs()} presaler{nPs() > 1 ? "s" : ""}</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("wrap", "fund")}>2 · Wrap wNEAR</button>

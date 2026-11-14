@@ -758,6 +758,9 @@ input, textarea, select {
   color: var(--night);
   background: var(--white);
 }
+input[type=checkbox], input[type=radio] { width: 18px; height: 18px; min-height: 0; padding: 0; margin: 0; flex: none; accent-color: var(--mint); vertical-align: middle; }
+.inline-field { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; }
+.inline-field select { width: auto; min-width: 64px; min-height: 40px; padding: 6px 30px 6px 12px; }
 textarea { min-height: 110px; resize: vertical; font-family: var(--mono); font-size: 0.92rem; }
 input:focus, textarea:focus, select:focus { outline: none; border-color: var(--mint); box-shadow: 0 0 0 4px rgba(77, 240, 187, 0.25); }
 .input-suffix { position: relative; }
@@ -1055,3 +1058,4 @@ button.cc-skill { cursor: pointer; }
 .foot-col a:not(.link):hover { color: var(--ice); }
 .foot-net { font-size: 0.75rem; padding: 2px 10px; margin-right: 6px; }
 footer .mono { font-family: var(--mono); font-size: 0.85em; }
+.warn-text { display: block; color: #b45309; font-weight: 600; margin-top: 4px; }
