@@ -22,7 +22,17 @@ export function launchIdFromUrl(): number {
 /** Re-run a fetcher whenever demo state changes, and on an interval in testnet mode. */
 export function useLive<T>(fetcher: () => Promise<T>, intervalMs = 15000) {
   const [tick, setTick] = createSignal(0);
-  const [res, { refetch }] = createResource(tick, () => fetcher());
+  // Polling must survive a flaky/rate-limited RPC: retry once, then keep showing the last good value.
+  let last: T | undefined;
+  const load = async () => {
+    try { return (last = await fetcher()); }
+    catch (e) {
+      if (last !== undefined) return last;
+      await new Promise((r) => setTimeout(r, 1200));
+      return (last = await fetcher());
+    }
+  };
+  const [res, { refetch }] = createResource(tick, load);
   const off = onDemoChange(() => setTick((t) => t + 1));
   const iv = setInterval(() => api.mode() === "testnet" && setTick((t) => t + 1), intervalMs);
   onCleanup(() => { off(); clearInterval(iv); });
