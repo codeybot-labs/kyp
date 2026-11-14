@@ -576,6 +576,57 @@ fn fee_extra_split_and_caps() {
 }
 
 #[test]
+fn pay_bounty_from_community_share() {
+    let mut c = new_contract();
+    set("launcher.testnet", T0, 8 * NEAR);
+    let launch = c.build_launch(acc("launcher.testnet"), params());
+    let id = launch.id;
+    c.launches.insert(id, launch);
+    c.launches.get_mut(&id).unwrap().status = LaunchStatus::Live;
+
+    set("wrap.testnet", T0 + 1, 0);
+    let _ = c.ft_on_transfer(
+        acc("someone.testnet"),
+        U128(100 * NEAR),
+        serde_json::to_string(&CoordinatorMsg::Fees { launch_id: id }).unwrap(),
+    );
+    assert_eq!(c.community_fee_available(id, acc("wrap.testnet")).0, 20 * NEAR);
+
+    set("intruder.testnet", T0 + 2, 1);
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.pay_bounty(id, acc("wrap.testnet"), acc("artist.testnet"), U128(5 * NEAR), "b1".into());
+    }));
+    assert!(panicked.is_err(), "stranger must not pay");
+
+    set("launcher.testnet", T0 + 3, 1);
+    let over = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.pay_bounty(id, acc("wrap.testnet"), acc("artist.testnet"), U128(21 * NEAR), "b1".into());
+    }));
+    assert!(over.is_err(), "cannot exceed community share");
+
+    let _ = c.pay_bounty(id, acc("wrap.testnet"), acc("artist.testnet"), U128(10 * NEAR), "b-art".into());
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1 .0, 90 * NEAR);
+    assert_eq!(c.community_fee_available(id, acc("wrap.testnet")).0, 10 * NEAR);
+
+    set("keeper.testnet", T0 + 4, 0);
+    let _ = c.distribute_fees(id, acc("wrap.testnet"));
+    // remaining 90 + 10 prepaid should split 50/30/20, community leg 10
+    let legs = vec![
+        (acc("holders.kyp.testnet"), U128(50 * NEAR)),
+        (acc("lp.kyp.testnet"), U128(30 * NEAR)),
+        (acc("bounties.kyp.testnet"), U128(10 * NEAR)),
+    ];
+    set_with_results("kyp.testnet", T0 + 5, vec![
+        PromiseResult::Successful(vec![]),
+        PromiseResult::Successful(vec![]),
+        PromiseResult::Successful(vec![]),
+    ]);
+    let failed = c.on_fees_distributed(id, acc("wrap.testnet"), legs);
+    assert_eq!(failed.0, 0);
+    assert_eq!(c.community_fee_available(id, acc("wrap.testnet")).0, 0);
+}
+
+#[test]
 fn hash_helper_matches() {
     let c = new_contract();
     assert_eq!(c.hash_slot(acc("alice.testnet"), "s1".into()), h("alice.testnet", "s1"));

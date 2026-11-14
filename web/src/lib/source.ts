@@ -29,6 +29,7 @@ export const api = {
   now: (): number => (getMode() === "demo" ? demo.now() : Math.floor(Date.now() / 1000)),
   list: (): Promise<LaunchView[]> => (getMode() === "demo" ? demo.list() : view<LaunchView[]>(c(), "get_launches", { from_index: 0, limit: 50 }).then((x) => x.reverse())),
   launch: (id: number): Promise<LaunchView | null> => (getMode() === "demo" ? demo.launch(id) : view(c(), "get_launch", { launch_id: id })),
+  communityFeeAvailable: (id: number, tokenId: string): Promise<string> => (getMode() === "demo" ? Promise.resolve("0") : view<string>(c(), "community_fee_available", { launch_id: id, token_id: tokenId }).then((x) => (x as any)?.toString?.() ?? String(x ?? "0"))),
   presalers: (id: number): Promise<PresalerView[]> => (getMode() === "demo" ? demo.presalers(id) : view(c(), "get_presalers", { launch_id: id })),
   slot: (id: number, hash: string): Promise<SlotView | null> => (getMode() === "demo" ? demo.slot(id, hash) : view(c(), "get_slot", { launch_id: id, hash })),
   lock: (id: number): Promise<LockView | null> => (getMode() === "demo" ? demo.lock(id) : nullIfMissing(view(l(), "get_lock", { launch_id: id }))),

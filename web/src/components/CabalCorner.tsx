@@ -3,14 +3,16 @@
 // Synced (site Worker + Cloudflare D1) or local (this browser): roster skills, missions, bounties,
 // competitions, votes and the activity log. See lib/corner-store.ts for which one is active.
 import { createMemo, createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
-import { api } from "../lib/source";
+import { api, getMode } from "../lib/source";
 import { CONFIG, NETWORK_NAME } from "../lib/config";
 import { account as wallet } from "../lib/wallet";
-import { WithLaunch, useLive, fmtQ, TokenBadge, StatusPill, connectWallet, toast, tok } from "./ui";
+import { WithLaunch, useLive, fmtQ, TokenBadge, StatusPill, connectWallet, toast, tok, sendTx } from "./ui";
 import { SKILLS, skillById, cleanSkills, teamMix, missionsFor, bountyStatus, majority, approvalsNeeded, activity, agentAnswer, dayKey, isAlias } from "../lib/corner.mjs";
 import * as store from "../lib/corner-store";
 import { KB } from "../lib/corner-kb.mjs";
 import type { LaunchView, PresalerView } from "../lib/model";
+import { payBountyTx } from "../lib/actions.mjs";
+import { toRaw, NEAR_DECIMALS } from "../lib/math.mjs";
 
 const FEATURES: [string, string][] = [
   ["Every caballero brings something.", "Each one has a different mix of skills, knowledge and experience, and puts it to work for the project."],
@@ -298,13 +300,13 @@ function Bounties(p: { l: LaunchView; st: () => any; act: (a: any, ok?: string) 
         <button class={filter() === "done" ? "on" : ""} onClick={() => setFilter("done")}>Done</button>
       </div>
       <ul class="cc-bounties">
-        <For each={list()} fallback={<li class="sub">Nothing here yet.</li>}>{(b: any) => <BountyItem b={b} {...p} joined={joined()} />}</For>
+        <For each={list()} fallback={<li class="sub">Nothing here yet.</li>}>{(b: any) => <BountyItem b={b} l={p.l} {...p} joined={joined()} />}</For>
       </ul>
     </div>
   );
 }
 
-function BountyItem(p: { b: any; act: (a: any, ok?: string) => Promise<boolean>; me: string | null; rosterSize: number; joined: boolean; W: (x: { id: string | null }) => any }) {
+function BountyItem(p: { b: any; l?: LaunchView; act: (a: any, ok?: string) => Promise<boolean>; me: string | null; rosterSize: number; joined: boolean; W: (x: { id: string | null }) => any }) {
   const b = () => p.b;
   const [link, setLink] = createSignal("");
   const s = () => bountyStatus(b(), p.rosterSize);
@@ -362,6 +364,9 @@ function BountyItem(p: { b: any; act: (a: any, ok?: string) => Promise<boolean>;
             <Show when={p.joined && b().claimant !== p.me}><button class="btn sm ghost" onClick={() => p.act({ type: "approve", id: b().id })}>{b().approvals.includes(p.me) ? "Unapprove" : "Approve"}</button></Show>
           </Show>
         </div>
+      </Show>
+      <Show when={b().status === "done" && p.l && p.l.status === "Live" && getMode() !== "demo" && p.me && (p.me === p.l.launcher || p.me === p.l.fee_split.community_account) ? p.l : null}>
+        {(l) => <PayBounty b={b()} l={l()} />}
       </Show>
       <Show when={b().kind === "competition" && b().status !== "proposed"}>
         <ul class="cc-entries">
@@ -511,5 +516,31 @@ export default function CabalCorner() {
     <Show when={hasId} fallback={<Picker />}>
       <WithLaunch tab="corner">{(l) => <Corner l={l()} />}</WithLaunch>
     </Show>
+  );
+}
+
+
+function PayBounty(p: { b: any; l: LaunchView }) {
+  const [amt, setAmt] = createSignal("");
+  const [avail] = createResource(() => `${p.l.id}:${p.l.quote_token_id}`, () => api.communityFeeAvailable(p.l.id, p.l.quote_token_id));
+  const receiver = () => {
+    if (p.b.kind === "bounty") return p.b.claimant && !String(p.b.claimant).startsWith("guest:") ? p.b.claimant : "";
+    const w = p.b.entries?.find((e: any) => e.id === p.b.winner);
+    return w && !String(w.by).startsWith("guest:") ? w.by : "";
+  };
+  const pay = async () => {
+    const rec = receiver();
+    if (!rec) { toast("This bounty has no wallet to pay"); return; }
+    const raw = toRaw(amt() || "0", NEAR_DECIMALS);
+    if (raw <= 0n) { toast("Enter an amount in wNEAR"); return; }
+    await sendTx(() => payBountyTx(CONFIG.coordinator, p.l.id, p.l.quote_token_id, rec, raw.toString(), String(p.b.id).slice(0, 80)), `Bounty paid to ${rec}`);
+    setAmt("");
+  };
+  return (
+    <div class="cc-inline">
+      <span class="sub">Pay from the community fee share ({avail.loading ? "…" : fmtQ(avail() || "0")} available) to {receiver() ? <span class="mono">{receiver()}</span> : "the winner's wallet"}</span>
+      <input placeholder="wNEAR amount" value={amt()} onInput={(e) => setAmt(e.currentTarget.value)} aria-label="Bounty payout amount" />
+      <button class="btn sm primary" type="button" disabled={!receiver()} onClick={pay}>Pay on-chain</button>
+    </div>
   );
 }

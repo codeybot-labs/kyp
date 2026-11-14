@@ -62,6 +62,25 @@ fn write_fee_extra(launch_id: u64, extra: &FeeExtra) {
 fn read_fee_extra(launch_id: u64) -> Option<FeeExtra> {
     env::storage_read(&fee_extra_key(launch_id)).and_then(|b| near_sdk::borsh::from_slice(&b).ok())
 }
+
+fn community_paid_key(launch_id: u64, token_id: &AccountId) -> Vec<u8> {
+    format!("fee_cp:{launch_id}:{token_id}").into_bytes()
+}
+
+fn read_community_paid(launch_id: u64, token_id: &AccountId) -> u128 {
+    env::storage_read(&community_paid_key(launch_id, token_id))
+        .and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+        .unwrap_or(0)
+}
+
+fn write_community_paid(launch_id: u64, token_id: &AccountId, amount: u128) {
+    let key = community_paid_key(launch_id, token_id);
+    if amount == 0 {
+        env::storage_remove(&key);
+    } else {
+        env::storage_write(&key, &near_sdk::borsh::to_vec(&amount).unwrap());
+    }
+}
 const LIQ_TRY_PREFIX: &[u8] = b"lq_try";
 /// Far-end shrink per failed add_liquidity attempt, in point_delta units (7 x 200 = 1400 points).
 const NUDGE_STEPS: i32 = 7;
@@ -891,7 +910,10 @@ impl Contract {
         }
         let fs = l.fee_split.clone();
         let extra = read_fee_extra(launch_id);
-        let (h, lq, c, op, ai) = fs.split_with_extra(amount, extra.as_ref());
+        let prepaid = read_community_paid(launch_id, &token_id);
+        let (h, lq, c, op, ai) = fs.split_with_extra(amount + prepaid, extra.as_ref());
+        let c = c.saturating_sub(prepaid);
+        write_community_paid(launch_id, &token_id, 0);
         let mut destinations = vec![
             (fs.holders_account, h),
             (fs.liquidity_account, lq),
@@ -945,6 +967,94 @@ impl Contract {
             }
         }
         U128(failed)
+    }
+
+    // ------------------------------------------------------------------ bounty payouts
+
+    /// Pay a Cabal Corner bounty from the launch's undistributed community fee share.
+    /// Only the launcher or the community account can call it. The Corner API does not
+    /// sign; it only helps the caller build the transaction after a vote has passed.
+    pub fn pay_bounty(
+        &mut self,
+        launch_id: u64,
+        token_id: AccountId,
+        receiver_id: AccountId,
+        amount: U128,
+        bounty_ref: String,
+    ) -> Promise {
+        require!(amount.0 > 0, "amount must be > 0");
+        require!(bounty_ref.len() <= 80, "bounty_ref too long");
+        let caller = env::predecessor_account_id();
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(l.status == LaunchStatus::Live, "launch not live");
+        require!(
+            caller == l.launcher || caller == l.fee_split.community_account,
+            "only the launcher or community account can pay a bounty"
+        );
+        let bal = l.fee_balances.iter().find(|(t, _)| *t == token_id).map(|(_, b)| *b).unwrap_or(0);
+        require!(bal >= amount.0, "not enough undistributed fees");
+        let prepaid = read_community_paid(launch_id, &token_id);
+        let extra = read_fee_extra(launch_id);
+        let (_, _, c, _, _) = l.fee_split.split_with_extra(bal + prepaid, extra.as_ref());
+        let available = c.saturating_sub(prepaid);
+        require!(amount.0 <= available, "amount exceeds the remaining community share");
+        let quote = l.quote_token_id.clone();
+        let l = self.launches.get_mut(&launch_id).unwrap();
+        let pos = l.fee_balances.iter().position(|(t, _)| *t == token_id).unwrap();
+        l.fee_balances[pos].1 -= amount.0;
+        if token_id == quote {
+            l.fees_distributed_quote += amount.0;
+        }
+        write_community_paid(launch_id, &token_id, prepaid + amount.0);
+        emit(
+            "bounty_paid",
+            json!({"launch_id": launch_id, "token_id": token_id, "receiver_id": receiver_id, "amount": amount, "bounty_ref": bounty_ref}),
+        );
+        Promise::new(token_id.clone())
+            .function_call(
+                "ft_transfer",
+                json!({"receiver_id": receiver_id, "amount": amount, "memo": format!("KYP bounty #{launch_id} {bounty_ref}")})
+                    .to_string()
+                    .into_bytes(),
+                NearToken::from_yoctonear(1),
+                GAS_FT_TRANSFER,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CB)
+                    .on_bounty_paid(launch_id, token_id, amount),
+            )
+    }
+
+    #[private]
+    pub fn on_bounty_paid(&mut self, launch_id: u64, token_id: AccountId, amount: U128, #[callback_result] res: Result<(), PromiseError>) -> bool {
+        if res.is_ok() {
+            return true;
+        }
+        let l = self.launches.get_mut(&launch_id).unwrap();
+        match l.fee_balances.iter_mut().find(|(t, _)| *t == token_id) {
+            Some((_, b)) => *b += amount.0,
+            None => l.fee_balances.push((token_id.clone(), amount.0)),
+        }
+        if token_id == l.quote_token_id {
+            l.fees_distributed_quote = l.fees_distributed_quote.saturating_sub(amount.0);
+        }
+        let prepaid = read_community_paid(launch_id, &token_id).saturating_sub(amount.0);
+        write_community_paid(launch_id, &token_id, prepaid);
+        log!("bounty transfer failed; rolled back");
+        false
+    }
+
+    pub fn community_fee_available(&self, launch_id: u64, token_id: AccountId) -> U128 {
+        let l = match self.launches.get(&launch_id) {
+            Some(l) => l,
+            None => return U128(0),
+        };
+        let bal = l.fee_balances.iter().find(|(t, _)| *t == token_id).map(|(_, b)| *b).unwrap_or(0);
+        let prepaid = read_community_paid(launch_id, &token_id);
+        let extra = read_fee_extra(launch_id);
+        let (_, _, c, _, _) = l.fee_split.split_with_extra(bal + prepaid, extra.as_ref());
+        U128(c.saturating_sub(prepaid))
     }
 
     // ------------------------------------------------------------------ reveal

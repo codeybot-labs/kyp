@@ -35,7 +35,7 @@
 4. Post-launch:
    - `reveal_next_wave` (anyone) once `launched_at + k × interval` has passed. `get_presalers` returns sizes for everyone and accounts only for revealed waves. Reserved buyers are revealed with the final wave.
    - Reserved slots: `wNEAR.ft_transfer_call(coordinator, ≥ amount, {"BuyReserved":{...}})` after launch. Tokens at the same presale price go into the lock as a new position on the same milestones. If the lock step fails, the whole payment is refunded.
-   - Fees: anything sent with `{"Fees":{"launch_id"}}` plus reserved-slot proceeds accrue per token; `distribute_fees` (anyone) pays holders / liquidity / community accounts by the public bps. Failed legs are re-credited.
+   - Fees: anything sent with `{"Fees":{"launch_id"}}` plus reserved-slot proceeds accrue per token; `distribute_fees` (anyone) pays holders / liquidity / community accounts by the public bps (plus optional operations / NEAR AI legs). Failed legs are re-credited. `pay_bounty` lets the launcher or community account pay a claimant from the remaining community share of undistributed fees; prepaid amounts are subtracted from the community leg on the next `distribute_fees`.
 5. Refunds: `withdraw` if the launcher cancels while open, or misses `sale_end`. Deposits are committed otherwise.
 
 ### Lock
