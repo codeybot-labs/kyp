@@ -404,8 +404,8 @@ function AgentPanel(p: { l: LaunchView; mix: () => any; roster: () => number; pa
   });
   return (
     <div class="card" data-testid="corner-agent">
-      <div class="cc-head"><h3>Your AI agent</h3><span class="pill violet">{engine() === "workers-ai" ? "Workers AI + NEAR notes" : "Preview · retrieval"}</span></div>
-      <p class="sub">Answers from a curated library of {KB.length} NEAR ecosystem notes (MiniSearch retrieval) plus this launch's live data, and cites what it used. {engine() === "workers-ai" ? "A small Workers AI model writes the answer from those notes." : "No LLM is called in this mode."}</p>
+      <div class="cc-head"><h3>Your AI agent</h3><span class="pill violet">{engine() === "ollama" ? "Ollama Cloud + NEAR notes" : engine() === "guard" ? "On-topic only" : "NEAR notes"}</span></div>
+      <p class="sub">Answers only about KYP, Cabal Corner, memecoin launches on NEAR, and the NEAR ecosystem. It uses a curated library of {KB.length} notes (MiniSearch) plus this launch's live data, cites the sources, and {engine() === "ollama" ? "phrases the answer with a small Ollama Cloud model." : "answers from those notes when the model is unavailable."}</p>
       <div ref={el} class="cc-agent-mount"><div class="skeleton" /></div>
     </div>
   );

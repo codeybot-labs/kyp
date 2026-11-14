@@ -1,9 +1,13 @@
 // kyp-web Worker. Static assets are served by Cloudflare's asset layer as before; this script only
 // runs for /api/* (assets.run_worker_first), which is the Cabal Corner API backed by D1.
-// Cost guardrails: tiny JSON bodies, capped rows (see LIMITS), best-effort per-IP write throttle,
-// and Workers AI is OFF unless CORNER_AI = "on" (then capped per day, well under the free allocation).
+// Cost guardrails: tiny JSON bodies, capped rows (see LIMITS), best-effort per-IP write throttle.
+// Workers AI stays OFF (no AI binding, CORNER_AI = "off"). The Corner agent uses Ollama Cloud
+// when the OLLAMA_API_KEY secret is set, with daily call caps and notes-only fallback.
 import { applyAction, maskState, emptyState, activity, agentAnswer, LIMITS } from "../src/lib/corner.mjs";
-import { retrieve } from "../src/lib/corner-kb.mjs";
+import {
+  AGENT_MAX_Q, AGENT_REFUSAL, AGENT_TIMEOUT_MS, OLLAMA_CHAT_URL, OLLAMA_MODEL,
+  agentSystemPrompt, guardAgentQuestion, isAgentRelevant, looksLikePromptLeak, ollamaReplyText, retrieveNotes,
+} from "../src/lib/corner-agent.mjs";
 import { verifySignature, issuedAtOf, signInMessage, unb64, hex } from "../src/lib/nep413.mjs";
 
 const RPC = { testnet: ["https://rpc.testnet.fastnear.com", "https://rpc.testnet.near.org"], mainnet: ["https://rpc.mainnet.fastnear.com", "https://rpc.mainnet.near.org"] };
@@ -194,25 +198,57 @@ async function handleRecord(env, req, network, coordinator, account) {
   return json({ account, corners: out });
 }
 
-const AI_MODEL = "@cf/meta/llama-3.2-3b-instruct";
+const agentHits = new Map();
+/** Per IP (and session token if present): 20 agent requests per minute. */
+function agentThrottled(req, max = 20) {
+  const ip = req.headers.get("cf-connecting-ip") ?? "local";
+  const auth = (req.headers.get("authorization") ?? "").replace(/^Bearer\s+/i, "").slice(0, 64);
+  const id = /^[0-9a-f]{64}$/.test(auth) ? `u:${auth}` : `ip:${ip}`;
+  const now = Date.now();
+  const w = (agentHits.get(id) ?? []).filter((t) => t > now - 60e3);
+  w.push(now);
+  agentHits.set(id, w);
+  if (agentHits.size > 5000) agentHits.clear();
+  return w.length > max;
+}
+
 async function handleAgent(env, req) {
-  if (throttled(req, 30)) return fail("Slow down a little", 429);
+  if (agentThrottled(req) || throttled(req, 30)) return fail("Slow down a little", 429);
   const { q, ctx } = await readBody(req);
-  const question = String(q ?? "").slice(0, 400);
+  const raw = String(q ?? "");
+  const guard = guardAgentQuestion(raw);
+  if (!guard.ok) return json({ text: guard.text, sources: [], kind: "refusal", engine: "guard" });
+  const question = raw.trim().slice(0, AGENT_MAX_Q);
   const base = agentAnswer(question, ctx ?? {});
-  if (env.CORNER_AI !== "on" || !env.AI || base.kind === "context") return json({ ...base, engine: "retrieval" });
+  if (base.kind === "context") return json({ ...base, engine: "retrieval" });
+  const key = env.OLLAMA_API_KEY;
+  if (!key) return json({ ...base, engine: "retrieval" });
   const day = new Date().toISOString().slice(0, 10);
-  const cap = Number(env.CORNER_AI_DAILY_CALLS ?? 150), neuronCap = Number(env.CORNER_AI_DAILY_NEURONS ?? 3000);
-  const u = await env.CORNER_DB.prepare("SELECT calls, neurons FROM ai_usage WHERE day = ?").bind(day).first();
-  if (u && (u.calls >= cap || u.neurons >= neuronCap)) return json({ ...base, engine: "retrieval", note: "daily AI budget used; answering from notes" });
-  const notes = retrieve(question, 3);
-  const sys = `You are the Cabal Corner agent for a NEAR memecoin launch team on KYP. Answer in under 90 words, plainly. Use ONLY these notes and launch facts; if they don't cover it, say so.\nLaunch: ${JSON.stringify({ symbol: ctx?.symbol, status: ctx?.status, raised: ctx?.raised }).slice(0, 300)}\nNotes:\n${notes.map((n) => `- ${n.title}: ${n.text}`).join("\n")}`;
+  const cap = Number(env.CORNER_AI_DAILY_CALLS ?? 150);
+  const u = await env.CORNER_DB.prepare("SELECT calls FROM ai_usage WHERE day = ?").bind(day).first();
+  if (u && u.calls >= cap) return json({ ...base, engine: "retrieval", note: "daily AI budget used; answering from notes" });
+  const notes = retrieveNotes(question, 3);
+  if (!isAgentRelevant(question, notes) && base.kind !== "knowledge") {
+    return json({ text: AGENT_REFUSAL, sources: [], kind: "refusal", engine: "guard" });
+  }
+  const sys = agentSystemPrompt(notes, ctx ?? {});
   try {
-    const r = await env.AI.run(AI_MODEL, { messages: [{ role: "system", content: sys }, { role: "user", content: question }], max_tokens: 180 });
-    const inTok = r.usage?.prompt_tokens ?? 900, outTok = r.usage?.completion_tokens ?? 180;
-    const neurons = (inTok * 4625 + outTok * 30475) / 1e6; // published per-token neuron rates for this model
-    await env.CORNER_DB.prepare("INSERT INTO ai_usage (day, calls, neurons) VALUES (?, 1, ?) ON CONFLICT(day) DO UPDATE SET calls = calls + 1, neurons = neurons + ?").bind(day, neurons, neurons).run();
-    return json({ text: String(r.response ?? base.text).trim(), sources: notes.map((n) => ({ title: n.title })), kind: "ai", engine: "workers-ai" });
+    const r = await fetch(OLLAMA_CHAT_URL, {
+      method: "POST",
+      headers: { authorization: `Bearer ${key}`, "content-type": "application/json", accept: "application/json" },
+      body: JSON.stringify({
+        model: OLLAMA_MODEL,
+        stream: false,
+        messages: [{ role: "system", content: sys }, { role: "user", content: question }],
+      }),
+      signal: AbortSignal.timeout(AGENT_TIMEOUT_MS),
+    });
+    if (!r.ok) return json({ ...base, engine: "retrieval" });
+    const data = await r.json();
+    const text = ollamaReplyText(data);
+    if (!text || looksLikePromptLeak(text)) return json({ ...base, engine: "retrieval" });
+    await env.CORNER_DB.prepare("INSERT INTO ai_usage (day, calls, neurons) VALUES (?, 1, 0) ON CONFLICT(day) DO UPDATE SET calls = calls + 1").bind(day).run();
+    return json({ text, sources: notes.map((n) => ({ title: n.title })), kind: "ai", engine: "ollama", model: OLLAMA_MODEL });
   } catch {
     return json({ ...base, engine: "retrieval" });
   }
@@ -226,7 +262,7 @@ export default {
       if (!env.CORNER_DB) return fail("Cabal Corner storage is not configured", 503);
       const p = url.pathname.split("/").filter(Boolean).map(decodeURIComponent); // api, corner, ...
       if (p[1] !== "corner") return fail("Not found", 404);
-      if (p[2] === "health") return json({ ok: true, ai: env.CORNER_AI === "on" && !!env.AI });
+      if (p[2] === "health") return json({ ok: true, ai: !!env.OLLAMA_API_KEY, engine: env.OLLAMA_API_KEY ? "ollama" : "retrieval" });
       if (p[2] === "auth" && req.method === "POST") return await handleAuth(env, req);
       if (p[2] === "agent" && req.method === "POST") return await handleAgent(env, req);
       if (p[2] === "record" && p.length === 6 && req.method === "GET") return await handleRecord(env, req, p[3], p[4], p[5]);
