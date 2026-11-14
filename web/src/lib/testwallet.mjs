@@ -192,9 +192,11 @@ export async function signAndSendWithTestWallet({ network, rpc, wallet, tx }) {
 
 /** NEAR balance (yocto string) of an account, or null if it doesn't exist. */
 export async function nearBalance(rpc, accountId, fetchImpl = fetch) {
-  const r = await fetchImpl(rpc, { method: "POST", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: "kyp", method: "query", params: { request_type: "view_account", finality: "optimistic", account_id: accountId } }) });
-  const j = await r.json();
+  const body = JSON.stringify({ jsonrpc: "2.0", id: "kyp", method: "query", params: { request_type: "view_account", finality: "optimistic", account_id: accountId } });
+  const one = async (url) => { const r = await fetchImpl(url, { method: "POST", headers: { "content-type": "application/json" }, body }); if (r.ok === false) throw new Error(`RPC HTTP ${r.status}`); return r.json(); };
+  let j;
+  try { j = await one(rpc); }
+  catch (e) { const fb = "https://rpc.testnet.near.org"; if (rpc === fb || !/testnet/.test(rpc)) throw e; j = await one(fb); } // rate-limited primary RPC
   return j?.result?.amount ?? null;
 }
 
