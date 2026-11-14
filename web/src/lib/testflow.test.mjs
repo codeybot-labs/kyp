@@ -10,7 +10,7 @@ test("wrapTx registers when needed, then near_deposit", () => {
   assert.deepEqual(wrapTx({ quote: "wrap.testnet", signer: "a.testnet", amount: "5", registered: true }).actions.map((a) => a.method), ["near_deposit"]);
 });
 
-test("sample params allowlist both presalers by hash(account:salt)", async () => {
+test("sample params allowlist both caballeros by hash(account:salt)", async () => {
   const p = await sampleLaunchParams({ launcher: "l.testnet", presalers: [{ account: "a.testnet", salt: "s1" }, { account: "b.testnet", salt: "s2" }], now: 100, tag: "ab" });
   assert.deepEqual(p.allowlist, [await slotHash("a.testnet", "s1"), await slotHash("b.testnet", "s2")]);
   assert.equal(p.sale_start, 100);
@@ -51,8 +51,8 @@ test("quick start drives generate -> wrap -> create -> deposit -> launch/resume 
     "launch", "resume_launch", "resume_launch", "resume_launch", "record", "record", "record",
   ]);
   assert.equal(sent[2][0], st.launcher.accountId, "launcher creates");
-  assert.equal(sent[3][0], st.ps[0].accountId, "presaler 1 deposits");
-  assert.equal(st.ps.length, 2, "default 2 presalers");
+  assert.equal(sent[3][0], st.ps[0].accountId, "caballero 1 deposits");
+  assert.equal(st.ps.length, 2, "default 2 caballeros");
   assert.ok(logs.filter((l) => l.hash).every((l) => l.account));
   assert.throws(() => quickStart({ ...ctx, network: "mainnet" }), /testnet-only/);
 });
@@ -81,7 +81,7 @@ function mockChain() {
   return { ctx, sent, params };
 }
 
-test("quick start with 9 presalers: 10 wallets, 9 allowlisted, 3 waves, varied deposits within the cap", async () => {
+test("quick start with 9 caballeros: 10 wallets, 9 allowlisted, 3 waves, varied deposits within the cap", async () => {
   const { ctx, sent, params } = mockChain();
   const st = await quickStart({ ...ctx, presalers: 9, room: () => 10 }).runAll();
   assert.equal(st.ps.length, 9);
@@ -96,7 +96,7 @@ test("quick start with 9 presalers: 10 wallets, 9 allowlisted, 3 waves, varied d
   for (const d of deps) assert.ok(BigInt(d.args.amount) >= BigInt(params[0].wallet_min) && BigInt(d.args.amount) <= BigInt(params[0].wallet_max));
 });
 
-test("presaler count clamps to 1-9; 1 presaler = 1 wave; refuses when the 10-wallet cap has no room", async () => {
+test("caballero count clamps to 1-9; 1 caballero = 1 wave; refuses when the 10-wallet cap has no room", async () => {
   assert.deepEqual([clampPresalers(0), clampPresalers(1), clampPresalers(9), clampPresalers(42)], [1, 1, 9, 9]);
   assert.equal(MAX_PRESALERS, 9);
   assert.equal(sampleAmount(5), 2);
@@ -115,7 +115,7 @@ test("old saved state {a, b} is upgraded to ps[]", () => {
   assert.deepEqual(q.state.salts, ["1", "2"]);
 });
 
-test("reuse: funded stored wallets fill launcher/presaler slots before the faucet", async () => {
+test("reuse: funded stored wallets fill launcher/caballero slots before the faucet", async () => {
   const { ctx } = mockChain();
   const gen = [];
   const N = 10n ** 24n;

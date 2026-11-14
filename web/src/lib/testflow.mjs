@@ -1,4 +1,4 @@
-// TESTNET-ONLY "Test mode" quick start: a launcher + 2 presaler test wallets walk a sample launch
+// TESTNET-ONLY "Test mode" quick start: a launcher + 2 caballero test wallets walk a sample launch
 // end to end (wrap -> create -> deposit -> launch/resume -> record), each step signed directly by
 // the right test wallet. Pure orchestration over injected `view` / `send` so node tests can drive
 // it against a mock or the real testnet (scripts/testwallet-live.mjs).
@@ -20,7 +20,7 @@ export function wrapTx({ quote, signer, amount, registered, storageMin = "125000
 /** Sample launch params: 2 open allowlist slots, short TWAP/reveal timings so testing is quick. */
 export const LAUNCHER_NEAR = 4n * 10n ** 24n; // create 2.6 + launch ~0.6 + gas for resume_launch steps
 export const MAX_PRESALERS = 9; // + the launcher = 10 test wallets (the per-browser cap)
-/** Sample deposit (wNEAR) for presaler i: varied sizes inside wallet_min..wallet_max. */
+/** Sample deposit (wNEAR) for caballero i: varied sizes inside wallet_min..wallet_max. */
 export const sampleAmount = (i) => [1, 1.5, 0.75, 1.25, 0.5, 2, 1, 1.5, 0.75][i % 9];
 export const clampPresalers = (n) => { const v = Math.floor(Number(n)); return Number.isFinite(v) ? Math.max(1, Math.min(MAX_PRESALERS, v)) : 2; };
 
@@ -74,7 +74,7 @@ export function quickStart(ctx, state = {}, log = () => {}) {
   const n = state.launchId ? state.ps.length : clampPresalers(ctx.presalers ?? (state.ps.length || 2));
   const sleep = ctx.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   const send = async (step, wallet, tx) => { const r = await ctx.send(wallet, tx); log({ step, hash: r?.hash ?? null, account: wallet.accountId }); return r; };
-  const name = (i) => `presaler ${i + 1}`;
+  const name = (i) => `caballero ${i + 1}`;
   const amt = (i) => BigInt(Math.round(sampleAmount(i) * 1000)) * NEAR / 1000n;
   const needPs = () => { if (!state.launcher || state.ps.length < n) throw new Error("Generate the test-mode wallets first"); };
   const steps = {
@@ -92,7 +92,7 @@ export function quickStart(ctx, state = {}, log = () => {}) {
         }
       }
       const todo = (state.launcher ? 0 : 1) + Math.max(0, n - state.ps.length);
-      if (ctx.room != null && todo > ctx.room()) throw new Error(`Test mode needs ${todo} new wallets but only ${ctx.room()} of the 10 test-wallet slots are free. Delete some wallets or pick fewer presalers.`);
+      if (ctx.room != null && todo > ctx.room()) throw new Error(`Test mode needs ${todo} new wallets but only ${ctx.room()} of the 10 test-wallet slots are free. Delete some wallets or pick fewer caballeros.`);
       if (!state.launcher) { state.launcher = await ctx.generate("launcher"); log({ step: "generate launcher", account: state.launcher.accountId }); await sleep(1500); }
       while (state.ps.length < n) {
         const w = await ctx.generate(`presaler-${state.ps.length + 1}`);
@@ -120,7 +120,7 @@ export function quickStart(ctx, state = {}, log = () => {}) {
       const before = Number(await ctx.view(ctx.coordinator, "get_launch_count", {}).catch(() => 0));
       const newer = async () => { const id = await findLaunchBy(ctx.view, ctx.coordinator, state.launcher.accountId); return id && id > before ? id : null; };
       try {
-        await send(`create launch (launcher, ${n} presalers, ${params.reveal.waves} reveal waves)`, state.launcher, createLaunchTx(ctx.coordinator, params, cfg.token_account_deposit));
+        await send(`create launch (launcher, ${n} caballeros, ${params.reveal.waves} reveal waves)`, state.launcher, createLaunchTx(ctx.coordinator, params, cfg.token_account_deposit));
       } catch (e) {
         // e.g. "Transaction has expired" although create_launch landed: adopt the launch if it exists
         for (let i = 0; i < 6 && !state.launchId; i++) { state.launchId = await newer(); if (!state.launchId) await sleep(2000); }

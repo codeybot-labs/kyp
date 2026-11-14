@@ -56,7 +56,7 @@ function walletConnectClient() {
   if (!projectId) return undefined;
   return import("@walletconnect/sign-client").then((m) => m.default.init({
     projectId,
-    metadata: { name: "KYP", description: "Know Your Presalers", url: location.origin, icons: [`${location.origin}/favicon.svg`] },
+    metadata: { name: "Know Your Cabal", description: "Know Your Cabal", url: location.origin, icons: [`${location.origin}/favicon.svg`] },
   }));
 }
 
@@ -76,7 +76,7 @@ export function initWallet(): Promise<void> {
         manifest,
         walletConnect: walletConnectClient() as any,
         features: { signAndSendTransaction: true },
-        footerBranding: { icon: "/favicon.svg", heading: `KYP · ${NETWORK_LABEL}`, link: "https://wallet.near.org", linkText: "Don't have a wallet?" },
+        footerBranding: { icon: "/favicon.svg", heading: `Know Your Cabal · ${NETWORK_LABEL}`, link: "https://wallet.near.org", linkText: "Don't have a wallet?" },
       });
       connector.on("wallet:signIn", (e) => { setAccount(e.accounts[0]?.accountId ?? null); setWalletName(e.wallet.manifest.name); });
       connector.on("wallet:signOut", () => { setAccount(null); setWalletName(null); });

@@ -1,4 +1,4 @@
-# KYP — proposed plan (no build yet)
+# Know Your Cabal — proposed plan (no build yet)
 
 Research is in [SPEC.md](./SPEC.md). Recommendation: **standalone coordinator + lock + UI**, with the trading pool on RHEA DCL. A JustHoot add-on would need their team to change `launch_meme`; do not wait on that for an MVP.
 

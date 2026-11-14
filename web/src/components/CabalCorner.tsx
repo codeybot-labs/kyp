@@ -1,5 +1,5 @@
 // Cabal Corner: where a launch's caballeros plan the launch together.
-// On-chain (KYP contracts): launch data, launcher, revealed presalers + waves, lock positions.
+// On-chain (Know Your Cabal contracts): launch data, launcher, revealed caballeros + waves, lock positions.
 // Synced (site Worker + Cloudflare D1) or local (this browser): roster skills, missions, bounties,
 // competitions, votes and the activity log. See lib/corner-store.ts for which one is active.
 import { createMemo, createResource, createSignal, For, Match, onCleanup, onMount, Show, Switch } from "solid-js";
@@ -22,8 +22,8 @@ const FEATURES: [string, string][] = [
   ["Your own AI agent.", "Answers from a curated library of NEAR ecosystem notes plus this launch's live data."],
   ["Bounties and competitions.", "Caballeros propose what will help most, agree it by majority vote, and size it against the fee pool's community share."],
   ["No passengers.", "Every mission, vote and delivery counts. Three quiet days flags a passenger."],
-  ["Built in the open.", "Hidden presalers work under an alias; their wallet is tagged on their work when their wave is revealed on-chain."],
-  ["Your record travels.", "Every launch adds to your KYP record, and that record decides who gets the next invite."],
+  ["Built in the open.", "Hidden caballeros work under an alias; their wallet is tagged on their work when their wave is revealed on-chain."],
+  ["Your record travels.", "Every launch adds to your Cabal record, and that record decides who gets the next invite."],
 ];
 
 const short = (a: string) => (a.length > 24 ? `${a.slice(0, 11)}…${a.slice(-9)}` : a);
@@ -47,8 +47,8 @@ function Who(p: { id: string | null; reveals: Record<string, number>; launcher: 
   return (
     <span class="cc-who">
       <span class={isAlias(p.id) ? "" : "mono"}>{display(p.id)}</span>
-      <Show when={p.id && p.reveals[p.id] != null}><span class="cc-tag ok" title="Revealed presaler (coordinator get_presalers)">revealed · wave {p.reveals[p.id!]}</span></Show>
-      <Show when={isAlias(p.id)}><span class="cc-tag dim" title="A presaler whose wave isn't revealed yet">hidden until reveal</span></Show>
+      <Show when={p.id && p.reveals[p.id] != null}><span class="cc-tag ok" title="Revealed caballero (coordinator get_presalers)">revealed · wave {p.reveals[p.id!]}</span></Show>
+      <Show when={isAlias(p.id)}><span class="cc-tag dim" title="A caballero whose wave isn't revealed yet">hidden until reveal</span></Show>
       <Show when={p.id === p.launcher}><span class="cc-tag">launcher</span></Show>
       <Show when={p.id?.startsWith("guest:")}><span class="cc-tag dim">guest</span></Show>
       <Show when={p.id?.startsWith("sample-")}><span class="cc-tag dim">sample</span></Show>
@@ -115,8 +115,8 @@ function Corner(p: { l: LaunchView }) {
         <b>Early preview · {NETWORK_NAME}.</b>{" "}
         <Switch>
           <Match when={!mode()}>Checking storage…</Match>
-          <Match when={synced()}>Launch data, reveals and records are read from the KYP contracts. Roster, missions and bounties are <b>synced</b> for every caballero (Cloudflare D1); wallet identities are proven with a signed message. Nothing here sends a transaction or pays out.</Match>
-          <Match when={true}><b>Preview — data is local</b> to this browser{api.mode() === "demo" ? " (demo mode)" : " (the corner API isn't deployed here)"}. Launch data, reveals and records still come from the KYP {api.mode() === "demo" ? "demo simulation" : "contracts"}. Sample caballeros are marked "sample". Nothing here sends a transaction or pays out.</Match>
+          <Match when={synced()}>Launch data, reveals and records are read from the Know Your Cabal contracts. Roster, missions and bounties are <b>synced</b> for every caballero (Cloudflare D1); wallet identities are proven with a signed message. Nothing here sends a transaction or pays out.</Match>
+          <Match when={true}><b>Preview — data is local</b> to this browser{api.mode() === "demo" ? " (demo mode)" : " (the corner API isn't deployed here)"}. Launch data, reveals and records still come from the Know Your Cabal {api.mode() === "demo" ? "demo simulation" : "contracts"}. Sample caballeros are marked "sample". Nothing here sends a transaction or pays out.</Match>
         </Switch>
         <Show when={loadErr()}><div class="sub">Sync error: {loadErr()}</div></Show>
       </div>
@@ -239,11 +239,11 @@ function Identity(p: { synced: boolean; me: string | null; joined: boolean; onJo
           </Match>
           <Match when={p.me}>
             <div class="cc-head"><h3>Join the corner as <span class="mono">{display(p.me)}</span></h3><button class="btn sm primary" data-testid="corner-join" onClick={p.onJoin}>Join the roster</button></div>
-            <p class="sub">{p.me!.startsWith("guest:") ? "Guest profile: not tied to a wallet, so it never counts toward a KYP record." : p.synced ? "Signed in with your wallet." : "Wallet profile, stored in this browser only in preview mode."}</p>
+            <p class="sub">{p.me!.startsWith("guest:") ? "Guest profile: not tied to a wallet, so it never counts toward a Cabal record." : p.synced ? "Signed in with your wallet." : "Wallet profile, stored in this browser only in preview mode."}</p>
           </Match>
           <Match when={true}>
             <div class="cc-head"><h3>Step into the corner</h3><button class="btn sm primary" onClick={connectWallet}>Connect wallet</button></div>
-            <p class="sub">Connect your {NETWORK_NAME} wallet so your work counts toward your KYP record, or look around as a guest.</p>
+            <p class="sub">Connect your {NETWORK_NAME} wallet so your work counts toward your Cabal record, or look around as a guest.</p>
             <form class="cc-inline" onSubmit={guest}>
               <input placeholder="guest name" value={name()} onInput={(e) => setName(e.currentTarget.value)} aria-label="Guest name" />
               <button class="btn sm" type="submit">Continue as guest</button>
@@ -405,7 +405,7 @@ function AgentPanel(p: { l: LaunchView; mix: () => any; roster: () => number; pa
   return (
     <div class="card" data-testid="corner-agent">
       <div class="cc-head"><h3>Your AI agent</h3><span class="pill violet">{engine() === "ollama" ? "Ollama Cloud + NEAR notes" : engine() === "guard" ? "On-topic only" : "NEAR notes"}</span></div>
-      <p class="sub">Answers only about KYP, Cabal Corner, memecoin launches on NEAR, and the NEAR ecosystem. It uses a curated library of {KB.length} notes (MiniSearch) plus this launch's live data, cites the sources, and {engine() === "ollama" ? "phrases the answer with a small Ollama Cloud model." : "answers from those notes when the model is unavailable."}</p>
+      <p class="sub">Answers only about Know Your Cabal, Cabal Corner, memecoin launches on NEAR, and the NEAR ecosystem. It uses a curated library of {KB.length} notes (MiniSearch) plus this launch's live data, cites the sources, and {engine() === "ollama" ? "phrases the answer with a small Ollama Cloud model." : "answers from those notes when the model is unavailable."}</p>
       <div ref={el} class="cc-agent-mount"><div class="skeleton" /></div>
     </div>
   );
@@ -416,7 +416,7 @@ function Feed(p: { events: () => any[]; W: (x: { id: string | null }) => any }) 
   return (
     <div class="card" data-testid="corner-feed">
       <div class="cc-head"><h3>Built in the open</h3><span class="sub">latest activity</span></div>
-      <p class="sub">Every action is logged here. Hidden presalers show as an alias; when the chain reveals their wave, their wallet is tagged on everything they did.</p>
+      <p class="sub">Every action is logged here. Hidden caballeros show as an alias; when the chain reveals their wave, their wallet is tagged on everything they did.</p>
       <ul class="cc-feed">
         <For each={ev()} fallback={<li class="sub">Nothing yet.</li>}>{(e) => (
           <li><span>{p.W({ id: e.actor })} <span class="muted">{e.text}</span></span><span class="sub">{ago(e.ts)}</span></li>
@@ -434,10 +434,10 @@ async function loadRecord(acct: string) {
     if (l.launcher === acct) roles.push("Launcher");
     const ps = await api.presalers(l.id).catch(() => [] as PresalerView[]);
     const mine = ps.find((x) => x.account_id === acct);
-    if (mine) { roles.push("Presaler"); details.push(`${fmtQ(mine.quote, 2)} in · wave ${mine.wave}`); }
+    if (mine) { roles.push("Caballero"); details.push(`${fmtQ(mine.quote, 2)} in · wave ${mine.wave}`); }
     const pos = await api.position(l.id, acct).catch(() => null);
     if (pos && BigInt(pos.total) > 0n) {
-      if (!mine) roles.push("Presaler");
+      if (!mine) roles.push("Caballero");
       details.push(`${tok(pos.total).toLocaleString(undefined, { maximumFractionDigits: 0 })} $${l.symbol} locked, ${tok(pos.claimed).toLocaleString(undefined, { maximumFractionDigits: 0 })} claimed`);
     }
     return roles.length ? { l, role: roles.join(" + "), detail: details.join(" · ") } : null;
@@ -452,7 +452,7 @@ function Record(p: { initial: string }) {
   const [rec] = createResource(acct, (a) => (a ? loadRecord(a) : Promise.resolve({ rows: [], corner: null })));
   return (
     <div class="card" data-testid="corner-record">
-      <div class="cc-head"><h3>KYP record</h3><span class="pill live">{api.mode() === "demo" ? "demo chain" : `on-chain · ${NETWORK_NAME}`}</span></div>
+      <div class="cc-head"><h3>Cabal record</h3><span class="pill live">{api.mode() === "demo" ? "demo chain" : `on-chain · ${NETWORK_NAME}`}</span></div>
       <p class="sub">Every launch an account led or presold in, read from <span class="mono">{CONFIG.coordinator || "the demo coordinator"}</span> and its lock, plus Cabal Corner contributions where that account is public. Launchers check this before sending the next invite.</p>
       <form class="cc-inline" style={{ "margin-top": "10px" }} onSubmit={(e) => { e.preventDefault(); setAcct(input().trim()); }}>
         <input placeholder="account.testnet" value={input()} onInput={(e) => setInput(e.currentTarget.value)} aria-label="NEAR account" />
@@ -464,7 +464,7 @@ function Record(p: { initial: string }) {
             <div>
               <div class="label">Launches (on-chain)</div>
               <ul class="cc-list">
-                <For each={rec()?.rows ?? []} fallback={<li class="sub">No KYP launches found for <span class="mono">{acct()}</span> yet.</li>}>{(r) => (
+                <For each={rec()?.rows ?? []} fallback={<li class="sub">No Know Your Cabal launches found for <span class="mono">{acct()}</span> yet.</li>}>{(r) => (
                   <li><a class="link" href={`/launch?id=${r.l.id}`}>{r.l.name} (${r.l.symbol}) #{r.l.id}</a><span class="sub">{r.role}{r.detail ? ` · ${r.detail}` : ""}</span></li>
                 )}</For>
               </ul>
@@ -494,13 +494,13 @@ function Picker() {
         <h1>Cabal Corner</h1>
         <p class="lead">Where the caballeros plan the launch. Pick a launch to open its corner.</p>
       </div>
-      <div class="notice warn">Early preview · {NETWORK_NAME}. Each launch has its own corner: roster and skills, team mix, daily missions, bounties and competitions, an AI agent, and the KYP record.</div>
+      <div class="notice warn">Early preview · {NETWORK_NAME}. Each launch has its own corner: roster and skills, team mix, daily missions, bounties and competitions, an AI agent, and the Cabal record.</div>
       <Show when={launches()} fallback={<div class="skeleton" />}>
         <div class="grid g2">
           <For each={launches()} fallback={<div class="card"><h3>No launches yet</h3></div>}>{(l) => (
             <a class="card cc-pick" href={`/corner?id=${l.id}`} data-testid="corner-pick">
               <TokenBadge symbol={l.symbol} icon={l.icon} />
-              <div style={{ flex: 1 }}><h3>{l.name}</h3><span class="sub">${l.symbol} · #{l.id} · {l.filled_open_slots}/{l.open_slots} presalers</span></div>
+              <div style={{ flex: 1 }}><h3>{l.name}</h3><span class="sub">${l.symbol} · #{l.id} · {l.filled_open_slots}/{l.open_slots} caballeros</span></div>
               <StatusPill status={l.status} />
             </a>
           )}</For>

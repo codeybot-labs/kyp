@@ -31,7 +31,7 @@ try {
   await new Promise((r) => setTimeout(r, 61_000)); // reveal interval
   await q.steps.reveal().then(() => console.log("reveal ok"), (e) => console.log("reveal:", e.message));
   const pres = await ctx.view(ctx.coordinator, "get_presalers", { launch_id: q.state.launchId });
-  console.log(`presalers: ${pres.length}, waves ${[...new Set(pres.map((p) => p.wave))].join("/")}, revealed accounts: ${pres.filter((p) => p.account_id).length}`);
+  console.log(`caballeros: ${pres.length}, waves ${[...new Set(pres.map((p) => p.wave))].join("/")}, revealed accounts: ${pres.filter((p) => p.account_id).length}`);
   await q.steps.claim(0).then(() => console.log("claim tx ok (unlocks only at milestones)"), (e) => console.log("claim:", e.message));
 } catch (e) {
   console.error("FAILED:", e.message, e.hash ? `https://testnet.nearblocks.io/txns/${e.hash}` : "");

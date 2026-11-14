@@ -33,7 +33,7 @@ export default function CreateLaunch() {
 
   const [name, setName] = createSignal("Moon Moth");
   const [symbol, setSymbol] = createSignal("MOTH");
-  const [desc, setDesc] = createSignal("Drawn to the light. Hand-picked presalers who ship memes, code and calls.");
+  const [desc, setDesc] = createSignal("Drawn to the light. Hand-picked caballeros who ship memes, code and calls.");
   const [icon, setIcon] = createSignal("");
   const [fdvUsd, setFdvUsd] = createSignal(5000);
   const [capPct, setCapPct] = createSignal(25);
@@ -109,11 +109,11 @@ export default function CreateLaunch() {
       <header class="phead full-bleed">
         <div class="wrap">
           <div>
-            <h1>{KYP_ENABLED ? "Create a KYP launch" : "Cross-launch a token"}</h1>
-            <p>{KYP_ENABLED ? "Pick your presalers, set public terms and ambitious unlock milestones. Everything except who is invited is public from the start." : "KYP presale is not on mainnet yet. Use this form to launch matching tokens on external NEAR launchpads."}</p>
+            <h1>{KYP_ENABLED ? "Create a Know Your Cabal launch" : "Cross-launch a token"}</h1>
+            <p>{KYP_ENABLED ? "Pick your caballeros, set public terms and ambitious unlock milestones. Everything except who is invited is public from the start." : "Know Your Cabal presale is not on mainnet yet. Use this form to launch matching tokens on external NEAR launchpads."}</p>
           </div>
           <div class="stage small">
-            <div class={topKipOpen() ? "open" : ""}><KipSolid alt="Kip, the KYP padlock mascot. Click Kip to open the lock." onClick={() => setTopKipOpen(!topKipOpen())} /></div>
+            <div class={topKipOpen() ? "open" : ""}><KipSolid alt="Kip, the Know Your Cabal padlock mascot. Click Kip to open the lock." onClick={() => setTopKipOpen(!topKipOpen())} /></div>
           </div>
         </div>
       </header>
@@ -169,11 +169,11 @@ export default function CreateLaunch() {
               </Show>
             </div>
             <Show when={!startNow()}><label class="field"><span>Length: <b>{days()}</b> days</span><input type="range" min="1" max="7" step="0.5" value={days()} style={{ "--p": pctVar(days(), 1, 7) }} onInput={(e) => setDays(Number(e.currentTarget.value))} /></label></Show>
-            <div class="sub">You can launch any time once the minimum raise is in. If you don't launch by the end, presalers withdraw.</div>
+            <div class="sub">You can launch any time once the minimum raise is in. If you don't launch by the end, caballeros withdraw.</div>
           </section>
 
           <section class="sec stack">
-            <div class="rw between"><h3>4 · Presalers</h3><span class="chip">{accounts().length} invited · {reservedRows().length} reserved</span></div>
+            <div class="rw between"><h3>4 · Caballeros</h3><span class="chip">{accounts().length} invited · {reservedRows().length} reserved</span></div>
             <label class="field"><span>Invited wallets (one per line)</span><textarea value={wallets()} onInput={(e) => setWallets(e.currentTarget.value)} /></label>
             <label class="field"><span>Reserved slots for later (account, wNEAR)</span><textarea style={{ "min-height": "64px" }} value={reservedTxt()} onInput={(e) => setReservedTxt(e.currentTarget.value)} />
               <small>Reserved wallets buy after launch at the same presale price and lock on the same milestones. Unsold slots stay reserved.</small>
@@ -193,7 +193,7 @@ export default function CreateLaunch() {
 
           <section class="sec stack">
             <div class="rw between"><h3>5 · Unlock milestones</h3><span class={`chip ${msSum() === 100 ? "live" : "warn"}`}>{msSum()}% allocated</span></div>
-            <p class="sub">Make them ambitious. The community roots for presalers to get there. FDV = price × (minted − burned), measured as a TWAP.</p>
+            <p class="sub">Make them ambitious. The community roots for caballeros to get there. FDV = price × (minted − burned), measured as a TWAP.</p>
             <div class="seg">
               <For each={ms()}>{(m) => <i style={{ width: `${msSum() > 0 ? (m.pct / msSum()) * 100 : 0}%` }} />}</For>
             </div>
@@ -239,9 +239,9 @@ export default function CreateLaunch() {
           <section class="sec stack">
             <h3>7 · Launch platforms</h3>
             <Show when={KYP_ENABLED} fallback={
-              <p class="sub">KYP's own presale contracts are not deployed to {NETWORK} yet. You can still use this form to cross-launch a token on the selected external launchpads. Each launchpad creates its own token and starts its own pool, independent of any KYP lock.</p>
+              <p class="sub">Know Your Cabal's own presale contracts are not deployed to {NETWORK} yet. You can still use this form to cross-launch a token on the selected external launchpads. Each launchpad creates its own token and starts its own pool, independent of any Know Your Cabal lock.</p>
             }>
-              <p class="sub">KYP is your presale coordinator. You can also create a matching public token + pool on other NEAR launchpads for visibility. Each launchpad creates its own token and starts its own pool, independent of the KYP lock.</p>
+              <p class="sub">Know Your Cabal is your presale coordinator. You can also create a matching public token + pool on other NEAR launchpads for visibility. Each launchpad creates its own token and starts its own pool, independent of the Know Your Cabal lock.</p>
             </Show>
             <Show when={NETWORK !== "mainnet"}><div class="notice warn">NEARly and JustHoot are only available on mainnet. On {NETWORK} you can still prepare the commands, but you will need a mainnet wallet to run them.</div></Show>
             <div class="g3">
@@ -252,7 +252,7 @@ export default function CreateLaunch() {
                     <span style={{ "font-weight": 700, color: p.color }}>{p.label}</span>
                     {p.id === "kyp" && <span class="chip live">required</span>}
                   </span>
-                  {p.id === "kyp" ? <small>KYP presale with locked presalers and milestone unlocks.</small> : <small>Also create a token on <a class="link" href={p.website} target="_blank" rel="noopener">{p.website}</a>.</small>}
+                  {p.id === "kyp" ? <small>Know Your Cabal presale with locked caballeros and milestone unlocks.</small> : <small>Also create a token on <a class="link" href={p.website} target="_blank" rel="noopener">{p.website}</a>.</small>}
                 </label>
               )}</For>
             </div>

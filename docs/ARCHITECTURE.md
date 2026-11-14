@@ -1,10 +1,10 @@
-# KYP architecture (testnet MVP)
+# Know Your Cabal architecture (testnet MVP)
 
 ## Contracts
 
 ```
              create_launch (payable)             ft_transfer_call(wNEAR, Deposit{id,salt})
- launcher ─────────────────────────────┐   ┌──────────────────────────────── presalers
+ launcher ─────────────────────────────┐   ┌──────────────────────────────── caballeros
                                         ▼   ▼
                               ┌─────────────────────┐   deploys + inits   ┌──────────────────┐
                               │   kyp coordinator   │────────────────────▶│ {sym}-{id}.kyp   │
@@ -13,7 +13,7 @@
                      launch()  │  ①ft_transfer_call(presale tokens, Fund{positions,milestones,twap})
                                ├──────────────────────────────▶ ┌──────────────────────┐
                                │                                │ kyp lock             │◀── record()/qualify()/claim()
-                               │  ②storage_deposit+create_pool  │ TWAP observer + tranches │     (anyone / presaler)
+                               │  ②storage_deposit+create_pool  │ TWAP observer + tranches │     (anyone / caballero)
                                │  ③ft_transfer_call(token+wNEAR)└──────────────────────┘
                                │  ④add_liquidity ×2                         │ get_pool / ft_total_supply
                                └──────────────────────────────▶ ┌──────────────────────┐
@@ -52,9 +52,9 @@ Plain NEP-141 + metadata. The full supply is minted once in `new`. `ft_burn` low
 
 ## Privacy model (decision: simplest sound design)
 
-- **On-chain at sale time**: terms, sizes, slot count, and salted hashes `sha256(account:salt)`. Invite codes go to presalers privately.
+- **On-chain at sale time**: terms, sizes, slot count, and salted hashes `sha256(account:salt)`. Invite codes go to caballeros privately.
 - **Reveal**: `get_presalers` and the site only show an account once its wave is revealed, on a fixed on-chain schedule.
-- **Limitation**: a deposit is a normal NEAR transaction from the presaler's account, so anyone reading raw chain data can see who deposited. The reveal is a publishing and indexing convention backed by an on-chain schedule. It is not cryptographic privacy. Real hiding would need relayed/intents deposits or ZK, which is out of scope.
+- **Limitation**: a deposit is a normal NEAR transaction from the caballero's account, so anyone reading raw chain data can see who deposited. The reveal is a publishing and indexing convention backed by an on-chain schedule. It is not cryptographic privacy. Real hiding would need relayed/intents deposits or ZK, which is out of scope.
 
 ## What is mocked or incomplete
 
@@ -100,4 +100,4 @@ Plain NEP-141 + metadata. The full supply is minted once in `new`. `ft_burn` low
 5. **DCL specifics**: storage, deposit msg, no-deposit `add_liquidity`, no pool whitelist and the point rules are verified on testnet. The one-delta gap means zero active liquidity at the opening price until the first trade, so the lock's min-liquidity check fails until then.
 6. **Compliance**: an invite-only sale to named wallets may face securities or promotion rules in some places. Needs legal review before mainnet.
 7. **Upgrades**: the contracts have no upgrade path by design (immutability). For mainnet, remove full-access keys after deploy and get an audit.
-8. **Coordinator storage**: deposits add a few bytes per presaler on the coordinator's balance (the launch record itself is paid by the launcher).
+8. **Coordinator storage**: deposits add a few bytes per caballero on the coordinator's balance (the launch record itself is paid by the launcher).

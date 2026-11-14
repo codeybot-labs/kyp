@@ -1,4 +1,4 @@
-# KYP on NEAR testnet
+# Know Your Cabal on NEAR testnet
 
 Deployed 2026-11-10 (IST) with `scripts/deploy-testnet.sh` using free faucet accounts only. Testnet only: no mainnet accounts, no real funds. Keys live in `~/.near-credentials` on the deploy machine and are never committed or printed.
 
@@ -18,15 +18,15 @@ Deploy txs: [deploy lock](https://testnet.nearblocks.io/txns/J9fSiH76ayuwBFbKJLQ
 
 ## Smoke test (launch #1, mock pool) — passed
 
-`PREFIX=kyp-sushmit RUN=1 ./scripts/smoke-testnet.sh`. Test wallets (faucet): launcher `kyp-sushmit-l1.testnet`, presalers `kyp-sushmit-a1.testnet` and `kyp-sushmit-b1.testnet`.
+`PREFIX=kyp-sushmit RUN=1 ./scripts/smoke-testnet.sh`. Test wallets (faucet): launcher `kyp-sushmit-l1.testnet`, caballeros `kyp-sushmit-a1.testnet` and `kyp-sushmit-b1.testnet`.
 
 | Step | Result | Tx |
 | --- | --- | --- |
 | create_launch ($SMK1, opening FDV 20 wNEAR, 20% cap, milestones 40 wNEAR → 25%, 2,000 wNEAR → 75%) | Open, token deployed | [J6r9…](https://testnet.nearblocks.io/txns/J6r9LVBiTi1ixnvegDpLEmjY1femoJ3Jn3QGPbA6UoaE) |
-| Presaler A deposits 1 wNEAR | accepted | [96uE…](https://testnet.nearblocks.io/txns/96uE7F5JsAPS29bNBaPjBxSqu59XM94Kob5iYHUatdvJ) |
-| Presaler B deposits 1.5 wNEAR | accepted | [EEkA…](https://testnet.nearblocks.io/txns/EEkAacqdcHZVPnWQUBKJaZ8pf8kK7uPrAKxXVgzkSSLD) |
+| Caballero A deposits 1 wNEAR | accepted | [96uE…](https://testnet.nearblocks.io/txns/96uE7F5JsAPS29bNBaPjBxSqu59XM94Kob5iYHUatdvJ) |
+| Caballero B deposits 1.5 wNEAR | accepted | [EEkA…](https://testnet.nearblocks.io/txns/EEkAacqdcHZVPnWQUBKJaZ8pf8kK7uPrAKxXVgzkSSLD) |
 | launch (one tx: settle at one price, fund lock, create pool, deposit, add liquidity) | Live; 34 receipts, ~42.6 Tgas burnt, no failures | [D9Q3…](https://testnet.nearblocks.io/txns/D9Q3nVEfzUuK81sUKUSwo9joQNe3gQhUBVZx3VjbyakS) |
-| Lock balance | 125,000,000 SMK1 (12.5% = 2.5 / 20) held by the lock; A 50M, B 75M; presaler wallets 0 | view |
+| Lock balance | 125,000,000 SMK1 (12.5% = 2.5 / 20) held by the lock; A 50M, B 75M; caballero wallets 0 | view |
 | mock_set_point (~3× price, simulated trading) | ok | [45bM…](https://testnet.nearblocks.io/txns/45bMaAuVM4W2LtTC2HGM3WUfxmE3Kwj2ygnWdggwdVkn) |
 | record × 8 (permissionless TWAP pokes) | 8 observations | e.g. [J7Ey…](https://testnet.nearblocks.io/txns/J7EyfE7PzaqGQNRut2UwfFHT8QToEVCa9FsGvwPvoyyD), [Df1B…](https://testnet.nearblocks.io/txns/Df1BJmQ32Cz2sH9SYQPFSYdUNk86gjQtuddGnGhe3yuX) |
 | twap_status | ok, 4 obs in window, TWAP FDV ≈ 59.6 wNEAR | view |
@@ -75,7 +75,7 @@ Run with `PREFIX=kyp-sushmit-dcl POOLMODE=dcl WALLETS=kyp-sushmit RUN=2 ./script
 | resume 3: both ranges added (LPT `#2574`, `#2575`), **Live** | ok | [4CnM…](https://testnet.nearblocks.io/txns/4CnMJxWPgx1TEiDxZbf1JA6y48iibU7Na7buoks9PyBx) |
 | DCL `get_pool` | `total_x` 874,999,999.9 SMK2, `total_y` 2.5 wNEAR, state Running | view |
 | lock `record` on the real pool | ok | [9Gfx…](https://testnet.nearblocks.io/txns/9GfxTp7s5EEGvad9SygExJ62pPrqnGwwv7PTJ4DMTqub) |
-| real swap: 0.2 wNEAR → 9.67M SMK2 (presaler A) | price moved −39200 → −38778 | [GBAk…](https://testnet.nearblocks.io/txns/GBAkv4CAVi3E3bjpYMJgLBMFTWCzLVVqmzHWVcuhVfFs) |
+| real swap: 0.2 wNEAR → 9.67M SMK2 (caballero A) | price moved −39200 → −38778 | [GBAk…](https://testnet.nearblocks.io/txns/GBAkv4CAVi3E3bjpYMJgLBMFTWCzLVVqmzHWVcuhVfFs) |
 | `record` ×9 more, then `twap_status` | ok: 4 obs in window, TWAP point −38778, FDV ≈ 20.7 wNEAR | e.g. [dpeQ…](https://testnet.nearblocks.io/txns/dpeQpxLKa4Rffi5WVA5oVXYB7j4PHEkjf3o2YkkbNfA) |
 
 Note: at the opening price the active liquidity is 0. The token range starts one point-delta above the price and the wNEAR range ends at it. So `twap_status` reports `pool liquidity below minimum` until the first trade, and observations taken before that trade count against the window.
@@ -114,11 +114,11 @@ record [1](https://testnet.nearblocks.io/txns/WXVSBCyjMC6gu7zz5iPs9nWVhjgSkEGi6d
 
 ### Batches, the 10-wallet cap and the faucet limit (2026-11-11)
 
-After ~20 faucet accounts in a day the helper answered `429 Rate limit exceeded, retry in 12 hours.` for this IP. The site now stops a batch on that answer and falls back to funding new wallets (2 NEAR each) from the richest stored test wallet via `testnet.create_account`. Verified on testnet from the production build in Chrome: three imported funder wallets, then a batch of 3 hit the 429 and all three were created through the fallback (`kyp-t-live-1-zv8zprzz.testnet`, `kyp-t-live-2-f6lutx17.testnet`, `kyp-t-live-3-0znucsns.testnet`, 2.0 NEAR each). The multi-presaler quick start (FDV 100 wNEAR, up to 9 presalers / 3 waves) is covered by unit tests and the mocked e2e only; a real-testnet run is pending a faucet reset (`FUNDERS=… npm run test:live`). The live test now uses a persistent browser profile (`/tmp/kyp-live-profile`, fixed port 4399) so test wallets and their testnet NEAR aren't lost between runs.
+After ~20 faucet accounts in a day the helper answered `429 Rate limit exceeded, retry in 12 hours.` for this IP. The site now stops a batch on that answer and falls back to funding new wallets (2 NEAR each) from the richest stored test wallet via `testnet.create_account`. Verified on testnet from the production build in Chrome: three imported funder wallets, then a batch of 3 hit the 429 and all three were created through the fallback (`kyp-t-live-1-zv8zprzz.testnet`, `kyp-t-live-2-f6lutx17.testnet`, `kyp-t-live-3-0znucsns.testnet`, 2.0 NEAR each). The multi-caballero quick start (FDV 100 wNEAR, up to 9 caballeros / 3 waves) is covered by unit tests and the mocked e2e only; a real-testnet run is pending a faucet reset (`FUNDERS=… npm run test:live`). The live test now uses a persistent browser profile (`/tmp/kyp-live-profile`, fixed port 4399) so test wallets and their testnet NEAR aren't lost between runs.
 
 ### RHEA DCL add_liquidity rounding bug → range nudge (2026-11-11)
 
-Launch #5 (3 presalers, FDV 100 wNEAR) stuck at `add_liquidity`: the DCL logged `paid_token_x` 967500000000000000754999282 for `amount_x` 967500000000000000000000000 on range -23000..776800 and then panicked computing the refund ("attempt to subtract with overflow", `dcl_liquidity_api.rs:209`). Offering less doesn't help (the over-charge is ~7.5e8 yocto regardless; the refund is `amount_x - paid`); it depends on the range. The coordinator now counts failed `add_liquidity` attempts per launch (separate storage key, no state migration) and each retry pulls the range's far end in by 1400 points (the end at the price never moves). Upgraded on both coordinators ([DCL](https://testnet.nearblocks.io/txns/4QbbYjmDtL2grhGYmXCBUHP3y3bQgvjgUrjr7RyZ4pXk), [mock](https://testnet.nearblocks.io/txns/8t5TnDrHsZRUjVWq5qtQm6cypQA9wwNoGFdiEiTrN5Kf)). Launch #5 then went Live on the third try: [fail 1](https://testnet.nearblocks.io/txns/2KUcX7qa1CUNtGWxWGGUubW8C4Nmqt6L6avepMWimJne), [fail 2](https://testnet.nearblocks.io/txns/73wS2RwPwRMYpppy6UsFs754jXysVVRJvTDDvqVHFcFv), [both ranges added → Live](https://testnet.nearblocks.io/txns/BgQCz8dYzjveSLAWBNqQ8ZDm2MLpJiCk8EKCSpf7tNSv).
+Launch #5 (3 caballeros, FDV 100 wNEAR) stuck at `add_liquidity`: the DCL logged `paid_token_x` 967500000000000000754999282 for `amount_x` 967500000000000000000000000 on range -23000..776800 and then panicked computing the refund ("attempt to subtract with overflow", `dcl_liquidity_api.rs:209`). Offering less doesn't help (the over-charge is ~7.5e8 yocto regardless; the refund is `amount_x - paid`); it depends on the range. The coordinator now counts failed `add_liquidity` attempts per launch (separate storage key, no state migration) and each retry pulls the range's far end in by 1400 points (the end at the price never moves). Upgraded on both coordinators ([DCL](https://testnet.nearblocks.io/txns/4QbbYjmDtL2grhGYmXCBUHP3y3bQgvjgUrjr7RyZ4pXk), [mock](https://testnet.nearblocks.io/txns/8t5TnDrHsZRUjVWq5qtQm6cypQA9wwNoGFdiEiTrN5Kf)). Launch #5 then went Live on the third try: [fail 1](https://testnet.nearblocks.io/txns/2KUcX7qa1CUNtGWxWGGUubW8C4Nmqt6L6avepMWimJne), [fail 2](https://testnet.nearblocks.io/txns/73wS2RwPwRMYpppy6UsFs754jXysVVRJvTDDvqVHFcFv), [both ranges added → Live](https://testnet.nearblocks.io/txns/BgQCz8dYzjveSLAWBNqQ8ZDm2MLpJiCk8EKCSpf7tNSv).
 
 ### RHEA DCL refund underflow: root cause and fix (2026-11-14)
 
@@ -136,6 +136,6 @@ Checked 2026-11-11 (IST).
 | Pool `get_pool.current_point` (RHEA DCL or mock, via RPC) | testnet + mainnet | on-chain, free | **yes**, live last point |
 | `testnet-indexer.ref-finance.com`, `dev-indexer.ref-finance.com`, `indexer.rhea.finance` | testnet | DNS does not resolve | no |
 | `api.ref.finance` / `api.rhea.finance` (`list-token-price`, `get-dcl-points`, `get-dcl-pools-volume`, `get-pool`) | mainnet | 200, CORS `*` | no. Prices, liquidity distribution and volume only; no candle or swap-history endpoint found |
-| `api.justhoot.fun` `/api/trades?limit=` (fields: `pool_id`, `side`, `price` in wNEAR, `price_usd`, `timestamp`), `/api/prices/latest` | mainnet | 200, CORS `*` | no. A global feed of JustHoot launchpad trades; no per-token filter found (`token`, `token_id`, `pool_id` params are ignored) and KYP tokens aren't indexed there |
+| `api.justhoot.fun` `/api/trades?limit=` (fields: `pool_id`, `side`, `price` in wNEAR, `price_usd`, `timestamp`), `/api/prices/latest` | mainnet | 200, CORS `*` | no. A global feed of JustHoot launchpad trades; no per-token filter found (`token`, `token_id`, `pool_id` params are ignored) and Know Your Cabal tokens aren't indexed there |
 
 So candles are built from `record` observations. More frequent pokes give finer candles. On mainnet, a per-pool swap history would need an indexer (or the JustHoot feed, if they add a token filter).

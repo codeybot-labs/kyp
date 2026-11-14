@@ -136,6 +136,6 @@ export function skippedBridgedIds(network) {
 }
 
 export const mainnetOnlyMessage = (name) =>
-  `${name.replace(MAINNET_ONLY_SUFFIX, "")} only works on NEAR mainnet. KYP is running on testnet right now, so use a testnet wallet such as Meteor, MyNearWallet or Intear. It will work here once KYP moves to mainnet.`;
+  `${name.replace(MAINNET_ONLY_SUFFIX, "")} only works on NEAR mainnet. Know Your Cabal is running on testnet right now, so use a testnet wallet such as Meteor, MyNearWallet or Intear. It will work here once Know Your Cabal moves to mainnet.`;
 
 export const explorerTxUrl = (hash, network = "testnet") => `${NETWORKS[network].explorer}/txns/${hash}`;

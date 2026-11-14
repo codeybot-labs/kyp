@@ -32,7 +32,7 @@ function Body(p: { l: LaunchView }) {
       <div class="card stack">
         <div class="card-title"><h2>Claim unlocked tokens</h2><span class="pill">{pct(lock()?.unlocked_bps ?? 0)} unlocked</span></div>
         <Show when={l().status === "Live"} fallback={<div class="notice">Claims open after launch, once a milestone qualifies.</div>}>
-          <label class="field"><span>Presaler account</span><input placeholder={CONFIG.exampleAccount} value={account()} disabled={!isDemo && !!wallet()} onInput={(e) => setAccount(e.currentTarget.value)} /></label>
+          <label class="field"><span>Caballero account</span><input placeholder={CONFIG.exampleAccount} value={account()} disabled={!isDemo && !!wallet()} onInput={(e) => setAccount(e.currentTarget.value)} /></label>
           <Show when={account().trim()}>
             <Show when={pos()} fallback={<div class="notice">{pos.loading ? "Loading…" : "No locked position for this account."}</div>}>
               {(x) => {
@@ -64,7 +64,7 @@ function Body(p: { l: LaunchView }) {
                       </tbody>
                     </table>
                     <Show when={isDemo} fallback={
-                      <Signable note="Connect your presaler wallet to claim." cli={<Cli title="Claim (sign as the presaler)" cmd={cliCall(CONFIG.lock, "claim", { launch_id: l().id }, { gas: "100 Tgas", signer: account().trim() })} />}>
+                      <Signable note="Connect your caballero wallet to claim." cli={<Cli title="Claim (sign as the caballero)" cmd={cliCall(CONFIG.lock, "claim", { launch_id: l().id }, { gas: "100 Tgas", signer: account().trim() })} />}>
                         <Show when={wallet() === account().trim()} fallback={<div class="notice">Only {account().trim()} can claim this position.</div>}>
                           <button class="btn primary" disabled={BigInt(x().claimable) === 0n} onClick={() => sendTx(() => claimTx(CONFIG.lock, l().id), "Claim sent", () => setTick((t) => t + 1))}>Claim {fmtT(x().claimable)} ${l().symbol}</button>
                         </Show>
@@ -85,13 +85,13 @@ function Body(p: { l: LaunchView }) {
           <ol class="muted" style={{ margin: 0, "padding-left": "18px", display: "grid", gap: "8px" }}>
             <li>Anyone pokes <code>record</code> on the lock; it reads the pool's price and the token supply.</li>
             <li>When the time-weighted FDV over {dur(l().twap.window_sec)} (≥ {l().twap.min_observations} observations) is at or above a target, anyone calls <code>qualify</code>.</li>
-            <li>After a {dur(l().twap.claim_delay_sec)} delay that tranche is claimable by every presaler — same terms for all, reserved slots included.</li>
+            <li>After a {dur(l().twap.claim_delay_sec)} delay that tranche is claimable by every caballero — same terms for all, reserved slots included.</li>
             <li>No admin key can move locked tokens. Qualified milestones stay qualified.</li>
           </ol>
         </div>
         <Show when={isDemo && (invites() ?? []).some((i) => i.used)}>
           <div class="demo-bar">
-            <h3>Demo presalers</h3>
+            <h3>Demo caballeros</h3>
             <div style={{ "margin-top": "6px" }}>
               <For each={(invites() ?? []).filter((i) => i.used)}>{(i) => <button class="chip" style={{ cursor: "pointer" }} onClick={() => setAccount(i.account)}>{i.account}</button>}</For>
             </div>

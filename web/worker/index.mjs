@@ -42,7 +42,7 @@ async function view(env, network, contract, method, args) {
   return JSON.parse(new TextDecoder().decode(new Uint8Array(res.result)));
 }
 
-// Per-isolate cache of who is public on a launch (launcher + revealed presalers), 30 s.
+// Per-isolate cache of who is public on a launch (launcher + revealed caballeros), 30 s.
 const pubCache = new Map();
 async function publicInfo(env, network, coordinator, id) {
   const k = `${network}:${coordinator}:${id}`;
@@ -190,7 +190,7 @@ async function handleRecord(env, req, network, coordinator, account) {
     const pub = await publicInfo(env, network, coordinator, id).catch(() => null);
     if (!pub) continue;
     const isPublic = viewer === account || pub.launcher === account || pub.revealed.has(account);
-    if (!isPublic) continue; // hidden presalers stay hidden until their wave
+    if (!isPublic) continue; // hidden caballeros stay hidden until their wave
     const a = activity(st, account, Date.now(), 3650);
     const missions = st.events.filter((e) => e.actor === account && e.type === "mission").length;
     out.push({ launchId: id, symbol: pub.symbol, points: a.score, wins: a.wins, missions, wave: pub.revealed.get(account) ?? null });

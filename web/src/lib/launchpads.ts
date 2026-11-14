@@ -12,7 +12,7 @@ export interface Platform {
 }
 
 export const PLATFORMS: Platform[] = [
-  { id: "kyp", label: "KYP", website: "https://kycabal.fun", color: "#4df0bb", enabled: KYP_ENABLED },
+  { id: "kyp", label: "Know Your Cabal", website: "https://kycabal.fun", color: "#4df0bb", enabled: KYP_ENABLED },
   { id: "nearly", label: "NEARly", website: "https://nearly.trade", color: "#ffd23f", enabled: NETWORK === "mainnet" },
   { id: "justhoot", label: "JustHoot", website: "https://justhoot.fun", color: "#ff6fa5", enabled: NETWORK === "mainnet" },
 ];

@@ -35,7 +35,7 @@ function Body(p: { l: LaunchView }) {
     <div class="stack">
       <div class="grid g4">
         <Stat label="Raised" value={fmtQ(l().total_raised, 0)} sub={`${usdOf(l().total_raised)} · min ${fmtQ(l().min_raise, 0)}`} />
-        <Stat label="Presalers" value={`${l().filled_open_slots}/${l().open_slots}`} sub={`${l().filled_reserved_slots}/${l().reserved_slots} reserved filled`} />
+        <Stat label="Caballeros" value={`${l().filled_open_slots}/${l().open_slots}`} sub={`${l().filled_reserved_slots}/${l().reserved_slots} reserved filled`} />
         <Show when={l().status === "Live"} fallback={<Stat label={l().status === "Open" ? "Window closes" : "Window"} value={l().status === "Open" ? dur(l().sale_end - now()) : "—"} sub={when(l().sale_end)} />}>
           <Stat label="TWAP FDV" value={tw()?.twap_fdv_quote ? usdOf(tw()!.twap_fdv_quote!) : "—"} sub={tw()?.ok ? `${tw()!.observations_in_window} obs in window` : tw()?.error ?? "no observations"} />
         </Show>
@@ -139,7 +139,7 @@ function Body(p: { l: LaunchView }) {
             </div>
           </Show>
           <Show when={l().status === "Cancelled" || (l().status === "Open" && now() >= l().sale_end)}>
-            <div class="notice">Presalers can withdraw their deposit on the <a class="link" href={`/deposit?id=${l().id}`}>deposit page</a>.</div>
+            <div class="notice">Caballeros can withdraw their deposit on the <a class="link" href={`/deposit?id=${l().id}`}>deposit page</a>.</div>
           </Show>
         </div>
       </Show>

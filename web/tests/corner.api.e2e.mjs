@@ -43,7 +43,7 @@ r = await post(W, { type: "propose", kind: "bounty", title: "E2E sticker pack", 
 const id = r.body.state.bounties[0].id;
 r = await post(G, { type: "join", skills: ["community"] });
 assert.equal(r.status, 200);
-// guest view: the wallet isn't a revealed presaler, so it must be an alias
+// guest view: the wallet isn't a revealed caballero, so it must be an alias
 assert.ok(!JSON.stringify(r.body.state).includes(w.accountId), "hidden wallet leaked to guest");
 assert.ok(r.body.state.members.some((m) => /^Caballero [0-9A-F]{4}$/.test(m.id)));
 r = await post(G, { type: "vote", id });

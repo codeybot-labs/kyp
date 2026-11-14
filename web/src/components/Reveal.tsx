@@ -18,11 +18,11 @@ function Body(p: { l: LaunchView }) {
     <div class="stack">
       <div class="card">
         <div class="card-title">
-          <h2>Presalers, revealed in waves</h2>
+          <h2>Caballeros, revealed in waves</h2>
           <span class="pill">{l().revealed_waves}/{l().reveal.waves} revealed</span>
         </div>
         <p class="muted">Sizes are public from the start. Accounts are revealed after launch, smallest positions first, one wave every {dur(l().reveal.interval_sec)}. Reserved-slot buyers are revealed with the last wave. Anyone can trigger a wave once it is due.</p>
-        <Show when={l().status === "Live"} fallback={<div class="notice" style={{ "margin-top": "12px" }}>Reveal starts after launch. {l().filled_open_slots} presalers so far, all hidden.</div>}>
+        <Show when={l().status === "Live"} fallback={<div class="notice" style={{ "margin-top": "12px" }}>Reveal starts after launch. {l().filled_open_slots} caballeros so far, all hidden.</div>}>
           <div class="row" style={{ "margin-top": "14px" }}>
             <Show when={l().next_wave_at} fallback={<span class="pill live">All waves revealed</span>}>
               {(t) => <span class="pill open">Wave {l().revealed_waves + 1} {now() >= t() ? "is due now" : `in ${dur(t() - now())}`}</span>}
@@ -52,7 +52,7 @@ function Body(p: { l: LaunchView }) {
                   <h3>Wave {w}</h3>
                   <span class={`pill ${revealed() ? "live" : ""}`}>{revealed() ? "Revealed" : waveAt(w) ? when(waveAt(w)!) : "after launch"}</span>
                 </div>
-                <div class="sub" style={{ margin: "4px 0 8px" }}>{items().length} {items().length === 1 ? "presaler" : "presalers"} · {fmtQ(items().reduce((a, x) => a + BigInt(x.quote), 0n), 0)}</div>
+                <div class="sub" style={{ margin: "4px 0 8px" }}>{items().length} {items().length === 1 ? "caballero" : "caballeros"} · {fmtQ(items().reduce((a, x) => a + BigInt(x.quote), 0n), 0)}</div>
                 <For each={items()} fallback={<span class="dim sub">—</span>}>
                   {(x) => (
                     <span class={`chip ${x.account_id ? "" : "hidden"}`}>

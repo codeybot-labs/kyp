@@ -100,7 +100,7 @@ function TermsBody(p: { l: LaunchView }) {
               <div class="card">
                 <div class="card-title"><h3>Reveal schedule</h3></div>
                 <div class="kv">
-                  <span>Waves</span><span>{l.reveal.waves}, smallest presalers first</span>
+                  <span>Waves</span><span>{l.reveal.waves}, smallest caballeros first</span>
                   <span>Cadence</span><span>every {dur(l.reveal.interval_sec)} after launch</span>
                   <span>Reserved buyers</span><span>with the final wave</span>
                   <span>Public now</span><span>Sizes, terms, slot count</span>

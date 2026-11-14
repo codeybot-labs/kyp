@@ -35,7 +35,7 @@ export const INSTANCES = BASE.alt.configured
   : [];
 export function setInstance(id: "primary" | "alt") { localStorage.setItem(INSTANCE_KEY, id); location.reload(); }
 export function setNetwork(n: "testnet" | "mainnet") { try { localStorage.setItem(NETWORK_KEY, n); } catch {} location.reload(); }
-/** KYP's own presale is only available when contracts are configured for this network. */
+/** Know Your Cabal's own presale is only available when contracts are configured for this network. */
 export const KYP_ENABLED = Boolean(CONFIG.coordinator);
 /** In-browser faucet test wallets: testnet builds only (never on mainnet). */
 export const TEST_WALLETS = Boolean(BASE.testWallets) && NETWORK === "testnet";

@@ -295,7 +295,7 @@ try {
     await page.click('[data-testid="wallet-account"]').catch(() => {});
   });
 
-  await step("test wallets: batch of 3 with per-wallet progress + a 503 retried, 429 falls back to funding from a test wallet, 10-wallet cap blocks generate/import, presalers 1-9", async () => {
+  await step("test wallets: batch of 3 with per-wallet progress + a 503 retried, 429 falls back to funding from a test wallet, 10-wallet cap blocks generate/import, caballeros 1-9", async () => {
     await page.goto(`${base}/test-wallets`, { waitUntil: "networkidle" });
     const before = (await page.$$('[data-testid="tw-row"]')).length;
     const opts = await page.$$eval('[data-testid="tw-gen-count"] option', (o) => o.map((x) => x.value));

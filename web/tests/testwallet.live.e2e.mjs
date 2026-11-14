@@ -80,7 +80,7 @@ try {
   console.log(`OK: ${links.length} tx links, launch #${id} Live on ${base}`);
   for (const l of links) console.log("  tx", l);
   if (process.env.REVEAL) {
-    // reveal every wave (interval 60 s), then check presalers / lock / chart from the chain
+    // reveal every wave (interval 60 s), then check caballeros / lock / chart from the chain
     const rpc = "https://rpc.testnet.fastnear.com";
     const view = async (c, m, a) => { const r = await fetch(rpc, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "query", params: { request_type: "call_function", finality: "optimistic", account_id: c, method_name: m, args_base64: Buffer.from(JSON.stringify(a)).toString("base64") } }) }); const j = await r.json(); if (j.error || j.result?.error) throw new Error(JSON.stringify(j.error ?? j.result.error).slice(0, 200)); return JSON.parse(Buffer.from(j.result.result).toString()); };
     const coord = process.env.KYP_COORD || "kyp-sushmit-dcl.testnet", lock = process.env.KYP_LOCK || "kyp-sushmit-dcl-lock.testnet";
@@ -95,11 +95,11 @@ try {
       const href = await page.$$eval('[data-testid="tw-txlink"]', (a) => a.at(-1)?.href);
       console.log(`reveal wave ${w}: ${redact(last)} ${/failed/.test(last) ? "" : href}`);
       const pres = await view(coord, "get_presalers", { launch_id: Number(id) });
-      console.log(`  presalers ${pres.length}, waves [${pres.map((p) => p.wave).join(",")}], revealed ${pres.filter((p) => p.account_id).length}`);
+      console.log(`  caballeros ${pres.length}, waves [${pres.map((p) => p.wave).join(",")}], revealed ${pres.filter((p) => p.account_id).length}`);
     }
     const pres = await view(coord, "get_presalers", { launch_id: Number(id) });
     const prices = pres.map((p) => Number(BigInt(p.tokens) * 10n ** 6n / BigInt(p.quote)));
-    console.log("tokens per wNEAR (x1e-6 raw) per presaler:", prices.join(", "), new Set(prices).size === 1 ? "→ one price" : "→ DIFFERENT PRICES");
+    console.log("tokens per wNEAR (x1e-6 raw) per caballero:", prices.join(", "), new Set(prices).size === 1 ? "→ one price" : "→ DIFFERENT PRICES");
     const lk = await view(lock, "get_lock", { launch_id: Number(id) });
     const sum = pres.reduce((a, p) => a + BigInt(p.tokens), 0n);
     console.log(`lock: total_locked ${lk.total_locked}, positions ${lk.positions_count}, presale tokens ${sum}, observations ${lk.observations_count}`);

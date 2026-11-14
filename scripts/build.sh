@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build all KYP contracts to wasm with cargo-near (handles nearcore wasm feature lowering).
+# Build all Know Your Cabal contracts to wasm with cargo-near (handles nearcore wasm feature lowering).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 mkdir -p res

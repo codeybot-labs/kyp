@@ -34,7 +34,7 @@ function Card(p: { l: LaunchView; simulated: boolean }) {
       </div>
       <div class="row between" style={{ margin: "8px 0" }}>
         <span class="sub">{fmtQ(l.total_raised, 0)} of {fmtQ(l.open_cap_quote, 0)}</span>
-        <span class="sub">{l.filled_open_slots}/{l.open_slots} presalers</span>
+        <span class="sub">{l.filled_open_slots}/{l.open_slots} caballeros</span>
       </div>
       <div class="bar"><i style={{ width: `${raisedPct()}%` }} /></div>
       <div class="row between" style={{ margin: "12px 0" }}>
@@ -56,7 +56,7 @@ export default function LaunchList() {
     <Show when={launches()} fallback={<div class="grid g2"><div class="card"><div class="skeleton" /></div><div class="card"><div class="skeleton" /></div></div>}>
       <Show when={simulated}>
         <div class="notice warn" style={{ "margin-bottom": "14px" }}>
-          <b>Simulated preview{NETWORK_NAME === "Mainnet" ? " · Mainnet coming soon" : ""}.</b> KYP contracts are live on NEAR testnet only. The launches below are simulated in your browser, not on chain.
+          <b>Simulated preview{NETWORK_NAME === "Mainnet" ? " · Mainnet coming soon" : ""}.</b> Know Your Cabal contracts are live on NEAR testnet only. The launches below are simulated in your browser, not on chain.
         </div>
       </Show>
       <Show when={shown().length} fallback={<div class="card"><h3>No launches yet</h3><p class="muted" style={{ "margin-top": "6px" }}>Be the first: <a class="link" href="/create">create a launch</a>.</p></div>}>

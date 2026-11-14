@@ -1,18 +1,18 @@
 ---
 import Base from "../layouts/Base.astro";
 const steps = [
-  ["Launcher sets terms", "Picks presalers (hashed invites), presale cap (≤ 50%), per-wallet limits, a window of up to 7 days, unlock milestones, TWAP rules, reveal waves and the fee split. The coordinator deploys the token with the full supply minted to itself."],
-  ["Presalers deposit wNEAR", "Each invited wallet deposits with its private invite code. Limits and the cap are enforced on-chain; any excess is refunded in the same transaction."],
+  ["Launcher sets terms", "Picks caballeros (hashed invites), presale cap (≤ 50%), per-wallet limits, a window of up to 7 days, unlock milestones, TWAP rules, reveal waves and the fee split. The coordinator deploys the token with the full supply minted to itself."],
+  ["Caballeros deposit wNEAR", "Each invited wallet deposits with its private invite code. Limits and the cap are enforced on-chain; any excess is refunded in the same transaction."],
   ["One launch transaction", "The launcher calls launch. In one promise chain the coordinator prices every fill at the same opening price, sends all presale tokens into the lock, creates the RHEA DCL pool at that price, and seeds it with the remaining supply and all presale proceeds."],
-  ["Market-cap milestones", "Anyone can poke the lock to record the pool price and token supply. A tranche qualifies only when the time-weighted FDV over the public window stays above its target, with enough observations and liquidity. Then, after a short delay, every presaler can claim that tranche."],
-  ["Reveal waves", "After launch, presaler accounts are revealed on a fixed schedule, smallest first. Reserved slots for bigger names can be bought after launch at the same price and lock on the same terms."],
+  ["Market-cap milestones", "Anyone can poke the lock to record the pool price and token supply. A tranche qualifies only when the time-weighted FDV over the public window stays above its target, with enough observations and liquidity. Then, after a short delay, every caballero can claim that tranche."],
+  ["Reveal waves", "After launch, caballero accounts are revealed on a fixed schedule, smallest first. Reserved slots for bigger names can be bought after launch at the same price and lock on the same terms."],
   ["Fees flow back", "LP positions are owned by the coordinator and can't be removed. Fees that are sent in, and reserved-slot proceeds, are split on-chain between holders, liquidity and competitions/bounties. Claiming RHEA DCL trading fees automatically, and putting those shares to work as a flywheel, is planned."],
 ];
 ---
 <Base title="How it works" active="/how-it-works">
   <section class="hero full-bleed" style="padding-bottom: 20px">
     <div class="wrap">
-      <h1>How KYP works</h1>
+      <h1>How Know Your Cabal works</h1>
       <p class="lead">An antidote to the race-to-dump meta: early supply goes to capable, committed hands, enforced by contracts rather than promises.</p>
     </div>
   </section>
@@ -30,18 +30,18 @@ const steps = [
   <section class="grid g2" style="padding: 8px 0 32px">
     <div class="card reveal" style="grid-column: 1 / -1">
       <h3>The flywheel</h3>
-      <p class="muted" style="margin-top: 8px">Every trade earns fees, and KYP puts those fees back to work for the project. The three-way on-chain split is live on testnet; operations, NEAR AI credits, creator bounties on NEARN, lock buybacks and the rest are the planned design. <a class="link" href="/flywheel">How fees flow →</a></p>
+      <p class="muted" style="margin-top: 8px">Every trade earns fees, and Know Your Cabal puts those fees back to work for the project. The three-way on-chain split is live on testnet; operations, NEAR AI credits, creator bounties on NEARN, lock buybacks and the rest are the planned design. <a class="link" href="/flywheel">How fees flow →</a></p>
     </div>
   </section>
 
   <section class="grid g2" style="padding: 0 0 96px">
     <div class="card reveal">
       <h3>Why TWAP, not spot</h3>
-      <p class="muted" style="margin-top: 8px">A thin meme pool can be pushed to any price for one block. KYP's lock averages the pool's price over a public window (e.g. 60 minutes, at least 6 observations spaced 5 minutes apart, with minimum liquidity), and qualified milestones only become claimable after a delay. A one-block spike barely moves the average.</p>
+      <p class="muted" style="margin-top: 8px">A thin meme pool can be pushed to any price for one block. Know Your Cabal's lock averages the pool's price over a public window (e.g. 60 minutes, at least 6 observations spaced 5 minutes apart, with minimum liquidity), and qualified milestones only become claimable after a delay. A one-block spike barely moves the average.</p>
     </div>
     <div class="card reveal">
       <h3>What is public, and when</h3>
-      <p class="muted" style="margin-top: 8px">Terms, sizes, slot counts and milestones: from day one. Who was invited: only salted hashes until reveal. Note that deposits are ordinary NEAR transactions, so a determined observer can see depositing accounts on-chain; the reveal waves are what KYP publishes and indexes, not cryptographic privacy.</p>
+      <p class="muted" style="margin-top: 8px">Terms, sizes, slot counts and milestones: from day one. Who was invited: only salted hashes until reveal. Note that deposits are ordinary NEAR transactions, so a determined observer can see depositing accounts on-chain; the reveal waves are what Know Your Cabal publishes and indexes, not cryptographic privacy.</p>
     </div>
     <div class="card reveal" style="grid-column: 1 / -1">
       <h3>MVP scope</h3>

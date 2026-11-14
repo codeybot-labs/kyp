@@ -45,7 +45,7 @@ export const MISSIONS = {
   ],
   creator: [
     "Post one {sym} meme that explains the locked presale",
-    "Draft a 3-post thread: why {sym} presalers can't dump",
+    "Draft a 3-post thread: why {sym} caballeros can't dump",
     "Clip a 15-second explainer of the milestone unlocks",
     "Reply to 5 NEAR posts with something useful (no shilling)",
   ],

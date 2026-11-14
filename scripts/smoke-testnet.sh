@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # End-to-end smoke test against the deployed TESTNET contracts (mock pool). Never mainnet.
-# Creates faucet-funded test wallets (launcher + 2 presalers), wraps a little testnet NEAR,
+# Creates faucet-funded test wallets (launcher + 2 caballeros), wraps a little testnet NEAR,
 # creates a launch, deposits, launches in one tx, then moves the mock price, pokes `record`,
 # qualifies a milestone and claims. Keys stay in ~/.near-credentials; nothing is printed.
 #

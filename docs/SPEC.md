@@ -1,6 +1,6 @@
-# KYP — Know Your Presale
+# Know Your Cabal
 
-Optional, invite-only presale for NEAR meme launches. Hand-picked wallets buy a public slice of supply up to 7 days before launch. All presale fills settle together, at the same price, in the same transaction that creates the trading pool. Those tokens go straight into a lock. Unlock is by public, ambitious market-cap milestones (e.g. $10m). Presalers are named in waves after launch (smallest first) and sit in a private advisor group. The launcher can go live as soon as the committed slots are filled, and may keep reserved slots for later names.
+Optional, invite-only presale for NEAR meme launches. Hand-picked wallets buy a public slice of supply up to 7 days before launch. All presale fills settle together, at the same price, in the same transaction that creates the trading pool. Those tokens go straight into a lock. Unlock is by public, ambitious market-cap milestones (e.g. $10m). Caballeros are named in waves after launch (smallest first) and sit in a private advisor group. The launcher can go live as soon as the committed slots are filled, and may keep reserved slots for later names.
 
 This spec is research + product shape only. No MVP is built from it until the plan below is agreed.
 
@@ -47,20 +47,20 @@ JustHoot is a live NEAR meme launchpad ([justhoot.fun](https://justhoot.fun/docs
 
 - A NEAR transaction has one receiver. `launch_meme` already is that receiver, so the launcher cannot also call a lock contract in the same tx.
 - First-buy tokens are minted to the creator, unlocked.
-- Platform fee routing is fixed; KYP cannot send the 0.8% to competitions or bounties.
+- Platform fee routing is fixed; Know Your Cabal cannot send the 0.8% to competitions or bounties.
 - Same-price multi-wallet settlement, reserved slots, and MC unlocks are not in the ABI.
 
-A later JustHoot partnership (e.g. a `lock_receiver` / presale list on `launch_meme`) would still be valuable for distribution. It is not required to ship KYP.
+A later JustHoot partnership (e.g. a `lock_receiver` / presale list on `launch_meme`) would still be valuable for distribution. It is not required to ship Know Your Cabal.
 
 ---
 
-## 2. NEAR mechanics for KYP
+## 2. NEAR mechanics for Know Your Cabal
 
 **Coordinator contract (required).** One account is the user's launch-tx receiver, the same pattern JustHoot already uses. In that promise chain it must: settle the presale, mint/transfer the presale slice into the lock, create the RHEA pool, and seed LP. Promises are async; later receipts must fail closed and roll back in callbacks. Do not try to batch `create_pool` and `lock` as two actions on different receivers — NEAR will not allow it.
 
-**Presale settlement (same price).** Do not fill presalers through the AMM (price would walk). Escrow quote from allowlisted wallets for up to 7 days. At launch, mint a fixed token amount per committed quote at one implied price, send those tokens to the lock, and use presale proceeds (plus any leftover unsold reserved amount, per policy) as quote-side liquidity. This matches JustHoot's first-buy mint, but for many wallets, and the tokens never sit in the launcher's wallet.
+**Presale settlement (same price).** Do not fill caballeros through the AMM (price would walk). Escrow quote from allowlisted wallets for up to 7 days. At launch, mint a fixed token amount per committed quote at one implied price, send those tokens to the lock, and use presale proceeds (plus any leftover unsold reserved amount, per policy) as quote-side liquidity. This matches JustHoot's first-buy mint, but for many wallets, and the tokens never sit in the launcher's wallet.
 
-**Lock contract.** Official NEAR lockup, NearDeFi `ft-lockup-contract`, Octopus `nep141-token-vesting`, and NearLock are **time-based**. None do market-cap unlocks. KYP needs a custom NEP-141 lock: public terms, per-wallet balances, milestone schedule, permissionless `claim` once a milestone is qualified, no admin rescue of locked tokens.
+**Lock contract.** Official NEAR lockup, NearDeFi `ft-lockup-contract`, Octopus `nep141-token-vesting`, and NearLock are **time-based**. None do market-cap unlocks. Know Your Cabal needs a custom NEP-141 lock: public terms, per-wallet balances, milestone schedule, permissionless `claim` once a milestone is qualified, no admin rescue of locked tokens.
 
 **On-chain market cap — and why spot is not enough**
 
@@ -81,7 +81,7 @@ Testnet only until explicitly approved: coordinator, lock, token factory against
 
 ## 3. Recommendation: standalone first
 
-**Ship KYP as its own launch coordinator + lock + UI, and list the token on RHEA DCL** (same venue JustHoot uses, so DexScreener / existing NEAR wallets still work). Treat a JustHoot add-on as an optional later partnership, not the MVP path.
+**Ship Know Your Cabal as its own launch coordinator + lock + UI, and list the token on RHEA DCL** (same venue JustHoot uses, so DexScreener / existing NEAR wallets still work). Treat a JustHoot add-on as an optional later partnership, not the MVP path.
 
 Reasons, in line with the note that standalone may be easier:
 

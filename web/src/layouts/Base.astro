@@ -10,7 +10,7 @@ import NetworkSwitch from "../components/NetworkSwitch.tsx";
 import ToastHost from "../components/ToastHost.tsx";
 import WalletButton from "../components/WalletButton.tsx";
 interface Props { title: string; active?: string; description?: string }
-const { title, active = "", description = "KYP — Know Your Presalers. Locked, public, milestone-unlocked presales for NEAR meme launches." } = Astro.props;
+const { title, active = "", description = "Know Your Cabal. Locked, public, milestone-unlocked presales for NEAR meme launches." } = Astro.props;
 const nav = [
   ["/", "Launches"],
   ["/corner", "Cabal Corner"],
@@ -25,7 +25,7 @@ const nav = [
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="description" content={description} />
-    <title>{title} · KYP</title>
+    <title>{title} · Know Your Cabal</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@600;800&family=Figtree:wght@400;600&display=swap" rel="stylesheet" />
@@ -33,14 +33,14 @@ const nav = [
   <body>
     <nav>
       <div class="wrap">
-        <a class="logo" href="/" aria-label="KYP home">
+        <a class="logo" href="/" aria-label="Know Your Cabal home">
           <svg width="36" height="36" viewBox="20 0 180 240" aria-hidden="true" fill="none">
             <path d="M72 84V58a38 38 0 0 1 76 0v26" stroke="#ece9ff" stroke-width="22" stroke-linecap="round"/>
             <rect x="26" y="80" width="168" height="150" rx="48" fill="#ffd23f"/>
             <circle cx="80" cy="150" r="16" fill="#1d1250"/>
             <circle cx="140" cy="150" r="16" fill="#1d1250"/>
           </svg>
-          <span>KYP<small>Know Your Presalers</small></span>
+          <span>Cabal<small>Know Your Cabal</small></span>
         </a>
         <div class="links" id="links">
           {nav.map(([href, label]) => <a href={href} class={active === href ? "on" : ""}>{label}</a>)}
@@ -58,7 +58,7 @@ const nav = [
 
     <main class="wrap">
       <div id="mainnet-preview" class="notice warn" style="display:none;margin-top:12px">
-        <b>Mainnet preview.</b> KYP's contracts are on NEAR testnet only; on Mainnet, launch data is simulated in your browser. <a class="link" href="#" id="mainnet-preview-back">Switch back to Testnet</a>
+        <b>Mainnet preview.</b> Know Your Cabal's contracts are on NEAR testnet only; on Mainnet, launch data is simulated in your browser. <a class="link" href="#" id="mainnet-preview-back">Switch back to Testnet</a>
       </div>
       <script is:inline>
         (function () {
@@ -75,8 +75,8 @@ const nav = [
     <footer>
       <div class="wrap">
         <div class="foot-col">
-          <b>KYP · Know Your Presalers</b>
-          <span><span class="pill violet foot-net">{NET_NAME}</span> KYP contracts run on NEAR testnet. Mainnet: coming soon (the Mainnet switch shows a simulated preview). Testnet tokens have no value.</span>
+          <b>Know Your Cabal</b>
+          <span><span class="pill violet foot-net">{NET_NAME}</span> Know Your Cabal contracts run on NEAR testnet. Mainnet: coming soon (the Mainnet switch shows a simulated preview). Testnet tokens have no value.</span>
           <span>Built for the NEAR Hackathon · <a class="link" href="https://github.com/codeybot-labs/kyp" target="_blank" rel="noopener">GitHub</a> · MIT license</span>
         </div>
         {FOOT.coordinator && (

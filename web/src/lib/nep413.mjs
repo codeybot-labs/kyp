@@ -53,7 +53,7 @@ export async function verifySignature({ publicKey, signature, message, nonce, re
 
 /** The sign-in message Cabal Corner asks a wallet to sign. */
 export function signInMessage(accountId, issuedAtMs) {
-  return `Sign in to KYP Cabal Corner\nAccount: ${accountId}\nIssued: ${new Date(issuedAtMs).toISOString()}\nThis signature only proves you own this account. It cannot move funds.`;
+  return `Sign in to Cabal Corner\nAccount: ${accountId}\nIssued: ${new Date(issuedAtMs).toISOString()}\nThis signature only proves you own this account. It cannot move funds.`;
 }
 export function issuedAtOf(message) {
   const m = /Issued: (\S+)/.exec(message);

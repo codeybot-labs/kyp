@@ -1,4 +1,4 @@
-// DEMO MODE: a small in-browser simulation of the KYP contracts (state in localStorage).
+// DEMO MODE: a small in-browser simulation of the Know Your Cabal contracts (state in localStorage).
 // It mirrors the contract rules closely enough to walk through the full flow without a
 // wallet. Nothing here touches a chain.
 
@@ -157,7 +157,7 @@ async function seed(s: DemoState) {
   const whale = { account: "bigname.testnet", salt: "demo-whale" , hash: await slotHash("bigname.testnet", "demo-whale") };
   const owlP: LaunchParams = {
     name: "Night Owl", symbol: "OWL", icon: null,
-    description: "Owls that stay up for the long game. Presalers are artists, devs and two podcast hosts.",
+    description: "Owls that stay up for the long game. Caballeros are artists, devs and two podcast hosts.",
     terms_uri: null, quote_token_id: CONFIG.quote, total_supply: null, decimals: null,
     opening_fdv_quote: usdToQuote(5000), presale_cap_bps: 2000, min_raise: q(50), wallet_min: q(2), wallet_max: q(80),
     allowlist: owlInv.map((i) => i.hash), reserved: [{ hash: whale.hash, quote_amount: q(50) }],
@@ -193,7 +193,7 @@ async function seed(s: DemoState) {
   const frogRes = await invites(["influencer.testnet", "marketmaker.testnet"]);
   const frogP: LaunchParams = {
     name: "Pond Frog", symbol: "FROG", icon: null,
-    description: "A frog with a plan. 12 hand-picked presalers, 2 reserved slots for bigger names after launch.",
+    description: "A frog with a plan. 12 hand-picked caballeros, 2 reserved slots for bigger names after launch.",
     terms_uri: null, quote_token_id: CONFIG.quote, total_supply: null, decimals: null,
     opening_fdv_quote: usdToQuote(5000), presale_cap_bps: 3000, min_raise: q(100), wallet_min: q(5), wallet_max: q(60),
     allowlist: frogInv.map((i) => i.hash), reserved: frogRes.map((r) => ({ hash: r.hash, quote_amount: q(75) })),
@@ -372,7 +372,7 @@ export const demo = {
     const v = l.view;
     if (caller !== v.launcher) err("launcher only");
     if (v.status !== "Open") err("launch not open");
-    if (demoNow() >= v.sale_end) err("sale window over; presalers can withdraw");
+    if (demoNow() >= v.sale_end) err("sale window over; caballeros can withdraw");
     if (BigInt(v.total_raised) === 0n || BigInt(v.total_raised) < BigInt(v.min_raise)) err("min raise not reached");
     settle(l, demoNow());
     refresh(l);

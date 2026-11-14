@@ -1,6 +1,6 @@
 export default function KipSolid(p: { class?: string; alt?: string; onClick?: () => void }) {
   return (
-    <svg class={`kip ${p.class ?? ""}`} viewBox="0 0 220 250" role="img" aria-label={p.alt ?? "Kip, the KYP padlock mascot"} onClick={p.onClick}>
+    <svg class={`kip ${p.class ?? ""}`} viewBox="0 0 220 250" role="img" aria-label={p.alt ?? "Kip, the Know Your Cabal padlock mascot"} onClick={p.onClick}>
       <ellipse class="shadow" cx="110" cy="238" rx="70" ry="9" fill="#000" opacity="0.28" />
       <g class="kipwrap">
         <g class="shackle"><path d="M72 84V58a38 38 0 0 1 76 0v26" fill="none" stroke="#ece9ff" stroke-width="18" stroke-linecap="round" /></g>

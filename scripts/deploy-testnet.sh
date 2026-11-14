@@ -1,11 +1,11 @@
 #!/usr/bin/env bash
-# Deploy KYP to NEAR TESTNET. Never run against mainnet.
+# Deploy Know Your Cabal to NEAR TESTNET. Never run against mainnet.
 #
 # Requires near-cli-rs (`near`). Accounts are created with the free testnet faucet and
 # their keys are saved to your OS keychain by near-cli-rs. This script never prints keys.
 #
 # Usage: PREFIX=kyp-yourname POOL=mock ./scripts/deploy-testnet.sh
-#   POOL=mock (default) deploys the KYP mock pool; POOL=dcl uses dclv2.ref-dev.testnet (unverified).
+#   POOL=mock (default) deploys the Know Your Cabal mock pool; POOL=dcl uses dclv2.ref-dev.testnet (unverified).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 

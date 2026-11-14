@@ -90,27 +90,27 @@ export default function TestWallets() {
 
       <section class="card stack">
         <div class="card-title"><h2>Test mode quick start</h2><span class="pill">{INSTANCES.length ? INSTANCES.find((i) => i.id === INSTANCE)?.label : ""} · {CONFIG.coordinator}</span></div>
-        <p class="sub">One click: generate a launcher and {nPs()} presaler wallet{nPs() > 1 ? "s" : ""} (10 testnet NEAR each from the faucet), wrap wNEAR, create a sample launch with every presaler allowlisted ({Math.min(3, nPs())} reveal wave{nPs() > 1 ? "s" : ""}), deposit sample amounts ({Array.from({ length: nPs() }, (_, i) => sampleAmount(i)).join(", ")} wNEAR), launch{CONFIG.pool.startsWith("dclv2") ? " (plus resume_launch steps for the RHEA DCL pool, 1000 Tgas each)" : ""}, and record 3 TWAP observations. Every step is signed in this browser and linked on nearblocks. Takes about a minute.</p>
+        <p class="sub">One click: generate a launcher and {nPs()} caballero wallet{nPs() > 1 ? "s" : ""} (10 testnet NEAR each from the faucet), wrap wNEAR, create a sample launch with every caballero allowlisted ({Math.min(3, nPs())} reveal wave{nPs() > 1 ? "s" : ""}), deposit sample amounts ({Array.from({ length: nPs() }, (_, i) => sampleAmount(i)).join(", ")} wNEAR), launch{CONFIG.pool.startsWith("dclv2") ? " (plus resume_launch steps for the RHEA DCL pool, 1000 Tgas each)" : ""}, and record 3 TWAP observations. Every step is signed in this browser and linked on nearblocks. Takes about a minute.</p>
         <div class="row" style={{ gap: "8px", "flex-wrap": "wrap" }}>
-          <label class="sub inline-field">Presalers <select data-testid="tw-presalers" value={nPs()} disabled={!!busy() || !!qs().launchId} onChange={(e) => setNPs(Number(e.currentTarget.value))}>
+          <label class="sub inline-field">Caballeros <select data-testid="tw-presalers" value={nPs()} disabled={!!busy() || !!qs().launchId} onChange={(e) => setNPs(Number(e.currentTarget.value))}>
             {Array.from({ length: MAX_PRESALERS }, (_, i) => <option value={i + 1}>{i + 1}</option>)}
           </select> + launcher = {nPs() + 1} wallets</label>
           <label class="sub inline-field"><input type="checkbox" data-testid="tw-reuse" checked={reuse()} disabled={!!busy()} onChange={(e) => setReuse(e.currentTarget.checked)} /> reuse funded wallets I already have</label>
           <button class="btn primary" data-testid="tw-quickstart" disabled={!!busy()} onClick={runAll}>{busy() === "quick start" ? "Running…" : "Run quick start"}</button>
-          <button class="btn sm" data-testid="tw-qs-wallets" disabled={!!busy()} onClick={() => step("generate test-mode wallets", "wallets")}>1 · Generate launcher + {nPs()} presaler{nPs() > 1 ? "s" : ""}</button>
+          <button class="btn sm" data-testid="tw-qs-wallets" disabled={!!busy()} onClick={() => step("generate test-mode wallets", "wallets")}>1 · Generate launcher + {nPs()} caballero{nPs() > 1 ? "s" : ""}</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("wrap", "fund")}>2 · Wrap wNEAR</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("create", "create")}>3 · Create sample launch</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("deposit", "deposit")}>4 · Deposit</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("launch", "launch")}>5 · Launch / resume</button>
           <button class="btn sm" disabled={!!busy()} onClick={() => step("record", "record")}>6 · Record TWAP</button>
           <button class="btn sm" disabled={!!busy() || !qs().launchId} onClick={() => step("reveal", "reveal")}>Reveal next wave</button>
-          <button class="btn sm" disabled={!!busy() || !qs().launchId} onClick={() => step("claim", "claim")}>Claim (presaler 1)</button>
+          <button class="btn sm" disabled={!!busy() || !qs().launchId} onClick={() => step("claim", "claim")}>Claim (caballero 1)</button>
           <button class="btn sm ghost" disabled={!!busy()} onClick={() => { localStorage.removeItem(QS_KEY); setQs({}); setLog([]); }}>Start over</button>
         </div>
         <Show when={qs().launcher}>
           <div class="kv sub" data-testid="tw-qs-state">
             <span>Launcher</span><span class="mono">{qs().launcher}</span>
-            <For each={qs().ps ?? []}>{(id, i) => <><span>Presaler {i() + 1}</span><span class="mono">{id}{qs().salts?.[i()] ? ` · invite code ${qs().salts![i()]}` : ""}</span></>}</For>
+            <For each={qs().ps ?? []}>{(id, i) => <><span>Caballero {i() + 1}</span><span class="mono">{id}{qs().salts?.[i()] ? ` · invite code ${qs().salts![i()]}` : ""}</span></>}</For>
             <Show when={qs().launchId}><span>Sample launch</span><span><a href={`/launch?id=${qs().launchId}`}>#{qs().launchId} status & chart</a> · <a href={`/deposit?id=${qs().launchId}`}>deposit</a> · <a href={`/claim?id=${qs().launchId}`}>claim</a> · <a href={`/reveal?id=${qs().launchId}`}>reveal</a></span></Show>
           </div>
         </Show>

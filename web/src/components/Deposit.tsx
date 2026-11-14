@@ -117,7 +117,7 @@ function Body(p: { l: LaunchView }) {
           </label>
           <div class="kv">
             <span>You get (locked)</span><span>{fmtT(tokens())} ${l().symbol}</span>
-            <span>Price</span><span>same as every presaler and the pool open</span>
+            <span>Price</span><span>same as every caballero and the pool open</span>
             <span>Value at opening FDV</span><span>{usdOf(amountRaw())}</span>
             <span>Value at first milestone</span><span>{l().milestones[0] ? usdOf((amountRaw() * BigInt(l().milestones[0].target_fdv_quote)) / BigInt(l().opening_fdv_quote)) : "—"}</span>
           </div>
@@ -145,7 +145,7 @@ function Body(p: { l: LaunchView }) {
           <div class="card-title"><h3>What you're agreeing to</h3></div>
           <ul class="muted" style={{ margin: 0, "padding-left": "18px", display: "grid", gap: "8px" }}>
             <li>Your deposit is escrowed until launch. It is refundable only if the launch is cancelled or misses the window ({dur(Math.max(0, l().sale_end - now()))} left).</li>
-            <li>At launch, every presaler gets tokens at the same price, straight into the lock. They never sit in your wallet or the launcher's.</li>
+            <li>At launch, every caballero gets tokens at the same price, straight into the lock. They never sit in your wallet or the launcher's.</li>
             <li>Tokens unlock only at the public FDV milestones (first: {l().milestones[0] ? usdOf(l().milestones[0].target_fdv_quote) : "—"}), measured as a TWAP, not spot.</li>
             <li>Your deposit size is public now. Your account is revealed after launch in wave order, smallest first.</li>
           </ul>
