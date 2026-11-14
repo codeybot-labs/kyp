@@ -53,7 +53,7 @@ export default function CreateLaunch() {
   const [delayMin, setDelayMin] = createSignal(60);
   const [waves, setWaves] = createSignal(3);
   const [waveH, setWaveH] = createSignal(24);
-  const [fees, setFees] = createSignal({ h: 50, l: 30, c: 20, o: 0, a: 0 });
+  const [fees, setFees] = createSignal({ h: 50, l: 30, c: 20, o: 0, a: 0, b: 0 });
   const [feeAcc, setFeeAcc] = createSignal({ h: "holders.moth.testnet", l: "lp.moth.testnet", c: "bounties.moth.testnet", o: "ops.moth.testnet", a: "ai.moth.testnet" });
   const [invites, setInvites] = createSignal<Invite[]>([]);
   const salts = new Map<string, string>();
@@ -88,6 +88,7 @@ export default function CreateLaunch() {
       reveal: { waves: waves(), interval_sec: Math.round(waveH() * 3600) },
       fee_split: { holders_bps: fees().h * 100, liquidity_bps: fees().l * 100, community_bps: fees().c * 100, holders_account: feeAcc().h, liquidity_account: feeAcc().l, community_account: feeAcc().c },
       fee_extra: (fees().o > 0 || fees().a > 0) ? { operations_bps: fees().o * 100, near_ai_bps: fees().a * 100, operations_account: feeAcc().o, near_ai_account: feeAcc().a } : null,
+      buyback_bps: fees().b > 0 ? fees().b * 100 : null,
     };
   });
   const errors = createMemo(() => validateParams(params(), nowSec()));
@@ -230,7 +231,8 @@ export default function CreateLaunch() {
               <label class="field"><span>Competitions & bounties <b>{fees().c}</b>%</span><input type="number" value={fees().c} onInput={(e) => setFees({ ...fees(), c: Number(e.currentTarget.value) })} /><input value={feeAcc().c} onInput={(e) => setFeeAcc({ ...feeAcc(), c: e.currentTarget.value })} spellcheck={false} autocapitalize="none" /></label>
               <label class="field"><span>Operations (capped 30%) <b>{fees().o}</b>%</span><input type="number" min="0" max="30" value={fees().o} onInput={(e) => setFees({ ...fees(), o: Number(e.currentTarget.value) })} /><input value={feeAcc().o} onInput={(e) => setFeeAcc({ ...feeAcc(), o: e.currentTarget.value })} spellcheck={false} autocapitalize="none" /></label>
               <label class="field"><span>NEAR AI credits (capped 20%) <b>{fees().a}</b>%</span><input type="number" min="0" max="20" value={fees().a} onInput={(e) => setFees({ ...fees(), a: Number(e.currentTarget.value) })} /><input value={feeAcc().a} onInput={(e) => setFeeAcc({ ...feeAcc(), a: e.currentTarget.value })} spellcheck={false} autocapitalize="none" /></label>
-              <p class="muted" style="grid-column:1/-1;margin:0">Must add up to 100%. Operations and NEAR AI credits default to 0; an example is 20% operations and 10% NEAR AI credits, taken from the other slices. Paid to the accounts you name.</p>
+              <label class="field"><span>Lock buyback (from liquidity, capped 20%) <b>{fees().b}</b>%</span><input type="number" min="0" max="20" value={fees().b} onInput={(e) => setFees({ ...fees(), b: Number(e.currentTarget.value) })} /></label>
+              <p class="muted" style="grid-column:1/-1;margin:0">The first five must add up to 100%. Operations and NEAR AI credits default to 0; an example is 20% operations and 10% NEAR AI credits, taken from the other slices, paid to the accounts you name. Lock buyback is taken from the liquidity share (default 0%; an example is 10%) and is not added on top of 100%.</p>
             </div>
           </section>
 

@@ -52,6 +52,10 @@ const GAS_DCL_VIEW: Gas = Gas::from_tgas(10);
 const GAS_DCL_CLAIM: Gas = Gas::from_tgas(20);
 const GAS_DCL_WITHDRAW: Gas = Gas::from_tgas(40);
 const GAS_CB_COLLECT: Gas = Gas::from_tgas(30);
+const GAS_DCL_SWAP: Gas = Gas::from_tgas(250);
+const GAS_CB_BUYBACK: Gas = Gas::from_tgas(40);
+const GAS_FT_BALANCE: Gas = Gas::from_tgas(10);
+const MAX_BUYBACK_BPS: u16 = 2_000;
 /// Kept free when checking whether a split step fits in the remaining gas.
 const GAS_STEP_RESERVE: Gas = Gas::from_tgas(5);
 const STEP_GAS_KEY: &[u8] = b"step_gas";
@@ -84,6 +88,61 @@ fn write_community_paid(launch_id: u64, token_id: &AccountId, amount: u128) {
         env::storage_remove(&key);
     } else {
         env::storage_write(&key, &near_sdk::borsh::to_vec(&amount).unwrap());
+    }
+}
+
+fn buyback_bps_key(launch_id: u64) -> Vec<u8> {
+    format!("fee_bb:{launch_id}").into_bytes()
+}
+fn read_buyback_bps(launch_id: u64) -> u16 {
+    env::storage_read(&buyback_bps_key(launch_id))
+        .and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+        .unwrap_or(0)
+}
+fn write_buyback_bps(launch_id: u64, bps: u16) {
+    let key = buyback_bps_key(launch_id);
+    if bps == 0 {
+        env::storage_remove(&key);
+    } else {
+        env::storage_write(&key, &near_sdk::borsh::to_vec(&bps).unwrap());
+    }
+}
+fn buyback_paid_key(launch_id: u64, token_id: &AccountId) -> Vec<u8> {
+    format!("fee_bp:{launch_id}:{token_id}").into_bytes()
+}
+fn read_buyback_paid(launch_id: u64, token_id: &AccountId) -> u128 {
+    env::storage_read(&buyback_paid_key(launch_id, token_id))
+        .and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+        .unwrap_or(0)
+}
+fn write_buyback_paid(launch_id: u64, token_id: &AccountId, amount: u128) {
+    let key = buyback_paid_key(launch_id, token_id);
+    if amount == 0 {
+        env::storage_remove(&key);
+    } else {
+        env::storage_write(&key, &near_sdk::borsh::to_vec(&amount).unwrap());
+    }
+}
+fn buyback_pend_key(launch_id: u64) -> Vec<u8> {
+    format!("fee_bpend:{launch_id}").into_bytes()
+}
+
+/// In-flight buyback; stored under a separate key so Launch Borsh stays unchanged.
+#[near(serializers = [borsh])]
+struct BuybackPending {
+    quote_reserved: u128,
+    min_output: u128,
+    token_wallet_before: u128,
+    token_dcl_before: u128,
+}
+fn read_buyback_pending(launch_id: u64) -> Option<BuybackPending> {
+    env::storage_read(&buyback_pend_key(launch_id)).and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+}
+fn write_buyback_pending(launch_id: u64, p: Option<&BuybackPending>) {
+    let key = buyback_pend_key(launch_id);
+    match p {
+        Some(p) => { env::storage_write(&key, &near_sdk::borsh::to_vec(p).unwrap()); }
+        None => { env::storage_remove(&key); }
     }
 }
 const LIQ_TRY_PREFIX: &[u8] = b"lq_try";
@@ -315,6 +374,11 @@ impl Contract {
         self.next_id += 1;
         if let Some(e) = fee_extra {
             write_fee_extra(id, &e);
+        }
+        if let Some(bps) = p.buyback_bps.filter(|b| *b > 0) {
+            require!(bps <= MAX_BUYBACK_BPS, "buyback_bps is capped at 20%");
+            require!(bps <= p.fee_split.liquidity_bps, "buyback_bps cannot exceed the liquidity share");
+            write_buyback_bps(id, bps);
         }
         let token_id: AccountId = format!("{}-{}.{}", p.symbol.to_lowercase(), id, env::current_account_id())
             .parse()
@@ -915,10 +979,13 @@ impl Contract {
         }
         let fs = l.fee_split.clone();
         let extra = read_fee_extra(launch_id);
-        let prepaid = read_community_paid(launch_id, &token_id);
-        let (h, lq, c, op, ai) = fs.split_with_extra(amount + prepaid, extra.as_ref());
-        let c = c.saturating_sub(prepaid);
+        let c_prepaid = read_community_paid(launch_id, &token_id);
+        let b_prepaid = read_buyback_paid(launch_id, &token_id);
+        let (h, lq, c, op, ai) = fs.split_with_extra(amount + c_prepaid + b_prepaid, extra.as_ref());
+        let c = c.saturating_sub(c_prepaid);
+        let lq = lq.saturating_sub(b_prepaid);
         write_community_paid(launch_id, &token_id, 0);
+        write_buyback_paid(launch_id, &token_id, 0);
         let mut destinations = vec![
             (fs.holders_account, h),
             (fs.liquidity_account, lq),
@@ -1224,6 +1291,339 @@ impl Contract {
         U128(credited)
     }
 
+    // ------------------------------------------------------------------ lock buyback
+
+    fn buyback_available_of(&self, launch_id: u64, token_id: &AccountId) -> u128 {
+        let Some(l) = self.launches.get(&launch_id) else { return 0 };
+        let bps = read_buyback_bps(launch_id);
+        if bps == 0 {
+            return 0;
+        }
+        let bal = l.fee_balances.iter().find(|(t, _)| t == token_id).map(|(_, b)| *b).unwrap_or(0);
+        let c_prepaid = read_community_paid(launch_id, token_id);
+        let b_prepaid = read_buyback_paid(launch_id, token_id);
+        let virtual_pot = bal + c_prepaid + b_prepaid;
+        let extra = read_fee_extra(launch_id);
+        let (_, lq, _, _, _) = l.fee_split.split_with_extra(virtual_pot, extra.as_ref());
+        let from_liq = lq.saturating_sub(b_prepaid);
+        let from_bps = (virtual_pot.saturating_mul(bps as u128) / 10_000).saturating_sub(b_prepaid);
+        from_liq.min(from_bps)
+    }
+
+    fn refund_buyback(&mut self, launch_id: u64, token_id: &AccountId, amount: u128) {
+        if amount == 0 {
+            return;
+        }
+        let l = self.launches.get_mut(&launch_id).expect("no launch");
+        match l.fee_balances.iter_mut().find(|(t, _)| t == token_id) {
+            Some((_, b)) => *b += amount,
+            None => l.fee_balances.push((token_id.clone(), amount)),
+        }
+        if *token_id == l.quote_token_id {
+            l.fees_distributed_quote = l.fees_distributed_quote.saturating_sub(amount);
+        }
+        let prepaid = read_buyback_paid(launch_id, token_id).saturating_sub(amount);
+        write_buyback_paid(launch_id, token_id, prepaid);
+    }
+
+    /// Launcher-only. Buybacks are taken from the liquidity share of undistributed fees, capped at 20%.
+    pub fn set_buyback_bps(&mut self, launch_id: u64, bps: u16) {
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(env::predecessor_account_id() == l.launcher, "only the launcher can set buyback_bps");
+        require!(bps <= MAX_BUYBACK_BPS, "buyback_bps is capped at 20%");
+        require!(bps <= l.fee_split.liquidity_bps, "buyback_bps cannot exceed the liquidity share");
+        write_buyback_bps(launch_id, bps);
+        emit("buyback_bps_set", json!({"launch_id": launch_id, "bps": bps}));
+    }
+
+    pub fn buyback_available(&self, launch_id: u64) -> U128 {
+        let Some(l) = self.launches.get(&launch_id) else { return U128(0) };
+        U128(self.buyback_available_of(launch_id, &l.quote_token_id))
+    }
+
+    /// Permissionless: swap `amount` of undistributed quote fees on the DCL pool into the
+    /// project token (with `min_output`) and add it to the permanent lock. Failed swaps or
+    /// transfers credit the quote back to the fee pool.
+    pub fn buyback_to_lock(&mut self, launch_id: u64, amount: U128, min_output: U128) -> Promise {
+        require!(amount.0 > 0, "amount must be > 0");
+        require!(min_output.0 > 0, "min_output must be > 0");
+        require!(read_buyback_pending(launch_id).is_none(), "buyback already in progress");
+        let (quote, token, pool, pool_id, live, has_pool) = {
+            let l = self.launches.get(&launch_id).expect("no launch");
+            (
+                l.quote_token_id.clone(),
+                l.token_id.clone(),
+                l.pool_contract.clone(),
+                l.pool_id.clone(),
+                l.status == LaunchStatus::Live,
+                !l.pool_id.is_empty(),
+            )
+        };
+        require!(live, "launch not live");
+        require!(has_pool, "no pool");
+        let available = self.buyback_available_of(launch_id, &quote);
+        require!(amount.0 <= available, "amount exceeds the remaining buyback share");
+        let l = self.launches.get_mut(&launch_id).unwrap();
+        let pos = l.fee_balances.iter().position(|(t, _)| *t == quote).expect("no fees for token");
+        require!(l.fee_balances[pos].1 >= amount.0, "not enough undistributed fees");
+        l.fee_balances[pos].1 -= amount.0;
+        l.fees_distributed_quote += amount.0;
+        write_buyback_paid(launch_id, &quote, read_buyback_paid(launch_id, &quote) + amount.0);
+        write_buyback_pending(launch_id, Some(&BuybackPending {
+            quote_reserved: amount.0,
+            min_output: min_output.0,
+            token_wallet_before: 0,
+            token_dcl_before: 0,
+        }));
+        let me = env::current_account_id();
+        let wallet = Promise::new(token.clone()).function_call(
+            "ft_balance_of",
+            json!({"account_id": me}).to_string().into_bytes(),
+            NearToken::from_yoctonear(0),
+            GAS_FT_BALANCE,
+        );
+        let dcl = Promise::new(pool.clone()).function_call(
+            "get_user_asset",
+            json!({"account_id": me, "token_id": token}).to_string().into_bytes(),
+            NearToken::from_yoctonear(0),
+            GAS_DCL_VIEW,
+        );
+        wallet.and(dcl).then(
+            Self::ext(me)
+                .with_static_gas(GAS_CB_BUYBACK)
+                .on_buyback_balances(launch_id, amount, min_output, quote, token, pool, pool_id),
+        )
+    }
+
+    #[private]
+    pub fn on_buyback_balances(
+        &mut self,
+        launch_id: u64,
+        amount: U128,
+        min_output: U128,
+        quote: AccountId,
+        token: AccountId,
+        pool: AccountId,
+        pool_id: String,
+    ) -> Promise {
+        let wallet = match env::promise_result_checked(0, 128) {
+            Ok(b) => serde_json::from_slice::<U128>(&b).map(|x| x.0).unwrap_or(0),
+            Err(_) => 0,
+        };
+        let dcl = match env::promise_result_checked(1, 128) {
+            Ok(b) => serde_json::from_slice::<U128>(&b).map(|x| x.0).unwrap_or(0),
+            Err(_) => 0,
+        };
+        let Some(mut pend) = read_buyback_pending(launch_id) else {
+            env::panic_str("no buyback pending");
+        };
+        pend.token_wallet_before = wallet;
+        pend.token_dcl_before = dcl;
+        write_buyback_pending(launch_id, Some(&pend));
+        let me = env::current_account_id();
+        let msg = json!({
+            "Swap": {
+                "pool_ids": [pool_id],
+                "output_token": token,
+                "min_output_amount": min_output,
+                "skip_unwrap_near": true
+            }
+        })
+        .to_string();
+        Promise::new(quote)
+            .function_call(
+                "ft_transfer_call",
+                json!({"receiver_id": pool, "amount": amount, "msg": msg}).to_string().into_bytes(),
+                NearToken::from_yoctonear(1),
+                GAS_DCL_SWAP,
+            )
+            .then(
+                Self::ext(me)
+                    .with_static_gas(GAS_CB_BUYBACK)
+                    .on_buyback_swapped(launch_id, token, pool),
+            )
+    }
+
+    #[private]
+    pub fn on_buyback_swapped(
+        &mut self,
+        launch_id: u64,
+        token: AccountId,
+        pool: AccountId,
+        #[callback_result] unused: Result<U128, PromiseError>,
+    ) -> PromiseOrValue<U128> {
+        let Some(pend) = read_buyback_pending(launch_id) else {
+            env::panic_str("no buyback pending");
+        };
+        let l = self.launches.get(&launch_id).expect("no launch");
+        let quote = l.quote_token_id.clone();
+        let refund_all = match &unused {
+            Err(_) => true,
+            Ok(u) if u.0 >= pend.quote_reserved => true,
+            _ => false,
+        };
+        if refund_all {
+            self.refund_buyback(launch_id, &quote, pend.quote_reserved);
+            write_buyback_pending(launch_id, None);
+            log!("buyback swap failed or produced no fill; quote credited back");
+            return PromiseOrValue::Value(U128(0));
+        }
+        if let Ok(u) = unused {
+            if u.0 > 0 {
+                self.refund_buyback(launch_id, &quote, u.0);
+                let mut pend = pend;
+                pend.quote_reserved = pend.quote_reserved.saturating_sub(u.0);
+                write_buyback_pending(launch_id, Some(&pend));
+            }
+        }
+        let me = env::current_account_id();
+        let wallet = Promise::new(token.clone()).function_call(
+            "ft_balance_of",
+            json!({"account_id": me}).to_string().into_bytes(),
+            NearToken::from_yoctonear(0),
+            GAS_FT_BALANCE,
+        );
+        let dcl = Promise::new(pool.clone()).function_call(
+            "get_user_asset",
+            json!({"account_id": me, "token_id": token}).to_string().into_bytes(),
+            NearToken::from_yoctonear(0),
+            GAS_DCL_VIEW,
+        );
+        PromiseOrValue::Promise(wallet.and(dcl).then(
+            Self::ext(me)
+                .with_static_gas(GAS_CB_BUYBACK)
+                .on_buyback_output(launch_id, token, pool),
+        ))
+    }
+
+    #[private]
+    pub fn on_buyback_output(&mut self, launch_id: u64, token: AccountId, pool: AccountId) -> PromiseOrValue<U128> {
+        let Some(pend) = read_buyback_pending(launch_id) else {
+            env::panic_str("no buyback pending");
+        };
+        let wallet = match env::promise_result_checked(0, 128) {
+            Ok(b) => serde_json::from_slice::<U128>(&b).map(|x| x.0).unwrap_or(0),
+            Err(_) => 0,
+        };
+        let dcl = match env::promise_result_checked(1, 128) {
+            Ok(b) => serde_json::from_slice::<U128>(&b).map(|x| x.0).unwrap_or(0),
+            Err(_) => 0,
+        };
+        let bought_wallet = wallet.saturating_sub(pend.token_wallet_before);
+        let bought_dcl = dcl.saturating_sub(pend.token_dcl_before);
+        if bought_wallet == 0 && bought_dcl > 0 {
+            // Output is still in the DCL internal account; withdraw then lock.
+            return PromiseOrValue::Promise(
+                Promise::new(pool.clone())
+                    .function_call(
+                        "withdraw_asset",
+                        json!({"token_id": token, "amount": U128(bought_dcl)}).to_string().into_bytes(),
+                        NearToken::from_yoctonear(1),
+                        GAS_DCL_WITHDRAW,
+                    )
+                    .then(
+                        Self::ext(env::current_account_id())
+                            .with_static_gas(GAS_CB_BUYBACK)
+                            .on_buyback_withdrawn(launch_id, token, U128(bought_dcl)),
+                    ),
+            );
+        }
+        self.lock_buyback_tokens(launch_id, token, bought_wallet)
+    }
+
+    #[private]
+    pub fn on_buyback_withdrawn(
+        &mut self,
+        launch_id: u64,
+        token: AccountId,
+        amount: U128,
+        #[callback_result] res: Result<(), PromiseError>,
+    ) -> PromiseOrValue<U128> {
+        if res.is_err() {
+            log!("buyback withdraw failed; tokens may still be in the DCL account — call resume_buyback");
+            return PromiseOrValue::Value(U128(0));
+        }
+        self.lock_buyback_tokens(launch_id, token, amount.0)
+    }
+
+    fn lock_buyback_tokens(&mut self, launch_id: u64, token: AccountId, amount: u128) -> PromiseOrValue<U128> {
+        let Some(pend) = read_buyback_pending(launch_id) else {
+            env::panic_str("no buyback pending");
+        };
+        if amount == 0 {
+            log!("buyback produced no tokens; call resume_buyback if they arrive later");
+            return PromiseOrValue::Value(U128(0));
+        }
+        if amount < pend.min_output {
+            // DCL should have rejected the swap; still lock what we got rather than leave it loose.
+            log!("buyback output below min_output; locking the tokens received anyway");
+        }
+        let lock = self.config.lock_contract.clone();
+        let msg = serde_json::to_string(&LockMsg::Add(LockAddMsg { launch_id, account_id: lock.clone() })).unwrap();
+        PromiseOrValue::Promise(
+            Promise::new(token)
+                .function_call(
+                    "ft_transfer_call",
+                    json!({"receiver_id": lock, "amount": U128(amount), "msg": msg}).to_string().into_bytes(),
+                    NearToken::from_yoctonear(1),
+                    GAS_FT_TRANSFER_CALL_LOCK,
+                )
+                .then(
+                    Self::ext(env::current_account_id())
+                        .with_static_gas(GAS_CB_BUYBACK)
+                        .on_buyback_locked(launch_id, U128(amount)),
+                ),
+        )
+    }
+
+    #[private]
+    pub fn on_buyback_locked(
+        &mut self,
+        launch_id: u64,
+        amount: U128,
+        #[callback_result] res: Result<U128, PromiseError>,
+    ) -> U128 {
+        // ft_transfer_call returns unused tokens; 0 unused means the lock kept the full amount.
+        let kept = match res {
+            Ok(U128(unused)) if unused < amount.0 => amount.0 - unused,
+            _ => 0,
+        };
+        if kept == 0 {
+            log!("buyback lock transfer failed; tokens remain on the coordinator — call resume_buyback");
+            return U128(0);
+        }
+        write_buyback_pending(launch_id, None);
+        emit("buyback_locked", json!({"launch_id": launch_id, "tokens": U128(kept)}));
+        U128(kept)
+    }
+
+    /// Retry locking (or withdrawing) tokens from a buyback whose final transfer failed.
+    pub fn resume_buyback(&mut self, launch_id: u64) -> Promise {
+        require!(read_buyback_pending(launch_id).is_some(), "no buyback pending");
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(l.status == LaunchStatus::Live, "launch not live");
+        let token = l.token_id.clone();
+        let pool = l.pool_contract.clone();
+        let me = env::current_account_id();
+        let wallet = Promise::new(token.clone()).function_call(
+            "ft_balance_of",
+            json!({"account_id": me}).to_string().into_bytes(),
+            NearToken::from_yoctonear(0),
+            GAS_FT_BALANCE,
+        );
+        let dcl = Promise::new(pool.clone()).function_call(
+            "get_user_asset",
+            json!({"account_id": me, "token_id": token}).to_string().into_bytes(),
+            NearToken::from_yoctonear(0),
+            GAS_DCL_VIEW,
+        );
+        wallet.and(dcl).then(
+            Self::ext(me)
+                .with_static_gas(GAS_CB_BUYBACK)
+                .on_buyback_output(launch_id, token, pool),
+        )
+    }
+
     // ------------------------------------------------------------------ reveal
 
     /// Permissionless: reveal the next wave once its time has come (launch + k x interval).
@@ -1350,6 +1750,7 @@ impl Contract {
             reveal: l.reveal.clone(),
             fee_split: l.fee_split.clone(),
             fee_extra: read_fee_extra(l.id),
+            buyback_bps: read_buyback_bps(l.id),
             total_raised: U128(l.total_raised),
             presale_tokens: U128(l.presale_tokens),
             reserved_tokens: U128(l.reserved_tokens),

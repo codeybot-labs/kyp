@@ -126,6 +126,9 @@ pub struct LaunchParams {
     /// Optional operations + NEAR AI credit legs. Omitted on existing launches.
     #[serde(default)]
     pub fee_extra: Option<FeeExtra>,
+    /// Optional buyback share of fees, taken from the liquidity slice (max 20%). Default 0.
+    #[serde(default)]
+    pub buyback_bps: Option<u16>,
 }
 
 #[near(serializers = [borsh, json])]
@@ -257,6 +260,7 @@ pub struct LaunchView {
     pub reveal: RevealConfig,
     pub fee_split: FeeSplit,
     pub fee_extra: Option<FeeExtra>,
+    pub buyback_bps: u16,
     pub total_raised: U128,
     pub presale_tokens: U128,
     pub reserved_tokens: U128,

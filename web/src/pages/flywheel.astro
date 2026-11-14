@@ -33,9 +33,9 @@ const destinations = [
   },
   {
     title: "The lock",
-    mark: "Planned",
-    kind: "planned",
-    body: "Presalers can send their share into buying the token for the permanent lock. The lock grows, earns more fees and buys more tokens.",
+    mark: "Live",
+    kind: "live",
+    body: "A share of fees, taken from the liquidity slice and capped at 20%, can be swapped on the RHEA DCL pool into the project token and added to the permanent lock (an account that does not claim). Default on a new launch is 0%; an example is 10%. Anyone can trigger a buyback once the launcher sets the share. A minimum output protects the swap; failed swaps credit the quote back to the fee pool.",
   },
   {
     title: "Smarter liquidity",
@@ -71,7 +71,7 @@ const destinations = [
   <section class="fly" style="padding-top: 24px; padding-bottom: 96px">
     <div class="card reveal fly-now">
       <h3>What's live today, and what is planned</h3>
-      <p class="muted" style="margin-top: 8px">On testnet, reserved-slot proceeds and any fees sent to the coordinator are split on-chain. The default split is 50% holders, 30% liquidity, 20% community (competitions and bounties). Each launch can also add two capped legs — operations (max 30%) and NEAR AI credits (max 20%) — paid to the accounts the launcher names. Anyone can trigger the payout. After a bounty is approved, the launcher or the community account can pay the claimant on-chain from the undistributed community fee share. Anyone can call `collect_fees` to claim charged RHEA DCL trading fees from the coordinator-owned permanent LP into the fee pool. The remaining destinations below are still planned.</p>
+      <p class="muted" style="margin-top: 8px">On testnet, reserved-slot proceeds and any fees sent to the coordinator are split on-chain. The default split is 50% holders, 30% liquidity, 20% community (competitions and bounties). Each launch can also add two capped legs — operations (max 30%) and NEAR AI credits (max 20%) — paid to the accounts the launcher names. Anyone can trigger the payout. After a bounty is approved, the launcher or the community account can pay the claimant on-chain from the undistributed community fee share. Anyone can call `collect_fees` to claim charged RHEA DCL trading fees from the coordinator-owned permanent LP into the fee pool. The launcher can set a lock buyback share (from the liquidity slice, max 20%); anyone can then swap that quote on the pool into the token for the permanent lock. The remaining destinations below are still planned.</p>
     </div>
 
     <figure class="fly-flow reveal" aria-label="Fee flow: trading fees and reserved slots feed a pool that splits to holders, liquidity and community, then to planned uses">
@@ -92,12 +92,12 @@ const destinations = [
         <div class="fly-box on">Operations<span>Live</span></div>
         <div class="fly-box on">NEAR AI credits<span>Live</span></div>
         <div class="fly-box dim">Content</div>
-        <div class="fly-box dim">The lock</div>
+        <div class="fly-box on">The lock<span>Live</span></div>
         <div class="fly-box dim">Smarter LP</div>
         <div class="fly-box dim">Partner pools</div>
         <div class="fly-box dim">Open bounties</div>
       </div>
-      <figcaption>The holders, liquidity, community, operations and NEAR AI credit shares are live. The uses underneath are the planned fee design.</figcaption>
+      <figcaption>The holders, liquidity, community, operations, NEAR AI credit and lock buyback shares are live. Content, smarter LP, partner pools and open bounties are still partly live or planned.</figcaption>
     </figure>
 
     <div class="head reveal" style="margin-top: 56px; margin-bottom: 24px">

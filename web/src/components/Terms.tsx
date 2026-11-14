@@ -116,6 +116,9 @@ function TermsBody(p: { l: LaunchView }) {
                     <span>Operations (capped 30%)</span><span>{pct(l.fee_extra?.operations_bps ?? 0)} → <code>{l.fee_extra?.operations_account}</code></span>
                     <span>NEAR AI credits (capped 20%)</span><span>{pct(l.fee_extra?.near_ai_bps ?? 0)} → <code>{l.fee_extra?.near_ai_account}</code></span>
                   </Show>
+                  <Show when={(l.buyback_bps ?? 0) > 0}>
+                    <span>Lock buyback (from liquidity, capped 20%)</span><span>{pct(l.buyback_bps ?? 0)} swapped into the token for the permanent lock</span>
+                  </Show>
                   <span>Launch LP</span><span>Owned by coordinator, no remove method</span>
                 </div>
               </div>

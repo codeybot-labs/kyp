@@ -1,13 +1,13 @@
-import { createSignal, For, lazy, Show, Suspense } from "solid-js";
+import { createSignal, createResource, For, lazy, Show, Suspense } from "solid-js";
 import { api } from "../lib/source";
 import { demo } from "../lib/demo";
 import { cliCall } from "../lib/near";
 import { CONFIG, NETWORK, NETWORK_LABEL, NETWORK_NAME } from "../lib/config";
 import { toRaw } from "../lib/math.mjs";
 import { MilestoneLadder } from "./Terms";
-import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, Stat, act, Cli, Signable, sendTx } from "./ui";
+import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, Stat, act, Cli, Signable, sendTx, toast } from "./ui";
 import { account as wallet } from "../lib/wallet";
-import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx, collectFeesTx } from "../lib/actions.mjs";
+import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx, collectFeesTx, setBuybackBpsTx, buybackToLockTx, resumeBuybackTx } from "../lib/actions.mjs";
 import type { LaunchView } from "../lib/model";
 
 // lazy: the chart + lightweight-charts load as separate chunks, only when a launch is Live
@@ -184,6 +184,7 @@ function TestnetActions(p: { l: LaunchView }) {
         <Show when={p.l.status === "Live"}>
           <div class="row">
             <button class="btn" onClick={() => sendTx(() => collectFeesTx(CONFIG.coordinator, p.l.id), "Trading fees collected into the fee pool")}>Collect trading fees</button>
+            <BuybackControls l={p.l} me={wallet()} />
             <button class="btn" onClick={() => sendTx(() => recordTx(CONFIG.lock, p.l.id), "Observation recorded")}>Poke observer</button>
             <button class="btn primary" onClick={() => sendTx(() => qualifyTx(CONFIG.lock, p.l.id), "Milestones checked")}>Qualify milestones</button>
             <a class="btn ghost" href={`/claim?id=${p.l.id}`}>Go to claim →</a>
@@ -197,4 +198,39 @@ function TestnetActions(p: { l: LaunchView }) {
 
 export default function LaunchStatus() {
   return <WithLaunch tab="launch">{(L) => <Body l={L()} />}</WithLaunch>;
+}
+
+
+function BuybackControls(p: { l: LaunchView; me: string | null }) {
+  const [bps, setBps] = createSignal(String(p.l.buyback_bps ?? 0));
+  const [amt, setAmt] = createSignal("");
+  const [minOut, setMinOut] = createSignal("");
+  const [avail] = createResource(() => p.l.id, (id) => api.buybackAvailable(id));
+  const isLauncher = p.me && p.me === p.l.launcher;
+  return (
+    <div class="stack" style={{ gap: "8px", "margin-top": "8px" }}>
+      <span class="sub">Lock buyback: swap fee quote on the pool into ${p.l.symbol} for the permanent lock. Taken from the liquidity share (max 20%). Currently {((p.l.buyback_bps ?? 0) / 100).toFixed(0)}%; {avail.loading ? "…" : fmtQ(avail() || "0")} available.</span>
+      <Show when={isLauncher}>
+        <div class="cc-inline">
+          <input placeholder="buyback % (0-20)" value={bps()} onInput={(e) => setBps(e.currentTarget.value)} aria-label="Buyback percent" />
+          <button class="btn sm" type="button" onClick={() => {
+            const n = Math.round(Number(bps()) * 100);
+            if (!(n >= 0 && n <= 2000)) { toast("Buyback must be 0–20%", "bad"); return; }
+            sendTx(() => setBuybackBpsTx(CONFIG.coordinator, p.l.id, n), "Buyback share saved");
+          }}>Set buyback %</button>
+        </div>
+      </Show>
+      <div class="cc-inline">
+        <input placeholder="wNEAR amount" value={amt()} onInput={(e) => setAmt(e.currentTarget.value)} aria-label="Buyback amount" />
+        <input placeholder="min tokens out" value={minOut()} onInput={(e) => setMinOut(e.currentTarget.value)} aria-label="Minimum tokens out" />
+        <button class="btn sm primary" type="button" onClick={() => {
+          const raw = toRaw(amt() || "0", 24);
+          const min = toRaw(minOut() || "0", p.l.decimals || 18);
+          if (raw <= 0n || min <= 0n) { toast("Enter an amount and a min output", "bad"); return; }
+          sendTx(() => buybackToLockTx(CONFIG.coordinator, p.l.id, raw.toString(), min.toString()), "Buyback sent to the permanent lock");
+        }}>Buy back to lock</button>
+        <button class="btn sm ghost" type="button" onClick={() => sendTx(() => resumeBuybackTx(CONFIG.coordinator, p.l.id), "Buyback resumed")}>Resume buyback</button>
+      </div>
+    </div>
+  );
 }

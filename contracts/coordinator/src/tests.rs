@@ -90,6 +90,7 @@ fn params() -> LaunchParams {
             community_account: acc("bounties.kyp.testnet"),
         },
         fee_extra: None,
+        buyback_bps: None,
     }
 }
 
@@ -667,6 +668,84 @@ fn collect_fees_credits_claimed_delta() {
     let map: std::collections::HashMap<_, _> = bals.into_iter().map(|(t, b)| (t, b.0)).collect();
     assert_eq!(map.get(&token).copied().unwrap_or(0), 3 * NEAR);
     assert_eq!(map.get(&quote).copied().unwrap_or(0), 12 * NEAR);
+}
+
+#[test]
+fn buyback_share_refund_and_distribute() {
+    let mut c = new_contract();
+    set("launcher.testnet", T0, 8 * NEAR);
+    let launch = c.build_launch(acc("launcher.testnet"), params());
+    let id = launch.id;
+    c.launches.insert(id, launch);
+    c.launches.get_mut(&id).unwrap().status = LaunchStatus::Live;
+
+    set("intruder.testnet", T0 + 1, 0);
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.set_buyback_bps(id, 1_000);
+    })).is_err(), "stranger must not set buyback_bps");
+
+    set("launcher.testnet", T0 + 2, 0);
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.set_buyback_bps(id, 2_500);
+    })).is_err(), "cap 20%");
+    c.set_buyback_bps(id, 1_000);
+    assert_eq!(c.get_launch(id).unwrap().buyback_bps, 1_000);
+
+    set("wrap.testnet", T0 + 3, 0);
+    let _ = c.ft_on_transfer(
+        acc("someone.testnet"),
+        U128(100 * NEAR),
+        serde_json::to_string(&CoordinatorMsg::Fees { launch_id: id }).unwrap(),
+    );
+    assert_eq!(c.buyback_available(id).0, 10 * NEAR);
+
+    set("keeper.testnet", T0 + 4, 0);
+    assert!(std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.buyback_to_lock(id, U128(11 * NEAR), U128(1));
+    })).is_err(), "cannot exceed buyback share");
+
+    let _ = c.buyback_to_lock(id, U128(10 * NEAR), U128(1));
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1 .0, 90 * NEAR);
+    assert_eq!(c.buyback_available(id).0, 0);
+
+    // swap failure credits the quote back
+    set_with_results("kyp.testnet", T0 + 5, vec![]);
+    let _ = c.on_buyback_swapped(id, c.get_launch(id).unwrap().token_id, acc("pool.kyp.testnet"), Err(PromiseError::Failed));
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1 .0, 100 * NEAR);
+    assert_eq!(c.buyback_available(id).0, 10 * NEAR);
+
+    // successful swap + lock: prepaid is subtracted from the liquidity leg
+    let _ = c.buyback_to_lock(id, U128(10 * NEAR), U128(1));
+    set_with_results("kyp.testnet", T0 + 6, vec![
+        PromiseResult::Successful(serde_json::to_vec(&U128(0)).unwrap()),
+        PromiseResult::Successful(serde_json::to_vec(&U128(0)).unwrap()),
+    ]);
+    let token = c.get_launch(id).unwrap().token_id;
+    let _ = c.on_buyback_swapped(id, token.clone(), acc("pool.kyp.testnet"), Ok(U128(0)));
+    set_with_results("kyp.testnet", T0 + 7, vec![
+        PromiseResult::Successful(serde_json::to_vec(&U128(15 * NEAR)).unwrap()),
+        PromiseResult::Successful(serde_json::to_vec(&U128(0)).unwrap()),
+    ]);
+    let _ = c.on_buyback_output(id, token.clone(), acc("pool.kyp.testnet"));
+    set_with_results("kyp.testnet", T0 + 8, vec![PromiseResult::Successful(serde_json::to_vec(&U128(0)).unwrap())]);
+    assert_eq!(c.on_buyback_locked(id, U128(15 * NEAR), Ok(U128(0))).0, 15 * NEAR);
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1 .0, 90 * NEAR);
+    assert_eq!(c.buyback_available(id).0, 0);
+
+    set("keeper.testnet", T0 + 9, 0);
+    let _ = c.distribute_fees(id, acc("wrap.testnet"));
+    let legs = vec![
+        (acc("holders.kyp.testnet"), U128(50 * NEAR)),
+        (acc("lp.kyp.testnet"), U128(20 * NEAR)),
+        (acc("bounties.kyp.testnet"), U128(20 * NEAR)),
+    ];
+    set_with_results("kyp.testnet", T0 + 10, vec![
+        PromiseResult::Successful(vec![]),
+        PromiseResult::Successful(vec![]),
+        PromiseResult::Successful(vec![]),
+    ]);
+    let failed = c.on_fees_distributed(id, acc("wrap.testnet"), legs);
+    assert_eq!(failed.0, 0);
 }
 
 #[test]
