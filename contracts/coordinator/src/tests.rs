@@ -627,6 +627,49 @@ fn pay_bounty_from_community_share() {
 }
 
 #[test]
+fn collect_fees_credits_claimed_delta() {
+    let mut c = new_contract();
+    set("launcher.testnet", T0, 8 * NEAR);
+    let launch = c.build_launch(acc("launcher.testnet"), params());
+    let id = launch.id;
+    c.launches.insert(id, launch);
+    c.launches.get_mut(&id).unwrap().status = LaunchStatus::Live;
+    let l = c.get_launch(id).unwrap();
+    let token = l.token_id;
+    let quote = l.quote_token_id;
+
+    set("keeper.testnet", T0 + 1, 0);
+    let _ = c.collect_fees(id);
+
+    // baseline: leftover 5 quote already sitting in the DCL account must not be withdrawn
+    let baseline = serde_json::json!({ quote.to_string(): (5 * NEAR).to_string() }).to_string().into_bytes();
+    set_with_results("kyp.testnet", T0 + 2, vec![PromiseResult::Successful(baseline)]);
+    let _ = c.on_collect_fees_baseline(id, Ok(serde_json::json!({ quote.to_string(): (5 * NEAR).to_string() })));
+
+    set_with_results("kyp.testnet", T0 + 3, vec![PromiseResult::Successful(vec![])]);
+    let _ = c.on_collect_fees_claimed(id, [(quote.clone(), U128(5 * NEAR))].into_iter().collect(), Ok(()));
+
+    // after claim: leftover 5 + new 12 quote + 3 token
+    set_with_results("kyp.testnet", T0 + 4, vec![PromiseResult::Successful(vec![])]);
+    let after = serde_json::json!({
+        quote.to_string(): ((5 + 12) * NEAR).to_string(),
+        token.to_string(): (3 * NEAR).to_string(),
+    });
+    let _ = c.on_collect_fees_assets(id, [(quote.clone(), U128(5 * NEAR))].into_iter().collect(), Ok(after));
+
+    set_with_results("kyp.testnet", T0 + 5, vec![
+        PromiseResult::Successful(vec![]),
+        PromiseResult::Successful(vec![]),
+    ]);
+    let credited = c.on_collect_fees_withdrawn(id, vec![(token.clone(), U128(3 * NEAR)), (quote.clone(), U128(12 * NEAR))]);
+    assert_eq!(credited.0, 15 * NEAR);
+    let bals = c.get_launch(id).unwrap().fee_balances;
+    let map: std::collections::HashMap<_, _> = bals.into_iter().map(|(t, b)| (t, b.0)).collect();
+    assert_eq!(map.get(&token).copied().unwrap_or(0), 3 * NEAR);
+    assert_eq!(map.get(&quote).copied().unwrap_or(0), 12 * NEAR);
+}
+
+#[test]
 fn hash_helper_matches() {
     let c = new_contract();
     assert_eq!(c.hash_slot(acc("alice.testnet"), "s1".into()), h("alice.testnet", "s1"));

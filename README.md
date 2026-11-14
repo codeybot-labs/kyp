@@ -91,7 +91,7 @@ Run locally: `cd web && npm run dev:worker` (builds, applies the D1 migration to
 
 Every trade earns fees, and KYP puts those fees back to work for the project. Site page: [kycabal.fun/flywheel](https://kycabal.fun/flywheel).
 
-**What's live today.** Trading fees that are deposited into the coordinator (`Fees` transfers) and reserved-slot proceeds are split on-chain by the launch's public bps — default 50% holders / 30% liquidity / 20% competitions & bounties. A launch may also add capped operations (max 30%) and NEAR AI credits (max 20%) legs, paid to named accounts. Anyone can call `distribute_fees`. Cabal Corner shows bounties against the community share. After a bounty is approved, the launcher or the community account can call `pay_bounty` to pay the claimant from the undistributed community share; they can also still pay from the community account directly. The coordinator owns the permanent LP, but it cannot yet claim RHEA DCL trading fees automatically.
+**What's live today.** Trading fees that are deposited into the coordinator (`Fees` transfers) and reserved-slot proceeds are split on-chain by the launch's public bps — default 50% holders / 30% liquidity / 20% competitions & bounties. A launch may also add capped operations (max 30%) and NEAR AI credits (max 20%) legs, paid to named accounts. Anyone can call `distribute_fees`. Cabal Corner shows bounties against the community share. After a bounty is approved, the launcher or the community account can call `pay_bounty` to pay the claimant from the undistributed community share; they can also still pay from the community account directly. Anyone can call `collect_fees` to claim charged RHEA DCL trading fees from the coordinator-owned permanent LP into the launch's fee pool, then `distribute_fees` to pay the public split.
 
 **Planned fee design.** Later destinations, configurable per launch (example defaults only: 20% operations, 10% NEAR AI credits, with the rest following the public split):
 
@@ -103,7 +103,7 @@ Every trade earns fees, and KYP puts those fees back to work for the project. Si
 - **Partner pools.** Fees seed shared pools with other NEAR communities.
 - **Open bounties.** Fees fund open NEARN bounties for memes, campaigns, dev work and translations, open to everyone.
 
-**Roadmap: the memecoin management system.** Cabal Corner is the first piece of a bigger idea: one place that brings together everything a team needs to run a meme project after launch, without the usual friction. Next steps, not built yet: the flywheel destinations above (operations, NEAR AI credits, creator bounties on NEARN, lock buybacks, smarter liquidity, partner pools), on-chain bounty payouts from the community fee account, automatic claiming of RHEA DCL trading fees, invites that read the KYP record directly, an agent with live NEAR market data, and per-launch channels for the caballeros.
+**Roadmap: the memecoin management system.** Cabal Corner is the first piece of a bigger idea: one place that brings together everything a team needs to run a meme project after launch, without the usual friction. Next steps, not built yet: lock buybacks, smarter liquidity, partner pools, invites that read the KYP record directly, an agent with live NEAR market data, and per-launch channels for the caballeros. Already live or partly live: operations and NEAR AI fee legs, on-chain `pay_bounty` from the community share, NEARN listing links, and `collect_fees` for RHEA DCL trading fees.
 
 ### Network
 

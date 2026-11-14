@@ -17,7 +17,7 @@
 //!    the launcher's or presalers' wallets. LP positions are owned by this contract and there
 //!    is no method to remove them.
 //! 4. Post-launch: `reveal_next_wave` (permissionless, on schedule), `BuyReserved` for named
-//!    reserved slots, fee routing via `Fees` + `distribute_fees`.
+//!    reserved slots, fee routing via `Fees` + `distribute_fees`, `collect_fees` to claim DCL trading fees, `pay_bounty` from the community share.
 //! 5. If the launcher never launches by `sale_end`, or cancels, presalers `withdraw`.
 
 mod types;
@@ -29,6 +29,7 @@ use kyp_common::{
     tokens_for_quote, FeeExtra, LockAddMsg, LockFundMsg, LockMsg, BPS_DENOM, DEFAULT_DECIMALS,
     DEFAULT_TOTAL_SUPPLY, MAX_POINT, MAX_PRESALE_CAP_BPS, MAX_PRESALERS, MAX_SALE_WINDOW_SEC,
 };
+use std::collections::HashMap;
 use near_sdk::json_types::U128;
 use near_sdk::serde_json::{self, json};
 use near_sdk::store::{IterableMap, LazyOption};
@@ -47,6 +48,10 @@ const GAS_ADD_LIQUIDITY: Gas = Gas::from_tgas(25);
 const GAS_CB: Gas = Gas::from_tgas(10);
 const GAS_CB_ADD: Gas = Gas::from_tgas(10);
 const GAS_CB_SMALL: Gas = Gas::from_tgas(5);
+const GAS_DCL_VIEW: Gas = Gas::from_tgas(10);
+const GAS_DCL_CLAIM: Gas = Gas::from_tgas(20);
+const GAS_DCL_WITHDRAW: Gas = Gas::from_tgas(40);
+const GAS_CB_COLLECT: Gas = Gas::from_tgas(30);
 /// Kept free when checking whether a split step fits in the remaining gas.
 const GAS_STEP_RESERVE: Gas = Gas::from_tgas(5);
 const STEP_GAS_KEY: &[u8] = b"step_gas";
@@ -1055,6 +1060,168 @@ impl Contract {
         let extra = read_fee_extra(launch_id);
         let (_, _, c, _, _) = l.fee_split.split_with_extra(bal + prepaid, extra.as_ref());
         U128(c.saturating_sub(prepaid))
+    }
+
+    fn parse_user_assets(v: serde_json::Value) -> HashMap<AccountId, U128> {
+        let mut m = HashMap::new();
+        let Some(obj) = v.as_object() else { return m };
+        for (k, val) in obj {
+            let Ok(id) = k.parse::<AccountId>() else { continue };
+            let amt = match val {
+                serde_json::Value::String(s) => s.parse().ok(),
+                serde_json::Value::Number(n) => n.as_u64().map(|x| x as u128),
+                serde_json::Value::Object(o) => o
+                    .get("0")
+                    .and_then(|x| x.as_str())
+                    .and_then(|s| s.parse().ok()),
+                _ => None,
+            };
+            if let Some(a) = amt {
+                m.insert(id, U128(a));
+            }
+        }
+        m
+    }
+
+    fn credit_fee_balance(launch_id: u64, l: &mut Launch, token_id: AccountId, amount: u128) {
+        if amount == 0 {
+            return;
+        }
+        match l.fee_balances.iter_mut().find(|(t, _)| *t == token_id) {
+            Some((_, b)) => *b += amount,
+            None => l.fee_balances.push((token_id, amount)),
+        }
+        let _ = launch_id;
+    }
+
+    /// Permissionless: claim charged RHEA DCL trading fees on the coordinator-owned permanent LP,
+    /// withdraw only the newly claimed amounts, and credit them to this launch's fee balances.
+    /// A later `distribute_fees` pays the public split. Existing leftover DCL deposits are left alone.
+    pub fn collect_fees(&mut self, launch_id: u64) -> Promise {
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(l.status == LaunchStatus::Live, "launch not live");
+        require!(!l.pool_id.is_empty(), "no pool");
+        let me = env::current_account_id();
+        Promise::new(l.pool_contract.clone())
+            .function_call(
+                "list_user_assets",
+                json!({"account_id": me}).to_string().into_bytes(),
+                NearToken::from_yoctonear(0),
+                GAS_DCL_VIEW,
+            )
+            .then(
+                Self::ext(me)
+                    .with_static_gas(GAS_CB_COLLECT)
+                    .on_collect_fees_baseline(launch_id),
+            )
+    }
+
+    #[private]
+    pub fn on_collect_fees_baseline(
+        &mut self,
+        launch_id: u64,
+        #[callback_result] assets: Result<serde_json::Value, PromiseError>,
+    ) -> Promise {
+        let v = assets.unwrap_or_else(|_| env::panic_str("list_user_assets failed"));
+        let baseline = Self::parse_user_assets(v);
+        let l = self.launches.get(&launch_id).expect("no launch");
+        Promise::new(l.pool_contract.clone())
+            .function_call(
+                "claim_charged_fee",
+                json!({"pool_id": l.pool_id, "amount_x": U128(0), "amount_y": U128(0)}).to_string().into_bytes(),
+                NearToken::from_yoctonear(0),
+                GAS_DCL_CLAIM,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CB_COLLECT)
+                    .on_collect_fees_claimed(launch_id, baseline),
+            )
+    }
+
+    #[private]
+    pub fn on_collect_fees_claimed(
+        &mut self,
+        launch_id: u64,
+        baseline: HashMap<AccountId, U128>,
+        #[callback_result] res: Result<(), PromiseError>,
+    ) -> Promise {
+        require!(res.is_ok(), "claim_charged_fee failed");
+        let l = self.launches.get(&launch_id).expect("no launch");
+        let me = env::current_account_id();
+        Promise::new(l.pool_contract.clone())
+            .function_call(
+                "list_user_assets",
+                json!({"account_id": me}).to_string().into_bytes(),
+                NearToken::from_yoctonear(0),
+                GAS_DCL_VIEW,
+            )
+            .then(
+                Self::ext(me)
+                    .with_static_gas(GAS_CB_COLLECT)
+                    .on_collect_fees_assets(launch_id, baseline),
+            )
+    }
+
+    #[private]
+    pub fn on_collect_fees_assets(
+        &mut self,
+        launch_id: u64,
+        baseline: HashMap<AccountId, U128>,
+        #[callback_result] assets: Result<serde_json::Value, PromiseError>,
+    ) -> Promise {
+        let v = assets.unwrap_or_else(|_| env::panic_str("list_user_assets failed"));
+        let after = Self::parse_user_assets(v);
+        let l = self.launches.get(&launch_id).expect("no launch");
+        let mut pulls: Vec<(AccountId, U128)> = vec![];
+        for tok in [l.token_id.clone(), l.quote_token_id.clone()] {
+            let before = baseline.get(&tok).map(|x| x.0).unwrap_or(0);
+            let now = after.get(&tok).map(|x| x.0).unwrap_or(0);
+            let d = now.saturating_sub(before);
+            if d > 0 {
+                pulls.push((tok, U128(d)));
+            }
+        }
+        require!(!pulls.is_empty(), "nothing to collect");
+        let pool = l.pool_contract.clone();
+        let mut p: Option<Promise> = None;
+        for (tok, amt) in &pulls {
+            let t = Promise::new(pool.clone()).function_call(
+                "withdraw_asset",
+                json!({"token_id": tok, "amount": amt}).to_string().into_bytes(),
+                NearToken::from_yoctonear(1),
+                GAS_DCL_WITHDRAW,
+            );
+            p = Some(match p {
+                Some(x) => x.and(t),
+                None => t,
+            });
+        }
+        p.unwrap().then(
+            Self::ext(env::current_account_id())
+                .with_static_gas(GAS_CB_COLLECT)
+                .on_collect_fees_withdrawn(launch_id, pulls),
+        )
+    }
+
+    #[private]
+    pub fn on_collect_fees_withdrawn(
+        &mut self,
+        launch_id: u64,
+        pulls: Vec<(AccountId, U128)>,
+    ) -> U128 {
+        let mut credited = 0u128;
+        let l = self.launches.get_mut(&launch_id).expect("no launch");
+        for (i, (tok, amt)) in pulls.iter().enumerate() {
+            if env::promise_result_checked(i as u64, 64).is_ok() {
+                Self::credit_fee_balance(launch_id, l, tok.clone(), amt.0);
+                credited += amt.0;
+            }
+        }
+        if credited > 0 {
+            emit("fees_collected", json!({"launch_id": launch_id, "amount": U128(credited)}));
+        }
+        U128(credited)
     }
 
     // ------------------------------------------------------------------ reveal

@@ -7,7 +7,7 @@ import { toRaw } from "../lib/math.mjs";
 import { MilestoneLadder } from "./Terms";
 import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, Stat, act, Cli, Signable, sendTx } from "./ui";
 import { account as wallet } from "../lib/wallet";
-import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx } from "../lib/actions.mjs";
+import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx, collectFeesTx } from "../lib/actions.mjs";
 import type { LaunchView } from "../lib/model";
 
 // lazy: the chart + lightweight-charts load as separate chunks, only when a launch is Live
@@ -183,6 +183,7 @@ function TestnetActions(p: { l: LaunchView }) {
         </Show>
         <Show when={p.l.status === "Live"}>
           <div class="row">
+            <button class="btn" onClick={() => sendTx(() => collectFeesTx(CONFIG.coordinator, p.l.id), "Trading fees collected into the fee pool")}>Collect trading fees</button>
             <button class="btn" onClick={() => sendTx(() => recordTx(CONFIG.lock, p.l.id), "Observation recorded")}>Poke observer</button>
             <button class="btn primary" onClick={() => sendTx(() => qualifyTx(CONFIG.lock, p.l.id), "Milestones checked")}>Qualify milestones</button>
             <a class="btn ghost" href={`/claim?id=${p.l.id}`}>Go to claim →</a>

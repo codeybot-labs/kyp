@@ -32,6 +32,7 @@ export const revealTx = (coordinator, launchId) => ({ receiverId: coordinator, a
 export const recordTx = (lock, launchId) => ({ receiverId: lock, actions: [fc("record", { launch_id: launchId }, 100)] });
 export const qualifyTx = (lock, launchId) => ({ receiverId: lock, actions: [fc("qualify", { launch_id: launchId }, 50)] });
 export const claimTx = (lock, launchId) => ({ receiverId: lock, actions: [fc("claim", { launch_id: launchId }, 100)] });
+export const collectFeesTx = (coordinator, launchId) => ({ receiverId: coordinator, actions: [fc("collect_fees", { launch_id: launchId }, 300)] });
 export const payBountyTx = (coordinator, launchId, tokenId, receiver, amount, bountyRef) => ({ receiverId: coordinator, actions: [fc("pay_bounty", { launch_id: launchId, token_id: tokenId, receiver_id: receiver, amount, bounty_ref: bountyRef }, 80)] });
 
 /**

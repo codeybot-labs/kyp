@@ -11,13 +11,15 @@
 
 use near_sdk::json_types::U128;
 use near_sdk::store::{IterableMap, LookupMap};
-use near_sdk::{env, near, require, AccountId, BorshStorageKey, PanicOnDefault, PromiseOrValue};
+use near_sdk::{env, near, require, AccountId, BorshStorageKey, NearToken, PanicOnDefault, Promise, PromiseOrValue};
+use std::collections::HashMap;
 
 #[near(serializers = [borsh])]
 #[derive(BorshStorageKey)]
 enum Key {
     Pools,
     Deposits,
+    ChargedFees,
 }
 
 #[near(serializers = [borsh, json])]
@@ -43,6 +45,7 @@ pub struct Contract {
     owner_id: AccountId,
     pools: IterableMap<String, PoolView>,
     deposits: LookupMap<(AccountId, AccountId), u128>,
+    charged_fees: LookupMap<String, (u128, u128)>,
 }
 
 fn point_delta_for_fee(fee: u32) -> i32 {
@@ -59,7 +62,7 @@ fn point_delta_for_fee(fee: u32) -> i32 {
 impl Contract {
     #[init]
     pub fn new(owner_id: AccountId) -> Self {
-        Self { owner_id, pools: IterableMap::new(Key::Pools), deposits: LookupMap::new(Key::Deposits) }
+        Self { owner_id, pools: IterableMap::new(Key::Pools), deposits: LookupMap::new(Key::Deposits), charged_fees: LookupMap::new(Key::ChargedFees) }
     }
 
     #[payable]
@@ -146,6 +149,64 @@ impl Contract {
 
     pub fn get_deposit(&self, account_id: AccountId, token_id: AccountId) -> U128 {
         U128(self.deposits.get(&(account_id, token_id)).copied().unwrap_or(0))
+    }
+
+    pub fn get_user_asset(&self, account_id: AccountId, token_id: AccountId) -> U128 {
+        self.get_deposit(account_id, token_id)
+    }
+
+    pub fn list_user_assets(&self, account_id: AccountId) -> HashMap<AccountId, U128> {
+        let mut out = HashMap::new();
+        for pool in self.pools.values() {
+            for tok in [pool.token_x.clone(), pool.token_y.clone()] {
+                let amt = self.deposits.get(&(account_id.clone(), tok.clone())).copied().unwrap_or(0);
+                if amt > 0 {
+                    out.insert(tok, U128(amt));
+                }
+            }
+        }
+        out
+    }
+
+    /// Credits charged trading fees into the caller's internal deposit. `0,0` means all.
+    pub fn claim_charged_fee(&mut self, pool_id: String, amount_x: U128, amount_y: U128) {
+        let pool = self.pools.get(&pool_id).expect("no such pool");
+        let (cx, cy) = self.charged_fees.get(&pool_id).copied().unwrap_or((0, 0));
+        let take_x = if amount_x.0 == 0 { cx } else { amount_x.0.min(cx) };
+        let take_y = if amount_y.0 == 0 { cy } else { amount_y.0.min(cy) };
+        require!(take_x > 0 || take_y > 0, "nothing to claim");
+        self.charged_fees.insert(pool_id.clone(), (cx - take_x, cy - take_y));
+        let caller = env::predecessor_account_id();
+        for (tok, amt) in [(pool.token_x.clone(), take_x), (pool.token_y.clone(), take_y)] {
+            if amt == 0 { continue; }
+            let key = (caller.clone(), tok);
+            let cur = self.deposits.get(&key).copied().unwrap_or(0);
+            self.deposits.insert(key, cur + amt);
+        }
+    }
+
+    #[payable]
+    pub fn withdraw_asset(&mut self, token_id: AccountId, amount: U128) -> Promise {
+        require!(amount.0 > 0, "amount must be > 0");
+        let caller = env::predecessor_account_id();
+        let key = (caller.clone(), token_id.clone());
+        let cur = self.deposits.get(&key).copied().unwrap_or(0);
+        require!(cur >= amount.0, "insufficient deposit");
+        self.deposits.insert(key, cur - amount.0);
+        Promise::new(token_id).function_call(
+            "ft_transfer",
+            near_sdk::serde_json::json!({"receiver_id": caller, "amount": amount, "memo": "KYP DCL withdraw"}).to_string().into_bytes(),
+            NearToken::from_yoctonear(1),
+            near_sdk::Gas::from_tgas(10),
+        )
+    }
+
+    /// MOCK ONLY: accrue trading fees on a pool, claimable by the LP via `claim_charged_fee`.
+    pub fn mock_add_charged_fee(&mut self, pool_id: String, amount_x: U128, amount_y: U128) {
+        require!(env::predecessor_account_id() == self.owner_id, "owner only");
+        require!(self.pools.contains_key(&pool_id), "no such pool");
+        let (cx, cy) = self.charged_fees.get(&pool_id).copied().unwrap_or((0, 0));
+        self.charged_fees.insert(pool_id, (cx + amount_x.0, cy + amount_y.0));
     }
 
     /// MOCK ONLY: simulate trading moving the price.
