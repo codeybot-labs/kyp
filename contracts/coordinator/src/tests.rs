@@ -25,6 +25,12 @@ fn set(pred: &str, ts: u64, deposit: u128) {
     testing_env!(ctx(pred, ts, deposit).build());
 }
 
+fn set_at(pred: &str, ts: u64, deposit: u128, block: u64) {
+    let mut c = ctx(pred, ts, deposit);
+    c.block_height(block);
+    testing_env!(c.build());
+}
+
 fn set_with_results(pred: &str, ts: u64, results: Vec<PromiseResult>) {
     testing_env!(
         ctx(pred, ts, 0).build(),
@@ -1003,3 +1009,129 @@ fn liquidity_ranges_settle_on_rhea_dcl() {
     assert!(dcl_need_x(-23_000, 776_800, l.lp_tokens).unwrap() > l.lp_tokens);
     assert!(r[0].1 < 776_800 && r[0].1 >= 776_800 - 48 * 200);
 }
+
+#[test]
+fn holder_pull_epoch_and_claim() {
+    let mut c = new_contract();
+    set("launcher.testnet", T0, 8 * NEAR);
+    let launch = c.build_launch(acc("launcher.testnet"), params());
+    let id = launch.id;
+    let project = launch.token_id.clone();
+    c.launches.insert(id, launch);
+    c.launches.get_mut(&id).unwrap().status = LaunchStatus::Live;
+
+    set("intruder.testnet", T0, 0);
+    let stranger = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.enable_holder_pull(id, true);
+    }));
+    assert!(stranger.is_err(), "only launcher enables pull");
+
+    set("launcher.testnet", T0, 0);
+    c.enable_holder_pull(id, true);
+    assert!(c.holder_pull_enabled(id));
+    assert!(c.get_launch(id).unwrap().holder_pull);
+
+    set("wrap.testnet", T0 + 1, 0);
+    let _ = c.ft_on_transfer(
+        acc("someone.testnet"),
+        U128(100 * NEAR),
+        serde_json::to_string(&CoordinatorMsg::Fees { launch_id: id }).unwrap(),
+    );
+
+    set("keeper.testnet", T0 + 2, 0);
+    let _ = c.distribute_fees(id, acc("wrap.testnet"));
+    // holders 50 stay in the pot; liquidity 30 + community 20 are transferred
+    assert_eq!(c.holder_fee_pending(id, acc("wrap.testnet")).0, 50 * NEAR);
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1.0, 0);
+
+    set_with_results("kyp.testnet", T0 + 3, vec![
+        PromiseResult::Successful(vec![]),
+        PromiseResult::Successful(vec![]),
+    ]);
+    let failed = c.on_fees_distributed(
+        id,
+        acc("wrap.testnet"),
+        vec![(acc("lp.kyp.testnet"), U128(30 * NEAR)), (acc("bounties.kyp.testnet"), U128(20 * NEAR))],
+    );
+    assert_eq!(failed.0, 0);
+    assert_eq!(c.holder_fee_pending(id, acc("wrap.testnet")).0, 50 * NEAR);
+
+    set("keeper.testnet", T0 + 4, 0);
+    let _ = c.open_holder_epoch(id, acc("wrap.testnet"));
+    assert_eq!(c.holder_fee_pending(id, acc("wrap.testnet")).0, 0);
+
+    set("kyp.testnet", T0 + 5, 0);
+    assert_eq!(c.on_holder_epoch_opened(id, acc("wrap.testnet"), U128(50 * NEAR), Ok(U128(1_000 * NEAR))), 1);
+    let e = c.get_holder_epoch(id, 1).unwrap();
+    assert_eq!(e.2.0, 50 * NEAR);
+    assert_eq!(e.4.0, 1_000 * NEAR);
+    assert_eq!(c.holder_epoch_count(id), 1);
+
+    // protocol accounts cannot prepare
+    set("kyp.testnet", T0 + 6, 0);
+    let proto = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = c.prepare_holder_claim(id, 1);
+    }));
+    assert!(proto.is_err());
+
+    set_at("alice.testnet", T0 + 7, 0, 10);
+    let _ = c.prepare_holder_claim(id, 1);
+    set_at("kyp.testnet", T0 + 7, 0, 10);
+    assert!(c.on_holder_prepared(id, 1, acc("alice.testnet"), Ok(U128(100 * NEAR))));
+    let prep = c.get_holder_prepare(id, 1, acc("alice.testnet")).unwrap();
+    assert_eq!(prep.0.0, 100 * NEAR);
+    assert_eq!(prep.1, 10);
+
+    // same block must fail
+    set_at("alice.testnet", T0 + 8, 0, 10);
+    let same = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = c.claim_holder_fees(id, 1);
+    }));
+    assert!(same.is_err(), "must wait a later block");
+
+    set_at("alice.testnet", T0 + 9, 0, 11);
+    let _ = c.claim_holder_fees(id, 1);
+    set_at("kyp.testnet", T0 + 9, 0, 11);
+    // current balance also 100; share = 50 * 100/1000 = 5
+    let _ = c.on_holder_claim_balance(id, 1, acc("alice.testnet"), acc("wrap.testnet"), Ok(U128(100 * NEAR)));
+    assert!(c.holder_claimed(id, 1, acc("alice.testnet")));
+    assert_eq!(c.get_holder_epoch(id, 1).unwrap().3.0, 5 * NEAR);
+
+    set_at("alice.testnet", T0 + 10, 0, 12);
+    let twice = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        let _ = c.claim_holder_fees(id, 1);
+    }));
+    assert!(twice.is_err(), "cannot claim twice");
+
+    // failed transfer rolls back
+    set_at("bob.testnet", T0 + 11, 0, 20);
+    let _ = c.prepare_holder_claim(id, 1);
+    set_at("kyp.testnet", T0 + 11, 0, 20);
+    assert!(c.on_holder_prepared(id, 1, acc("bob.testnet"), Ok(U128(200 * NEAR))));
+    set_at("bob.testnet", T0 + 12, 0, 21);
+    let _ = c.claim_holder_fees(id, 1);
+    set_at("kyp.testnet", T0 + 12, 0, 21);
+    let _ = c.on_holder_claim_balance(id, 1, acc("bob.testnet"), acc("wrap.testnet"), Ok(U128(200 * NEAR)));
+    assert_eq!(c.get_holder_epoch(id, 1).unwrap().3.0, 15 * NEAR); // 5 + 10
+    set("kyp.testnet", T0 + 13, 0);
+    assert!(!c.on_holder_claim_paid(id, 1, acc("bob.testnet"), acc("wrap.testnet"), U128(10 * NEAR), Err(near_sdk::PromiseError::Failed)));
+    assert!(!c.holder_claimed(id, 1, acc("bob.testnet")));
+    assert_eq!(c.get_holder_epoch(id, 1).unwrap().3.0, 5 * NEAR);
+
+    // failed open refunds the pot
+    set("wrap.testnet", T0 + 14, 0);
+    let _ = c.ft_on_transfer(
+        acc("someone.testnet"),
+        U128(20 * NEAR),
+        serde_json::to_string(&CoordinatorMsg::Fees { launch_id: id }).unwrap(),
+    );
+    set("keeper.testnet", T0 + 15, 0);
+    let _ = c.distribute_fees(id, acc("wrap.testnet"));
+    assert_eq!(c.holder_fee_pending(id, acc("wrap.testnet")).0, 10 * NEAR);
+    let _ = c.open_holder_epoch(id, acc("wrap.testnet"));
+    set("kyp.testnet", T0 + 16, 0);
+    assert_eq!(c.on_holder_epoch_opened(id, acc("wrap.testnet"), U128(10 * NEAR), Err(near_sdk::PromiseError::Failed)), 0);
+    assert_eq!(c.holder_fee_pending(id, acc("wrap.testnet")).0, 10 * NEAR);
+    let _ = project; // token id exists
+}
+

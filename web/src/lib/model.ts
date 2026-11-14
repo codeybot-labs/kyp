@@ -35,6 +35,7 @@ export interface LaunchView {
   milestones: MilestoneInput[]; twap: TwapConfig; reveal: RevealConfig; fee_split: FeeSplit;
   fee_extra?: FeeExtra | null;
   buyback_bps?: number;
+  holder_pull?: boolean;
   total_raised: string; presale_tokens: string; reserved_tokens: string; lp_tokens: string;
   pool_contract: string; pool_id: string; token_is_x: boolean; init_point: number;
   progress: Progress; launched_at: number | null; revealed_waves: number; next_wave_at: number | null;

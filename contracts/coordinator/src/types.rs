@@ -261,6 +261,8 @@ pub struct LaunchView {
     pub fee_split: FeeSplit,
     pub fee_extra: Option<FeeExtra>,
     pub buyback_bps: u16,
+    /// When true, the holders fee share accrues to a claimable pot instead of being sent to holders_account.
+    pub holder_pull: bool,
     pub total_raised: U128,
     pub presale_tokens: U128,
     pub reserved_tokens: U128,

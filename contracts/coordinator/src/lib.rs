@@ -17,7 +17,7 @@
 //!    the launcher's or presalers' wallets. LP positions are owned by this contract and there
 //!    is no method to remove them.
 //! 4. Post-launch: `reveal_next_wave` (permissionless, on schedule), `BuyReserved` for named
-//!    reserved slots, fee routing via `Fees` + `distribute_fees`, `collect_fees` to claim DCL trading fees, `approve_bounty` then permissionless `pay_bounty` from the community share.
+//!    reserved slots, fee routing via `Fees` + `distribute_fees`, `collect_fees` to claim DCL trading fees, `approve_bounty` then permissionless `pay_bounty` from the community share, and optional holder pull claims.
 //! 5. If the launcher never launches by `sale_end`, or cancels, presalers `withdraw`.
 
 mod types;
@@ -110,6 +110,120 @@ fn read_bounty_approval(launch_id: u64, bounty_ref: &str) -> Option<BountyApprov
 }
 fn write_bounty_approval(launch_id: u64, bounty_ref: &str, a: &BountyApproval) {
     env::storage_write(&bounty_approval_key(launch_id, bounty_ref), &near_sdk::borsh::to_vec(a).unwrap());
+}
+
+fn holder_pull_key(launch_id: u64) -> Vec<u8> {
+    format!("fee_hp:{launch_id}").into_bytes()
+}
+fn read_holder_pull(launch_id: u64) -> bool {
+    env::storage_read(&holder_pull_key(launch_id)).map(|b| !b.is_empty() && b[0] != 0).unwrap_or(false)
+}
+fn write_holder_pull(launch_id: u64, on: bool) {
+    let key = holder_pull_key(launch_id);
+    if on {
+        env::storage_write(&key, &[1]);
+    } else {
+        env::storage_remove(&key);
+    }
+}
+
+fn holder_pending_key(launch_id: u64, token_id: &AccountId) -> Vec<u8> {
+    format!("fee_hpot:{launch_id}:{token_id}").into_bytes()
+}
+fn read_holder_pending(launch_id: u64, token_id: &AccountId) -> u128 {
+    env::storage_read(&holder_pending_key(launch_id, token_id))
+        .and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+        .unwrap_or(0)
+}
+fn write_holder_pending(launch_id: u64, token_id: &AccountId, amount: u128) {
+    let key = holder_pending_key(launch_id, token_id);
+    if amount == 0 {
+        env::storage_remove(&key);
+    } else {
+        env::storage_write(&key, &near_sdk::borsh::to_vec(&amount).unwrap());
+    }
+}
+
+fn holder_epoch_count_key(launch_id: u64) -> Vec<u8> {
+    format!("fee_hen:{launch_id}").into_bytes()
+}
+fn read_holder_epoch_count(launch_id: u64) -> u64 {
+    env::storage_read(&holder_epoch_count_key(launch_id))
+        .and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+        .unwrap_or(0)
+}
+fn write_holder_epoch_count(launch_id: u64, n: u64) {
+    env::storage_write(&holder_epoch_count_key(launch_id), &near_sdk::borsh::to_vec(&n).unwrap());
+}
+
+/// One claimable holder-fee epoch. Stored under a new key; Launch Borsh is unchanged.
+#[near(serializers = [borsh, json])]
+#[derive(Clone)]
+pub struct HolderEpoch {
+    pub epoch: u64,
+    pub token_id: AccountId,
+    pub pot: u128,
+    pub claimed: u128,
+    pub eligible_supply: u128,
+}
+
+fn holder_epoch_key(launch_id: u64, epoch: u64) -> Vec<u8> {
+    format!("fee_he:{launch_id}:{epoch}").into_bytes()
+}
+fn read_holder_epoch(launch_id: u64, epoch: u64) -> Option<HolderEpoch> {
+    env::storage_read(&holder_epoch_key(launch_id, epoch)).and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+}
+fn write_holder_epoch(launch_id: u64, e: &HolderEpoch) {
+    env::storage_write(&holder_epoch_key(launch_id, e.epoch), &near_sdk::borsh::to_vec(e).unwrap());
+}
+
+#[near(serializers = [borsh])]
+#[derive(Clone)]
+struct HolderPrepare {
+    balance: u128,
+    block: u64,
+}
+
+fn holder_prep_key(launch_id: u64, epoch: u64, account: &AccountId) -> Vec<u8> {
+    format!("fee_hs:{launch_id}:{epoch}:{account}").into_bytes()
+}
+fn read_holder_prepare(launch_id: u64, epoch: u64, account: &AccountId) -> Option<HolderPrepare> {
+    env::storage_read(&holder_prep_key(launch_id, epoch, account)).and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+}
+fn write_holder_prepare(launch_id: u64, epoch: u64, account: &AccountId, p: &HolderPrepare) {
+    env::storage_write(&holder_prep_key(launch_id, epoch, account), &near_sdk::borsh::to_vec(p).unwrap());
+}
+
+fn holder_claimed_key(launch_id: u64, epoch: u64, account: &AccountId) -> Vec<u8> {
+    format!("fee_hcl:{launch_id}:{epoch}:{account}").into_bytes()
+}
+fn read_holder_claimed(launch_id: u64, epoch: u64, account: &AccountId) -> bool {
+    env::storage_read(&holder_claimed_key(launch_id, epoch, account)).is_some()
+}
+fn write_holder_claimed(launch_id: u64, epoch: u64, account: &AccountId, claimed: bool) {
+    let key = holder_claimed_key(launch_id, epoch, account);
+    if claimed {
+        env::storage_write(&key, &[1]);
+    } else {
+        env::storage_remove(&key);
+    }
+}
+
+fn holder_claim_pend_key(launch_id: u64, epoch: u64, account: &AccountId) -> Vec<u8> {
+    format!("fee_hcp:{launch_id}:{epoch}:{account}").into_bytes()
+}
+fn read_holder_claim_pend(launch_id: u64, epoch: u64, account: &AccountId) -> u128 {
+    env::storage_read(&holder_claim_pend_key(launch_id, epoch, account))
+        .and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+        .unwrap_or(0)
+}
+fn write_holder_claim_pend(launch_id: u64, epoch: u64, account: &AccountId, amount: u128) {
+    let key = holder_claim_pend_key(launch_id, epoch, account);
+    if amount == 0 {
+        env::storage_remove(&key);
+    } else {
+        env::storage_write(&key, &near_sdk::borsh::to_vec(&amount).unwrap());
+    }
 }
 
 fn buyback_bps_key(launch_id: u64) -> Vec<u8> {
@@ -1007,11 +1121,15 @@ impl Contract {
         let lq = lq.saturating_sub(b_prepaid);
         write_community_paid(launch_id, &token_id, 0);
         write_buyback_paid(launch_id, &token_id, 0);
-        let mut destinations = vec![
-            (fs.holders_account, h),
-            (fs.liquidity_account, lq),
-            (fs.community_account, c),
-        ];
+        let mut destinations: Vec<(AccountId, u128)> = vec![];
+        if read_holder_pull(launch_id) && h > 0 {
+            write_holder_pending(launch_id, &token_id, read_holder_pending(launch_id, &token_id) + h);
+            emit("holder_fees_accrued", json!({"launch_id": launch_id, "token_id": token_id, "amount": U128(h)}));
+        } else {
+            destinations.push((fs.holders_account, h));
+        }
+        destinations.push((fs.liquidity_account, lq));
+        destinations.push((fs.community_account, c));
         if let Some(e) = extra {
             destinations.push((e.operations_account, op));
             destinations.push((e.near_ai_account, ai));
@@ -1034,12 +1152,14 @@ impl Contract {
                 None => t,
             });
         }
-        p.unwrap().then(
-            Self::ext(env::current_account_id())
-                .with_static_gas(GAS_CB)
-                .with_unused_gas_weight(1)
-                .on_fees_distributed(launch_id, token_id, legs),
-        )
+        let cb = Self::ext(env::current_account_id())
+            .with_static_gas(GAS_CB)
+            .with_unused_gas_weight(1)
+            .on_fees_distributed(launch_id, token_id, legs);
+        match p {
+            Some(x) => x.then(cb),
+            None => cb,
+        }
     }
 
     #[private]
@@ -1201,6 +1321,230 @@ impl Contract {
         let extra = read_fee_extra(launch_id);
         let (_, _, c, _, _) = l.fee_split.split_with_extra(bal + prepaid, extra.as_ref());
         U128(c.saturating_sub(prepaid))
+    }
+
+
+    // ------------------------------------------------------------------ holder pull claims
+
+    fn is_protocol_holder(&self, l: &Launch, who: &AccountId) -> bool {
+        who == &env::current_account_id()
+            || who == &self.config.lock_contract
+            || who == &l.pool_contract
+            || who == &l.token_id
+    }
+
+    /// Launcher: send the holders fee share to a claimable pot instead of `holders_account`.
+    /// Presale tokens sit in the lock, so only unlocked (non-presale) wallet balances can claim.
+    pub fn enable_holder_pull(&mut self, launch_id: u64, enabled: bool) {
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(env::predecessor_account_id() == l.launcher, "only the launcher can set holder claims");
+        write_holder_pull(launch_id, enabled);
+        emit("holder_pull", json!({"launch_id": launch_id, "enabled": enabled}));
+    }
+
+    pub fn holder_pull_enabled(&self, launch_id: u64) -> bool {
+        read_holder_pull(launch_id)
+    }
+
+    pub fn holder_fee_pending(&self, launch_id: u64, token_id: AccountId) -> U128 {
+        U128(read_holder_pending(launch_id, &token_id))
+    }
+
+    pub fn holder_epoch_count(&self, launch_id: u64) -> u64 {
+        read_holder_epoch_count(launch_id)
+    }
+
+    pub fn get_holder_epoch(&self, launch_id: u64, epoch: u64) -> Option<(u64, AccountId, U128, U128, U128)> {
+        read_holder_epoch(launch_id, epoch).map(|e| (e.epoch, e.token_id, U128(e.pot), U128(e.claimed), U128(e.eligible_supply)))
+    }
+
+    pub fn get_holder_prepare(&self, launch_id: u64, epoch: u64, account_id: AccountId) -> Option<(U128, u64)> {
+        read_holder_prepare(launch_id, epoch, &account_id).map(|p| (U128(p.balance), p.block))
+    }
+
+    pub fn holder_claimed(&self, launch_id: u64, epoch: u64, account_id: AccountId) -> bool {
+        read_holder_claimed(launch_id, epoch, &account_id)
+    }
+
+    /// Permissionless: snapshot token total supply and open a claimable epoch for accrued holder fees.
+    pub fn open_holder_epoch(&mut self, launch_id: u64, token_id: AccountId) -> Promise {
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(l.status == LaunchStatus::Live, "launch not live");
+        let pot = read_holder_pending(launch_id, &token_id);
+        require!(pot > 0, "nothing to open");
+        let project = l.token_id.clone();
+        write_holder_pending(launch_id, &token_id, 0);
+        Promise::new(project)
+            .function_call("ft_total_supply", b"{}".to_vec(), NearToken::from_yoctonear(0), GAS_FT_BALANCE)
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CB)
+                    .on_holder_epoch_opened(launch_id, token_id, U128(pot)),
+            )
+    }
+
+    #[private]
+    pub fn on_holder_epoch_opened(
+        &mut self,
+        launch_id: u64,
+        token_id: AccountId,
+        pot: U128,
+        #[callback_result] supply: Result<U128, PromiseError>,
+    ) -> u64 {
+        let ok = supply.as_ref().ok().map(|s| s.0).unwrap_or(0);
+        if ok == 0 {
+            write_holder_pending(launch_id, &token_id, read_holder_pending(launch_id, &token_id) + pot.0);
+            log!("holder epoch open failed; pot refunded");
+            return 0;
+        }
+        let epoch = read_holder_epoch_count(launch_id) + 1;
+        write_holder_epoch_count(launch_id, epoch);
+        write_holder_epoch(
+            launch_id,
+            &HolderEpoch { epoch, token_id: token_id.clone(), pot: pot.0, claimed: 0, eligible_supply: ok },
+        );
+        emit(
+            "holder_epoch_opened",
+            json!({"launch_id": launch_id, "epoch": epoch, "token_id": token_id, "pot": pot, "eligible_supply": U128(ok)}),
+        );
+        epoch
+    }
+
+    /// Snapshot the caller's project-token balance. Claim in a later block against min(current, snapshot)
+    /// so a same-transaction flash loan cannot drain the pot.
+    pub fn prepare_holder_claim(&mut self, launch_id: u64, epoch: u64) -> Promise {
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(l.status == LaunchStatus::Live, "launch not live");
+        let e = read_holder_epoch(launch_id, epoch).expect("no epoch");
+        let caller = env::predecessor_account_id();
+        require!(!self.is_protocol_holder(&l, &caller), "protocol balances are not claimable");
+        require!(!read_holder_claimed(launch_id, epoch, &caller), "already claimed");
+        require!(e.eligible_supply > 0, "empty epoch");
+        Promise::new(l.token_id.clone())
+            .function_call(
+                "ft_balance_of",
+                json!({"account_id": caller}).to_string().into_bytes(),
+                NearToken::from_yoctonear(0),
+                GAS_FT_BALANCE,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CB)
+                    .on_holder_prepared(launch_id, epoch, caller),
+            )
+    }
+
+    #[private]
+    pub fn on_holder_prepared(
+        &mut self,
+        launch_id: u64,
+        epoch: u64,
+        account_id: AccountId,
+        #[callback_result] bal: Result<U128, PromiseError>,
+    ) -> bool {
+        let Ok(b) = bal else {
+            log!("holder prepare failed");
+            return false;
+        };
+        if read_holder_claimed(launch_id, epoch, &account_id) {
+            return false;
+        }
+        write_holder_prepare(
+            launch_id,
+            epoch,
+            &account_id,
+            &HolderPrepare { balance: b.0, block: env::block_height() },
+        );
+        true
+    }
+
+    /// After `prepare_holder_claim` in a later block: pull this account's share of the epoch pot.
+    pub fn claim_holder_fees(&mut self, launch_id: u64, epoch: u64) -> Promise {
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(l.status == LaunchStatus::Live, "launch not live");
+        let e = read_holder_epoch(launch_id, epoch).expect("no epoch");
+        let caller = env::predecessor_account_id();
+        require!(!self.is_protocol_holder(&l, &caller), "protocol balances are not claimable");
+        require!(!read_holder_claimed(launch_id, epoch, &caller), "already claimed");
+        let prep = read_holder_prepare(launch_id, epoch, &caller).expect("prepare a claim first");
+        require!(env::block_height() > prep.block, "claim in a later block than prepare");
+        Promise::new(l.token_id.clone())
+            .function_call(
+                "ft_balance_of",
+                json!({"account_id": caller}).to_string().into_bytes(),
+                NearToken::from_yoctonear(0),
+                GAS_FT_BALANCE,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(Gas::from_tgas(30))
+                    .on_holder_claim_balance(launch_id, epoch, caller, e.token_id.clone()),
+            )
+    }
+
+    #[private]
+    pub fn on_holder_claim_balance(
+        &mut self,
+        launch_id: u64,
+        epoch: u64,
+        account_id: AccountId,
+        fee_token: AccountId,
+        #[callback_result] bal: Result<U128, PromiseError>,
+    ) -> Promise {
+        let current = bal.ok().map(|b| b.0).unwrap_or(0);
+        require!(!read_holder_claimed(launch_id, epoch, &account_id), "already claimed");
+        let prep = read_holder_prepare(launch_id, epoch, &account_id).expect("prepare a claim first");
+        require!(env::block_height() > prep.block, "claim in a later block than prepare");
+        let mut e = read_holder_epoch(launch_id, epoch).expect("no epoch");
+        let used = current.min(prep.balance);
+        let amount = if e.eligible_supply == 0 { 0 } else { mul_div(e.pot, used, e.eligible_supply) };
+        let amount = amount.min(e.pot.saturating_sub(e.claimed));
+        write_holder_claimed(launch_id, epoch, &account_id, true);
+        if amount == 0 {
+            emit("holder_claimed", json!({"launch_id": launch_id, "epoch": epoch, "account_id": account_id, "amount": U128(0)}));
+            let _ = fee_token;
+            return Promise::new(account_id);
+        }
+        e.claimed += amount;
+        write_holder_epoch(launch_id, &e);
+        write_holder_claim_pend(launch_id, epoch, &account_id, amount);
+        emit("holder_claimed", json!({"launch_id": launch_id, "epoch": epoch, "account_id": account_id, "amount": U128(amount)}));
+        Promise::new(fee_token.clone())
+            .function_call(
+                "ft_transfer",
+                json!({"receiver_id": account_id, "amount": U128(amount), "memo": format!("KYP holder claim #{launch_id}.{epoch}")}).to_string().into_bytes(),
+                NearToken::from_yoctonear(1),
+                GAS_FT_TRANSFER,
+            )
+            .then(
+                Self::ext(env::current_account_id())
+                    .with_static_gas(GAS_CB)
+                    .on_holder_claim_paid(launch_id, epoch, account_id, fee_token, U128(amount)),
+            )
+    }
+
+    #[private]
+    pub fn on_holder_claim_paid(
+        &mut self,
+        launch_id: u64,
+        epoch: u64,
+        account_id: AccountId,
+        fee_token: AccountId,
+        amount: U128,
+        #[callback_result] res: Result<(), PromiseError>,
+    ) -> bool {
+        write_holder_claim_pend(launch_id, epoch, &account_id, 0);
+        if res.is_ok() || amount.0 == 0 {
+            return true;
+        }
+        write_holder_claimed(launch_id, epoch, &account_id, false);
+        if let Some(mut e) = read_holder_epoch(launch_id, epoch) {
+            e.claimed = e.claimed.saturating_sub(amount.0);
+            write_holder_epoch(launch_id, &e);
+        }
+        log!("holder claim transfer failed; rolled back");
+        let _ = fee_token;
+        false
     }
 
     fn parse_user_assets(v: serde_json::Value) -> HashMap<AccountId, U128> {
@@ -1825,6 +2169,7 @@ impl Contract {
             fee_split: l.fee_split.clone(),
             fee_extra: read_fee_extra(l.id),
             buyback_bps: read_buyback_bps(l.id),
+            holder_pull: read_holder_pull(l.id),
             total_raised: U128(l.total_raised),
             presale_tokens: U128(l.presale_tokens),
             reserved_tokens: U128(l.reserved_tokens),

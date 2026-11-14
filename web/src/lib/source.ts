@@ -30,6 +30,23 @@ export const api = {
   list: (): Promise<LaunchView[]> => (getMode() === "demo" ? demo.list() : view<LaunchView[]>(c(), "get_launches", { from_index: 0, limit: 50 }).then((x) => x.reverse())),
   launch: (id: number): Promise<LaunchView | null> => (getMode() === "demo" ? demo.launch(id) : view(c(), "get_launch", { launch_id: id })),
   buybackAvailable: (id: number): Promise<string> => (getMode() === "demo" ? Promise.resolve("0") : view<string>(c(), "buyback_available", { launch_id: id }).then((x) => (x as any)?.toString?.() ?? String(x ?? "0"))),
+  holderFeePending: (id: number, tokenId: string): Promise<string> => (getMode() === "demo" ? Promise.resolve("0") : view<string>(c(), "holder_fee_pending", { launch_id: id, token_id: tokenId }).then((x) => (x as any)?.toString?.() ?? String(x ?? "0"))),
+  holderEpochCount: (id: number): Promise<number> => (getMode() === "demo" ? Promise.resolve(0) : view<number>(c(), "holder_epoch_count", { launch_id: id }).then((x) => Number(x || 0))),
+  holderEpoch: (id: number, epoch: number): Promise<{ epoch: number; token_id: string; pot: string; claimed: string; eligible_supply: string } | null> => (
+    getMode() === "demo"
+      ? Promise.resolve(null)
+      : view<[number, string, any, any, any] | null>(c(), "get_holder_epoch", { launch_id: id, epoch }).then((x) =>
+          x ? { epoch: Number(x[0]), token_id: x[1], pot: (x[2] as any)?.toString?.() ?? String(x[2] ?? "0"), claimed: (x[3] as any)?.toString?.() ?? String(x[3] ?? "0"), eligible_supply: (x[4] as any)?.toString?.() ?? String(x[4] ?? "0") } : null
+        )
+  ),
+  holderPrepare: (id: number, epoch: number, account: string): Promise<{ balance: string; block: number } | null> => (
+    getMode() === "demo"
+      ? Promise.resolve(null)
+      : view<[any, number] | null>(c(), "get_holder_prepare", { launch_id: id, epoch, account_id: account }).then((x) =>
+          x ? { balance: (x[0] as any)?.toString?.() ?? String(x[0] ?? "0"), block: Number(x[1] || 0) } : null
+        )
+  ),
+  holderClaimed: (id: number, epoch: number, account: string): Promise<boolean> => (getMode() === "demo" ? Promise.resolve(false) : view<boolean>(c(), "holder_claimed", { launch_id: id, epoch, account_id: account }).then((x) => !!x)),
   communityFeeAvailable: (id: number, tokenId: string): Promise<string> => (getMode() === "demo" ? Promise.resolve("0") : view<string>(c(), "community_fee_available", { launch_id: id, token_id: tokenId }).then((x) => (x as any)?.toString?.() ?? String(x ?? "0"))),
   bountyApproval: (id: number, bountyRef: string): Promise<{ receiver_id: string; token_id: string; max_amount: string; paid: string } | null> => (
     getMode() === "demo"

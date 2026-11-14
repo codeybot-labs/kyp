@@ -109,7 +109,7 @@ function TermsBody(p: { l: LaunchView }) {
               <div class="card">
                 <div class="card-title"><h3>Fee routing</h3></div>
                 <div class="kv">
-                  <span>Holders</span><span>{pct(l.fee_split.holders_bps)} → <code>{l.fee_split.holders_account}</code></span>
+                  <span>Holders</span><span>{pct(l.fee_split.holders_bps)} → {l.holder_pull ? "claimable pull (unlocked wallets, one epoch at a time)" : <code>{l.fee_split.holders_account}</code>}</span>
                   <span>Liquidity</span><span>{pct(l.fee_split.liquidity_bps)} → <code>{l.fee_split.liquidity_account}</code></span>
                   <span>Competitions & bounties</span><span>{pct(l.fee_split.community_bps)} → <code>{l.fee_split.community_account}</code></span>
                   <Show when={l.fee_extra && (l.fee_extra.operations_bps > 0 || l.fee_extra.near_ai_bps > 0)}>

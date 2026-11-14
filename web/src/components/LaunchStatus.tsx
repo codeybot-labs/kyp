@@ -7,7 +7,7 @@ import { toRaw } from "../lib/math.mjs";
 import { MilestoneLadder } from "./Terms";
 import { WithLaunch, useLive, useNow, fmtQ, fmtT, usdOf, pct, dur, when, quote, Stat, act, Cli, Signable, sendTx, toast } from "./ui";
 import { account as wallet } from "../lib/wallet";
-import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx, collectFeesTx, setBuybackBpsTx, buybackToLockTx, resumeBuybackTx } from "../lib/actions.mjs";
+import { isLauncher, canLaunch, launchTx, launchNearNeeded, cancelLaunchTx, resumeLaunchTx, recordTx, qualifyTx, collectFeesTx, setBuybackBpsTx, buybackToLockTx, resumeBuybackTx, enableHolderPullTx, openHolderEpochTx, prepareHolderClaimTx, claimHolderFeesTx } from "../lib/actions.mjs";
 import type { LaunchView } from "../lib/model";
 
 // lazy: the chart + lightweight-charts load as separate chunks, only when a launch is Live
@@ -189,6 +189,7 @@ function TestnetActions(p: { l: LaunchView }) {
             <button class="btn primary" onClick={() => sendTx(() => qualifyTx(CONFIG.lock, p.l.id), "Milestones checked")}>Qualify milestones</button>
             <a class="btn ghost" href={`/claim?id=${p.l.id}`}>Go to claim →</a>
           </div>
+          <HolderPullControls l={p.l} me={wallet()} />
           <div class="sub">Anyone can poke and qualify. Each call is a small gas-only transaction.</div>
         </Show>
       </Signable>
@@ -230,6 +231,36 @@ function BuybackControls(p: { l: LaunchView; me: string | null }) {
           sendTx(() => buybackToLockTx(CONFIG.coordinator, p.l.id, raw.toString(), min.toString()), "Buyback sent to the permanent lock");
         }}>Buy back to lock</button>
         <button class="btn sm ghost" type="button" onClick={() => sendTx(() => resumeBuybackTx(CONFIG.coordinator, p.l.id), "Buyback resumed")}>Resume buyback</button>
+      </div>
+    </div>
+  );
+}
+
+
+function HolderPullControls(p: { l: LaunchView; me: string | null }) {
+  const isLauncher = !!p.me && p.me === p.l.launcher;
+  const [pending] = createResource(() => `${p.l.id}:${p.l.quote_token_id}`, () => api.holderFeePending(p.l.id, p.l.quote_token_id));
+  const [count, { refetch: refetchCount }] = createResource(() => p.l.id, (id) => api.holderEpochCount(id));
+  const epoch = () => count() || 0;
+  const [ep, { refetch: refetchEp }] = createResource(() => (epoch() > 0 ? `${p.l.id}:${epoch()}` : null), (k) => k ? api.holderEpoch(p.l.id, epoch()) : Promise.resolve(null));
+  const [prep, { refetch: refetchPrep }] = createResource(() => (p.me && epoch() > 0 ? `${p.l.id}:${epoch()}:${p.me}` : null), (k) => k && p.me ? api.holderPrepare(p.l.id, epoch(), p.me) : Promise.resolve(null));
+  const [claimed, { refetch: refetchClaimed }] = createResource(() => (p.me && epoch() > 0 ? `${p.l.id}:${epoch()}:${p.me}` : null), (k) => k && p.me ? api.holderClaimed(p.l.id, epoch(), p.me) : Promise.resolve(false));
+  const refresh = () => { refetchCount(); refetchEp(); refetchPrep(); refetchClaimed(); };
+  return (
+    <div class="stack" style={{ gap: "8px", "margin-top": "8px" }}>
+      <span class="sub">
+        Holder claims: {p.l.holder_pull ? "pull model on" : "paid to the holders account"}.
+        Pending {pending.loading ? "…" : fmtQ(pending() || "0")}.
+        {epoch() > 0 ? <> Latest epoch #{epoch()}: {ep.loading ? "…" : `${fmtQ(ep()?.pot || "0")} pot, ${fmtQ(ep()?.claimed || "0")} claimed`}.</> : " No epoch open yet."}
+        {claimed() ? " You have claimed this epoch." : prep() ? " Prepared; claim in a later block." : ""}
+      </span>
+      <div class="cc-inline">
+        <Show when={isLauncher}>
+          <button class="btn sm" type="button" onClick={() => sendTx(() => enableHolderPullTx(CONFIG.coordinator, p.l.id, !p.l.holder_pull), p.l.holder_pull ? "Holder pull disabled" : "Holder pull enabled")}>{p.l.holder_pull ? "Disable holder pull" : "Enable holder pull"}</button>
+        </Show>
+        <button class="btn sm" type="button" disabled={!(BigInt(pending() || "0") > 0n)} onClick={() => sendTx(() => openHolderEpochTx(CONFIG.coordinator, p.l.id, p.l.quote_token_id), "Holder epoch opened").then(refresh)}>Open epoch</button>
+        <button class="btn sm" type="button" disabled={!p.me || !epoch() || !!claimed()} onClick={() => sendTx(() => prepareHolderClaimTx(CONFIG.coordinator, p.l.id, epoch()), "Claim prepared; wait one block, then claim").then(refresh)}>Prepare claim</button>
+        <button class="btn sm primary" type="button" disabled={!p.me || !epoch() || !prep() || !!claimed()} onClick={() => sendTx(() => claimHolderFeesTx(CONFIG.coordinator, p.l.id, epoch()), "Holder fees claimed").then(refresh)}>Claim holder fees</button>
       </div>
     </div>
   );
