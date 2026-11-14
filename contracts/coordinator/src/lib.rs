@@ -17,7 +17,7 @@
 //!    the launcher's or presalers' wallets. LP positions are owned by this contract and there
 //!    is no method to remove them.
 //! 4. Post-launch: `reveal_next_wave` (permissionless, on schedule), `BuyReserved` for named
-//!    reserved slots, fee routing via `Fees` + `distribute_fees`, `collect_fees` to claim DCL trading fees, `pay_bounty` from the community share.
+//!    reserved slots, fee routing via `Fees` + `distribute_fees`, `collect_fees` to claim DCL trading fees, `approve_bounty` then permissionless `pay_bounty` from the community share.
 //! 5. If the launcher never launches by `sale_end`, or cancels, presalers `withdraw`.
 
 mod types;
@@ -89,6 +89,27 @@ fn write_community_paid(launch_id: u64, token_id: &AccountId, amount: u128) {
     } else {
         env::storage_write(&key, &near_sdk::borsh::to_vec(&amount).unwrap());
     }
+}
+
+fn bounty_approval_key(launch_id: u64, bounty_ref: &str) -> Vec<u8> {
+    format!("fee_ba:{launch_id}:{bounty_ref}").into_bytes()
+}
+
+/// On-chain approval for a Corner bounty. Stored under a new key; Launch Borsh is unchanged.
+#[near(serializers = [borsh, json])]
+#[derive(Clone)]
+struct BountyApproval {
+    receiver_id: AccountId,
+    token_id: AccountId,
+    max_amount: u128,
+    paid: u128,
+}
+
+fn read_bounty_approval(launch_id: u64, bounty_ref: &str) -> Option<BountyApproval> {
+    env::storage_read(&bounty_approval_key(launch_id, bounty_ref)).and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+}
+fn write_bounty_approval(launch_id: u64, bounty_ref: &str, a: &BountyApproval) {
+    env::storage_write(&bounty_approval_key(launch_id, bounty_ref), &near_sdk::borsh::to_vec(a).unwrap());
 }
 
 fn buyback_bps_key(launch_id: u64) -> Vec<u8> {
@@ -1043,9 +1064,46 @@ impl Contract {
 
     // ------------------------------------------------------------------ bounty payouts
 
+    /// Launcher or community account: record an approved Corner bounty so anyone can pay it.
+    /// Cannot change a bounty_ref that has already been paid.
+    pub fn approve_bounty(
+        &mut self,
+        launch_id: u64,
+        bounty_ref: String,
+        receiver_id: AccountId,
+        max_amount: U128,
+        token_id: AccountId,
+    ) {
+        require!(max_amount.0 > 0, "amount must be > 0");
+        require!(bounty_ref.len() > 0 && bounty_ref.len() <= 80, "bounty_ref too long");
+        let caller = env::predecessor_account_id();
+        let l = self.launches.get(&launch_id).expect("no launch");
+        require!(l.status == LaunchStatus::Live, "launch not live");
+        require!(
+            caller == l.launcher || caller == l.fee_split.community_account,
+            "only the launcher or community account can approve a bounty"
+        );
+        if let Some(prev) = read_bounty_approval(launch_id, &bounty_ref) {
+            require!(prev.paid == 0, "bounty already paid");
+        }
+        write_bounty_approval(
+            launch_id,
+            &bounty_ref,
+            &BountyApproval { receiver_id: receiver_id.clone(), token_id: token_id.clone(), max_amount: max_amount.0, paid: 0 },
+        );
+        emit(
+            "bounty_approved",
+            json!({"launch_id": launch_id, "bounty_ref": bounty_ref, "receiver_id": receiver_id, "max_amount": max_amount, "token_id": token_id}),
+        );
+    }
+
+    pub fn get_bounty_approval(&self, launch_id: u64, bounty_ref: String) -> Option<(AccountId, AccountId, U128, U128)> {
+        read_bounty_approval(launch_id, &bounty_ref).map(|a| (a.receiver_id, a.token_id, U128(a.max_amount), U128(a.paid)))
+    }
+
     /// Pay a Cabal Corner bounty from the launch's undistributed community fee share.
-    /// Only the launcher or the community account can call it. The Corner API does not
-    /// sign; it only helps the caller build the transaction after a vote has passed.
+    /// The launcher or community account can pay directly. After `approve_bounty`, anyone can
+    /// pay the approved receiver up to the approved amount. A bounty_ref can be paid only once.
     pub fn pay_bounty(
         &mut self,
         launch_id: u64,
@@ -1055,14 +1113,20 @@ impl Contract {
         bounty_ref: String,
     ) -> Promise {
         require!(amount.0 > 0, "amount must be > 0");
-        require!(bounty_ref.len() <= 80, "bounty_ref too long");
+        require!(bounty_ref.len() > 0 && bounty_ref.len() <= 80, "bounty_ref too long");
         let caller = env::predecessor_account_id();
         let l = self.launches.get(&launch_id).expect("no launch");
         require!(l.status == LaunchStatus::Live, "launch not live");
-        require!(
-            caller == l.launcher || caller == l.fee_split.community_account,
-            "only the launcher or community account can pay a bounty"
-        );
+        let privileged = caller == l.launcher || caller == l.fee_split.community_account;
+        let existing = read_bounty_approval(launch_id, &bounty_ref);
+        if let Some(ref a) = existing {
+            require!(a.paid == 0, "bounty already paid");
+            require!(receiver_id == a.receiver_id, "receiver does not match the approval");
+            require!(token_id == a.token_id, "token does not match the approval");
+            require!(amount.0 <= a.max_amount, "amount exceeds the approved max");
+        } else {
+            require!(privileged, "bounty is not approved; only the launcher or community account can pay");
+        }
         let bal = l.fee_balances.iter().find(|(t, _)| *t == token_id).map(|(_, b)| *b).unwrap_or(0);
         require!(bal >= amount.0, "not enough undistributed fees");
         let prepaid = read_community_paid(launch_id, &token_id);
@@ -1078,6 +1142,12 @@ impl Contract {
             l.fees_distributed_quote += amount.0;
         }
         write_community_paid(launch_id, &token_id, prepaid + amount.0);
+        let max = existing.as_ref().map(|a| a.max_amount).unwrap_or(amount.0);
+        write_bounty_approval(
+            launch_id,
+            &bounty_ref,
+            &BountyApproval { receiver_id: receiver_id.clone(), token_id: token_id.clone(), max_amount: max, paid: amount.0 },
+        );
         emit(
             "bounty_paid",
             json!({"launch_id": launch_id, "token_id": token_id, "receiver_id": receiver_id, "amount": amount, "bounty_ref": bounty_ref}),
@@ -1094,12 +1164,12 @@ impl Contract {
             .then(
                 Self::ext(env::current_account_id())
                     .with_static_gas(GAS_CB)
-                    .on_bounty_paid(launch_id, token_id, amount),
+                    .on_bounty_paid(launch_id, token_id, amount, bounty_ref),
             )
     }
 
     #[private]
-    pub fn on_bounty_paid(&mut self, launch_id: u64, token_id: AccountId, amount: U128, #[callback_result] res: Result<(), PromiseError>) -> bool {
+    pub fn on_bounty_paid(&mut self, launch_id: u64, token_id: AccountId, amount: U128, bounty_ref: String, #[callback_result] res: Result<(), PromiseError>) -> bool {
         if res.is_ok() {
             return true;
         }
@@ -1113,6 +1183,10 @@ impl Contract {
         }
         let prepaid = read_community_paid(launch_id, &token_id).saturating_sub(amount.0);
         write_community_paid(launch_id, &token_id, prepaid);
+        if let Some(mut a) = read_bounty_approval(launch_id, &bounty_ref) {
+            a.paid = a.paid.saturating_sub(amount.0);
+            write_bounty_approval(launch_id, &bounty_ref, &a);
+        }
         log!("bounty transfer failed; rolled back");
         false
     }

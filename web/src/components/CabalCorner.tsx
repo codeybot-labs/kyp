@@ -11,7 +11,7 @@ import { SKILLS, skillById, cleanSkills, teamMix, missionsFor, bountyStatus, maj
 import * as store from "../lib/corner-store";
 import { KB } from "../lib/corner-kb.mjs";
 import type { LaunchView, PresalerView } from "../lib/model";
-import { payBountyTx } from "../lib/actions.mjs";
+import { approveAndPayBountyTx, approveBountyTx, payBountyTx } from "../lib/actions.mjs";
 import { toRaw, NEAR_DECIMALS } from "../lib/math.mjs";
 
 const FEATURES: [string, string][] = [
@@ -365,8 +365,8 @@ function BountyItem(p: { b: any; l?: LaunchView; act: (a: any, ok?: string) => P
           </Show>
         </div>
       </Show>
-      <Show when={b().status === "done" && p.l && p.l.status === "Live" && getMode() !== "demo" && p.me && (p.me === p.l.launcher || p.me === p.l.fee_split.community_account) ? p.l : null}>
-        {(l) => <PayBounty b={b()} l={l()} />}
+      <Show when={b().status === "done" && p.l && p.l.status === "Live" && getMode() !== "demo" ? p.l : null}>
+        {(l) => <PayBounty b={b()} l={l()} me={p.me} />}
       </Show>
       <Show when={b().kind === "competition" && b().status !== "proposed"}>
         <ul class="cc-entries">
@@ -520,27 +520,68 @@ export default function CabalCorner() {
 }
 
 
-function PayBounty(p: { b: any; l: LaunchView }) {
+function PayBounty(p: { b: any; l: LaunchView; me?: string }) {
   const [amt, setAmt] = createSignal("");
+  const ref = () => String(p.b.id).slice(0, 80);
   const [avail] = createResource(() => `${p.l.id}:${p.l.quote_token_id}`, () => api.communityFeeAvailable(p.l.id, p.l.quote_token_id));
+  const [approval, { refetch }] = createResource(() => `${p.l.id}:${ref()}`, () => api.bountyApproval(p.l.id, ref()));
   const receiver = () => {
     if (p.b.kind === "bounty") return p.b.claimant && !String(p.b.claimant).startsWith("guest:") ? p.b.claimant : "";
     const w = p.b.entries?.find((e: any) => e.id === p.b.winner);
     return w && !String(w.by).startsWith("guest:") ? w.by : "";
   };
-  const pay = async () => {
+  const canApprove = () => !!p.me && (p.me === p.l.launcher || p.me === p.l.fee_split.community_account);
+  const paid = () => BigInt(approval()?.paid || "0") > 0n;
+  const approved = () => !!approval() && !paid();
+  const rawAmt = () => toRaw(amt() || "0", NEAR_DECIMALS);
+  const args = () => {
     const rec = receiver();
-    if (!rec) { toast("This bounty has no wallet to pay"); return; }
-    const raw = toRaw(amt() || "0", NEAR_DECIMALS);
-    if (raw <= 0n) { toast("Enter an amount in wNEAR"); return; }
-    await sendTx(() => payBountyTx(CONFIG.coordinator, p.l.id, p.l.quote_token_id, rec, raw.toString(), String(p.b.id).slice(0, 80)), `Bounty paid to ${rec}`);
+    const raw = rawAmt();
+    if (!rec || raw <= 0n) return null;
+    return { rec, raw: raw.toString(), ref: ref() };
+  };
+  const approve = async () => {
+    const a = args();
+    if (!a) { toast(!receiver() ? "This bounty has no wallet to pay" : "Enter an amount in wNEAR"); return; }
+    await sendTx(() => approveBountyTx(CONFIG.coordinator, p.l.id, a.ref, a.rec, a.raw, p.l.quote_token_id), `Bounty approved for ${a.rec}`);
+    refetch();
+  };
+  const pay = async () => {
+    const a = args();
+    if (!a) { toast(!receiver() ? "This bounty has no wallet to pay" : "Enter an amount in wNEAR"); return; }
+    await sendTx(() => payBountyTx(CONFIG.coordinator, p.l.id, p.l.quote_token_id, a.rec, a.raw, a.ref), `Bounty paid to ${a.rec}`);
     setAmt("");
+    refetch();
+  };
+  const approveAndPay = async () => {
+    const a = args();
+    if (!a) { toast(!receiver() ? "This bounty has no wallet to pay" : "Enter an amount in wNEAR"); return; }
+    await sendTx(() => approveAndPayBountyTx(CONFIG.coordinator, p.l.id, p.l.quote_token_id, a.rec, a.raw, a.ref), `Bounty approved and paid to ${a.rec}`);
+    setAmt("");
+    refetch();
   };
   return (
     <div class="cc-inline">
-      <span class="sub">Pay from the community fee share ({avail.loading ? "…" : fmtQ(avail() || "0")} available) to {receiver() ? <span class="mono">{receiver()}</span> : "the winner's wallet"}</span>
-      <input placeholder="wNEAR amount" value={amt()} onInput={(e) => setAmt(e.currentTarget.value)} aria-label="Bounty payout amount" />
-      <button class="btn sm primary" type="button" disabled={!receiver()} onClick={pay}>Pay on-chain</button>
+      <span class="sub">
+        {paid()
+          ? <>Paid on-chain from the community fee share to {receiver() ? <span class="mono">{receiver()}</span> : "the winner"}</>
+          : approved()
+            ? <>Approved on-chain ({fmtQ(approval()!.max_amount)} max). Anyone can pay from the community fee share ({avail.loading ? "…" : fmtQ(avail() || "0")} available) to {receiver() ? <span class="mono">{receiver()}</span> : "the winner's wallet"}</>
+            : <>After the Corner vote, the launcher approves the payout on-chain, then anyone can pay it from the community fee share ({avail.loading ? "…" : fmtQ(avail() || "0")} available) to {receiver() ? <span class="mono">{receiver()}</span> : "the winner's wallet"}</>}
+      </span>
+      <Show when={!paid()}>
+        <input placeholder="wNEAR amount" value={amt()} onInput={(e) => setAmt(e.currentTarget.value)} aria-label="Bounty payout amount" />
+        <Show when={canApprove() && !approved()}>
+          <button class="btn sm ghost" type="button" disabled={!receiver()} onClick={approve}>Approve on-chain</button>
+          <button class="btn sm primary" type="button" disabled={!receiver()} onClick={approveAndPay}>Approve & pay</button>
+        </Show>
+        <Show when={approved()}>
+          <button class="btn sm primary" type="button" disabled={!receiver()} onClick={pay}>Pay on-chain</button>
+        </Show>
+        <Show when={canApprove() && !approved() ? false : !approved()}>
+          <span class="sub">Waiting for the launcher or community account to approve this bounty on-chain.</span>
+        </Show>
+      </Show>
     </div>
   );
 }

@@ -627,6 +627,75 @@ fn pay_bounty_from_community_share() {
     assert_eq!(c.community_fee_available(id, acc("wrap.testnet")).0, 0);
 }
 
+
+#[test]
+fn approve_then_permissionless_pay_bounty() {
+    let mut c = new_contract();
+    set("launcher.testnet", T0, 8 * NEAR);
+    let launch = c.build_launch(acc("launcher.testnet"), params());
+    let id = launch.id;
+    c.launches.insert(id, launch);
+    c.launches.get_mut(&id).unwrap().status = LaunchStatus::Live;
+
+    set("wrap.testnet", T0 + 1, 0);
+    let _ = c.ft_on_transfer(
+        acc("someone.testnet"),
+        U128(100 * NEAR),
+        serde_json::to_string(&CoordinatorMsg::Fees { launch_id: id }).unwrap(),
+    );
+
+    set("intruder.testnet", T0 + 2, 1);
+    let no_approval = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.pay_bounty(id, acc("wrap.testnet"), acc("artist.testnet"), U128(5 * NEAR), "b-art".into());
+    }));
+    assert!(no_approval.is_err(), "stranger must not pay before approval");
+
+    set("intruder.testnet", T0 + 3, 1);
+    let stranger_approve = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.approve_bounty(id, "b-art".into(), acc("artist.testnet"), U128(8 * NEAR), acc("wrap.testnet"));
+    }));
+    assert!(stranger_approve.is_err(), "stranger must not approve");
+
+    set("launcher.testnet", T0 + 4, 1);
+    c.approve_bounty(id, "b-art".into(), acc("artist.testnet"), U128(8 * NEAR), acc("wrap.testnet"));
+    let a = c.get_bounty_approval(id, "b-art".into()).unwrap();
+    assert_eq!(a.0, acc("artist.testnet"));
+    assert_eq!(a.2.0, 8 * NEAR);
+    assert_eq!(a.3.0, 0);
+
+    set("keeper.testnet", T0 + 5, 1);
+    let wrong_recv = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.pay_bounty(id, acc("wrap.testnet"), acc("other.testnet"), U128(5 * NEAR), "b-art".into());
+    }));
+    assert!(wrong_recv.is_err(), "receiver must match approval");
+
+    let over = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.pay_bounty(id, acc("wrap.testnet"), acc("artist.testnet"), U128(9 * NEAR), "b-art".into());
+    }));
+    assert!(over.is_err(), "cannot exceed approved max");
+
+    let _ = c.pay_bounty(id, acc("wrap.testnet"), acc("artist.testnet"), U128(5 * NEAR), "b-art".into());
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1 .0, 95 * NEAR);
+    assert_eq!(c.community_fee_available(id, acc("wrap.testnet")).0, 15 * NEAR);
+    assert_eq!(c.get_bounty_approval(id, "b-art".into()).unwrap().3.0, 5 * NEAR);
+
+    set("keeper.testnet", T0 + 6, 1);
+    let twice = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.pay_bounty(id, acc("wrap.testnet"), acc("artist.testnet"), U128(1 * NEAR), "b-art".into());
+    }));
+    assert!(twice.is_err(), "bounty_ref can be paid only once");
+
+    // failed transfer rolls the approval paid flag back
+    set("launcher.testnet", T0 + 7, 1);
+    c.approve_bounty(id, "b-fail".into(), acc("artist.testnet"), U128(3 * NEAR), acc("wrap.testnet"));
+    let _ = c.pay_bounty(id, acc("wrap.testnet"), acc("artist.testnet"), U128(3 * NEAR), "b-fail".into());
+    set("kyp.testnet", T0 + 8, 0);
+    assert!(!c.on_bounty_paid(id, acc("wrap.testnet"), U128(3 * NEAR), "b-fail".into(), Err(near_sdk::PromiseError::Failed)));
+    assert_eq!(c.get_bounty_approval(id, "b-fail".into()).unwrap().3.0, 0);
+    // first 5 N bounty stayed paid; only the failed 3 N payout is rolled back
+    assert_eq!(c.community_fee_available(id, acc("wrap.testnet")).0, 15 * NEAR);
+}
+
 #[test]
 fn collect_fees_credits_claimed_delta() {
     let mut c = new_contract();

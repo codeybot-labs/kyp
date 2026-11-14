@@ -36,7 +36,15 @@ export const setBuybackBpsTx = (coordinator, launchId, bps) => ({ receiverId: co
 export const buybackToLockTx = (coordinator, launchId, amount, minOutput) => ({ receiverId: coordinator, actions: [fc("buyback_to_lock", { launch_id: launchId, amount, min_output: minOutput }, 400)] });
 export const resumeBuybackTx = (coordinator, launchId) => ({ receiverId: coordinator, actions: [fc("resume_buyback", { launch_id: launchId }, 300)] });
 export const collectFeesTx = (coordinator, launchId) => ({ receiverId: coordinator, actions: [fc("collect_fees", { launch_id: launchId }, 300)] });
+export const approveBountyTx = (coordinator, launchId, bountyRef, receiver, maxAmount, tokenId) => ({ receiverId: coordinator, actions: [fc("approve_bounty", { launch_id: launchId, bounty_ref: bountyRef, receiver_id: receiver, max_amount: maxAmount, token_id: tokenId }, 30)] });
 export const payBountyTx = (coordinator, launchId, tokenId, receiver, amount, bountyRef) => ({ receiverId: coordinator, actions: [fc("pay_bounty", { launch_id: launchId, token_id: tokenId, receiver_id: receiver, amount, bounty_ref: bountyRef }, 80)] });
+export const approveAndPayBountyTx = (coordinator, launchId, tokenId, receiver, amount, bountyRef) => ({
+  receiverId: coordinator,
+  actions: [
+    fc("approve_bounty", { launch_id: launchId, bounty_ref: bountyRef, receiver_id: receiver, max_amount: amount, token_id: tokenId }, 30),
+    fc("pay_bounty", { launch_id: launchId, token_id: tokenId, receiver_id: receiver, amount, bounty_ref: bountyRef }, 80),
+  ],
+});
 
 /**
  * One transaction to the quote token (wNEAR) that does whatever is missing, then deposits:

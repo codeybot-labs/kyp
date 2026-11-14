@@ -31,6 +31,13 @@ export const api = {
   launch: (id: number): Promise<LaunchView | null> => (getMode() === "demo" ? demo.launch(id) : view(c(), "get_launch", { launch_id: id })),
   buybackAvailable: (id: number): Promise<string> => (getMode() === "demo" ? Promise.resolve("0") : view<string>(c(), "buyback_available", { launch_id: id }).then((x) => (x as any)?.toString?.() ?? String(x ?? "0"))),
   communityFeeAvailable: (id: number, tokenId: string): Promise<string> => (getMode() === "demo" ? Promise.resolve("0") : view<string>(c(), "community_fee_available", { launch_id: id, token_id: tokenId }).then((x) => (x as any)?.toString?.() ?? String(x ?? "0"))),
+  bountyApproval: (id: number, bountyRef: string): Promise<{ receiver_id: string; token_id: string; max_amount: string; paid: string } | null> => (
+    getMode() === "demo"
+      ? Promise.resolve(null)
+      : view<[string, string, any, any] | null>(c(), "get_bounty_approval", { launch_id: id, bounty_ref: bountyRef }).then((x) =>
+          x ? { receiver_id: x[0], token_id: x[1], max_amount: (x[2] as any)?.toString?.() ?? String(x[2] ?? "0"), paid: (x[3] as any)?.toString?.() ?? String(x[3] ?? "0") } : null
+        )
+  ),
   presalers: (id: number): Promise<PresalerView[]> => (getMode() === "demo" ? demo.presalers(id) : view(c(), "get_presalers", { launch_id: id })),
   slot: (id: number, hash: string): Promise<SlotView | null> => (getMode() === "demo" ? demo.slot(id, hash) : view(c(), "get_slot", { launch_id: id, hash })),
   lock: (id: number): Promise<LockView | null> => (getMode() === "demo" ? demo.lock(id) : nullIfMissing(view(l(), "get_lock", { launch_id: id }))),
