@@ -196,13 +196,13 @@ try {
     assert.deepEqual(methods, ["storage_deposit", "storage_deposit", "near_deposit", "ft_transfer_call"]);
     const ftc = t.actions[3].params;
     assert.equal(ftc.args.receiver_id, COORD);
-    assert.equal(ftc.args.amount, N(10));
+    assert.equal(ftc.args.amount, N(100), "amount defaults to the per-wallet max (100), not more");
     assert.equal(ftc.deposit, "1");
     assert.deepEqual(JSON.parse(ftc.args.msg), { Deposit: { launch_id: 1, salt: "code123" } });
   });
 
   await step("launcher sees launch; signs coordinator.launch with pool NEAR attached", async () => {
-    await page.click('[data-testid="wallet-disconnect"]');
+    await page.click('[data-testid="wallet-account"]');
     await page.waitForSelector('[data-testid="wallet-connect"]');
     await page.evaluate((a) => localStorage.setItem("kyp-test-next", a), LAUNCHER);
     await page.goto(`${base}/launch?id=1`, { waitUntil: "networkidle" });
@@ -266,7 +266,7 @@ try {
     assert.equal(await page.getAttribute('[data-testid="tw-txlink"]', "href"), "https://testnet.nearblocks.io/txns/TW1HASH");
 
     // The test wallet in the standard picker: connect, then the normal deposit page signs through it.
-    await page.click('[data-testid="wallet-disconnect"]').catch(() => {});
+    await page.click('[data-testid="wallet-account"]').catch(() => {});
     await page.click('[data-testid="tw-use"]');
     await page.waitForFunction((a) => document.querySelector('[data-testid="wallet-account"]')?.getAttribute("title")?.startsWith(a), id, { timeout: 20000 });
     const ids = await page.evaluate(() => window.kypWallets.available().map((x) => x.split(":")[0]));
@@ -292,7 +292,7 @@ try {
     await page.click('[data-testid="tw-import"]');
     await page.waitForSelector('[data-testid="tw-row"]');
     assert.ok((await page.textContent('[data-testid="tw-row"]')).includes(id));
-    await page.click('[data-testid="wallet-disconnect"]').catch(() => {});
+    await page.click('[data-testid="wallet-account"]').catch(() => {});
   });
 
   await step("test wallets: batch of 3 with per-wallet progress + a 503 retried, 429 falls back to funding from a test wallet, 10-wallet cap blocks generate/import, presalers 1-9", async () => {
@@ -366,7 +366,7 @@ try {
       assert.ok(!ids.includes("ws-near-mobile-wallet"), "NEAR Mobile listed once on mainnet");
       const body = await p.evaluate(() => document.body.innerText);
       assert.ok(body.includes("NEAR mainnet"), "mainnet label shown");
-      assert.ok(body.includes("Demo mode"), "testnet contract IDs are ignored on mainnet -> demo mode");
+      assert.ok(body.includes("Simulated preview"), "testnet contract IDs are ignored on mainnet -> simulated preview, clearly labelled");
       assert.deepEqual(testnetCalls, []);
       assert.ok(!ids.includes("kyp-testnet-wallet"), "no test wallet in the mainnet picker");
       assert.ok(!body.includes("Test wallets"), "no test wallet nav on mainnet");
