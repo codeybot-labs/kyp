@@ -177,6 +177,15 @@ export async function signAndSend(txs: Tx | Tx[]): Promise<string[]> {
   }
 }
 
+/** NEP-413 off-chain message signature from the connected wallet (Cabal Corner sign-in). No tx, no funds. */
+export async function signMessage(p: { message: string; recipient: string; nonce: Uint8Array }): Promise<{ accountId: string; publicKey: string; signature: string }> {
+  await initWallet();
+  if (!connector || !account()) throw new Error("Connect a NEAR wallet first");
+  const w: any = await connector.wallet();
+  if (typeof w.signMessage !== "function") throw new Error("This wallet can't sign messages. Try another wallet, or use a guest name.");
+  return w.signMessage({ ...p, network: NETWORK, signerId: account()! });
+}
+
 function throwIfFailed(out: any) {
   const f = out?.status?.Failure ?? out?.receipts_outcome?.map((r: any) => r?.outcome?.status?.Failure).find(Boolean);
   if (!f) return;

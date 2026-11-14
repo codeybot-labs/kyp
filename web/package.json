@@ -1,6 +1,7 @@
 {
   "name": "kyp-web",
   "private": true,
+  "license": "MIT",
   "type": "module",
   "version": "0.1.0",
   "scripts": {
@@ -12,9 +13,13 @@
     "deploy": "npm run build && npx -y wrangler@4 deploy",
     "test:e2e": "node tests/wallet.e2e.mjs",
     "test:live": "node tests/testwallet.live.e2e.mjs",
-    "test:live:node": "node scripts/testwallet-live.mjs"
+    "test:live:node": "node scripts/testwallet-live.mjs",
+    "test:corner-api": "node tests/corner.api.e2e.mjs",
+    "dev:worker": "npm run build && npx -y wrangler@4 d1 migrations apply kyp-corner --local && npx -y wrangler@4 dev"
   },
   "dependencies": {
+    "@assistant-ui/react": "^0.15.36",
+    "@astrojs/react": "^7.1.9",
     "@astrojs/solid-js": "^7.1.2",
     "@hot-labs/near-connect": "^0.12.0",
     "@near-js/accounts": "2.5.1",
@@ -41,6 +46,9 @@
     "astro": "^7.4.8",
     "buffer": "^6.0.3",
     "lightweight-charts": "^5.3.0",
+    "minisearch": "^7.2.0",
+    "react": "^19.3.1",
+    "react-dom": "^19.3.1",
     "solid-js": "^1.9.18"
   },
   "devDependencies": {

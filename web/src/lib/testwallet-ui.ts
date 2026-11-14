@@ -100,7 +100,7 @@ export function injectTestWallet() {
     manifest: {
       id: tw.WALLET_ID, name: tw.WALLET_NAME, icon: "/favicon.svg", description: "Throwaway testnet accounts created in this browser via the free NEAR testnet faucet. Keys live in localStorage.",
       website: "/test-wallets", version: "1", executor: "", type: "injected", platform: [], permissions: {},
-      features: { signMessage: false, signTransaction: false, signAndSendTransaction: true, signAndSendTransactions: true, signInWithoutAddKey: true, signInAndSignMessage: false, signInWithFunctionCallKey: false, signDelegateActions: false, mainnet: false, testnet: true },
+      features: { signMessage: true, signTransaction: false, signAndSendTransaction: true, signAndSendTransactions: true, signInWithoutAddKey: true, signInAndSignMessage: false, signInWithFunctionCallKey: false, signDelegateActions: false, mainnet: false, testnet: true },
     },
     signIn: async () => {
       let w = tw.getActive(store()) as TestWallet | null;
@@ -110,6 +110,15 @@ export function injectTestWallet() {
     },
     signOut: async () => localStorage.removeItem(SESSION_KEY),
     getAccounts: async () => { const w = session(); return w ? [{ accountId: w.accountId, publicKey: await pub(w) }] : []; },
+    // NEP-413 message signing (Cabal Corner sign-in): proves account ownership, sends nothing.
+    signMessage: async (p: any) => {
+      const w = (p.signerId && findTestWallet(p.signerId)) || session();
+      if (!w) throw new Error("No test wallet signed in");
+      const [{ KeyPair }, { payloadHash, b64 }] = await Promise.all([import("@near-js/crypto"), import("./nep413.mjs")]);
+      const kp = KeyPair.fromString(w.secretKey as any);
+      const { signature } = kp.sign(await payloadHash({ message: p.message, nonce: p.nonce, recipient: p.recipient }));
+      return { accountId: w.accountId, publicKey: kp.getPublicKey().toString(), signature: b64(signature) };
+    },
     signAndSendTransaction: async (p: any) => sendOne(p.signerId, p.receiverId, p.actions),
     signAndSendTransactions: async (p: any) => { const out = []; for (const t of p.transactions) out.push(await sendOne(p.signerId ?? t.signerId, t.receiverId, t.actions)); return out; },
   };

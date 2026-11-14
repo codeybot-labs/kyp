@@ -87,6 +87,7 @@ const TABS = [
   ["deposit", "Presale deposit"],
   ["reveal", "Reveal waves"],
   ["claim", "Claim"],
+  ["corner", "Cabal Corner"],
 ] as const;
 
 export function LaunchHeader(p: { l: LaunchView; tab: string }) {

@@ -1,0 +1,46 @@
+// Curated NEAR ecosystem + KYP knowledge for the Cabal Corner agent, with MiniSearch (BM25-style
+// full-text search, MIT) as the retriever. Static notes, written for launch teams; no live data.
+import MiniSearch from "minisearch";
+
+export const KB = [
+  { id: "accounts", title: "NEAR accounts", tags: "account named implicit .near .testnet keys access key", text: "NEAR accounts are human-readable (alice.near, or alice.testnet on testnet). An account can hold several access keys: full-access keys can do anything, function-call keys can only call one contract's methods and spend a small gas allowance. Implicit accounts are 64-character hex addresses derived from a key." },
+  { id: "nep141", title: "NEP-141 fungible tokens", tags: "nep-141 nep141 fungible token ft standard ft_transfer ft_transfer_call metadata nep-148", text: "NEP-141 is NEAR's fungible token standard: ft_transfer, ft_transfer_call and ft_balance_of. Metadata (name, symbol, icon, decimals) follows NEP-148. A holder must be storage-registered on a token contract before receiving it." },
+  { id: "storage", title: "Storage staking", tags: "storage deposit storage_deposit register staking bytes", text: "NEAR charges storage staking instead of rent: a contract locks about 0.01 NEAR per 1 KB it stores. Tokens usually need a one-time storage_deposit (about 0.00125 NEAR) per holder; unregistered receivers make transfers fail." },
+  { id: "gas", title: "Gas", tags: "gas tgas fee cost cheap transaction fee", text: "Gas on NEAR is cheap and predictable: 1 Tgas costs about 0.0001 NEAR. A function call can attach up to 300 Tgas, and 30% of the gas burned by a call goes to the contract that burned it." },
+  { id: "wnear", title: "wNEAR", tags: "wnear wrap wrapped wrap.near wrap.testnet near_deposit", text: "wNEAR is NEAR wrapped as a NEP-141 token (wrap.near on mainnet, wrap.testnet on testnet). Wrap with near_deposit, unwrap with near_withdraw. KYP presales are paid in wNEAR via ft_transfer_call." },
+  { id: "rhea", title: "RHEA Finance pools", tags: "rhea ref finance dex dcl pool liquidity amm concentrated swap", text: "RHEA Finance (formerly Ref Finance) is NEAR's main DEX. Its DCL pools are concentrated liquidity with fee tiers. KYP seeds a RHEA DCL pool at the presale price with single-sided ranges, and the LP positions are owned by the KYP coordinator so they cannot be pulled." },
+  { id: "twap", title: "KYP milestone unlocks (TWAP)", tags: "twap milestone unlock lock claim vesting fdv market cap observation", text: "KYP locks every presaler's tokens. A tranche unlocks only when the time-weighted average FDV stays above its target over the public window, with enough observations spaced apart and enough pool liquidity, then a short claim delay. Spot pumps do not count; anyone can poke the observer to record a price." },
+  { id: "reveal", title: "Reveal waves", tags: "reveal wave hidden who presalers privacy salted hash", text: "Presaler accounts are salted hashes until launch, then revealed in waves, smallest positions first, one wave per interval. Deposits are ordinary NEAR transactions, so this is publication timing, not cryptographic privacy. Cabal Corner follows the same rule: a caballero's wallet shows as an alias until their wave is revealed." },
+  { id: "fees", title: "Fee split and the community share", tags: "fee fees fee pool split community share holders liquidity bounty bounties competition competitions prize payout paid pay", text: "Pool fees and reserved-slot proceeds are split on-chain between holders, liquidity and a community account for competitions and bounties. In Cabal Corner, caballeros agree bounties by majority vote and size them against the community share. Payouts are still sent by the community account holder; Cabal Corner does not move funds." },
+  { id: "intents", title: "NEAR Intents and chain abstraction", tags: "intents near intents cross-chain chain signatures chain abstraction solver bridge", text: "NEAR Intents let a user state an outcome (swap X for Y, on any chain) and solvers compete to fill it. Chain Signatures let a NEAR account sign transactions for other chains via MPC. Together they are NEAR's chain-abstraction stack, useful for cross-chain buys of a NEAR meme." },
+  { id: "wallets", title: "NEAR wallets", tags: "wallet meteor hot mynearwallet sender bitte intear connect login sign in", text: "Common NEAR wallets: Meteor, HOT, MyNearWallet, Sender, Intear and Bitte. KYP connects through NEAR Connect plus Wallet Selector. Testnet needs a testnet account; kycabal.fun's Test wallets page makes throwaway funded ones." },
+  { id: "explorer", title: "Explorers", tags: "explorer nearblocks pikespeak transaction tx lookup verify", text: "Check accounts and transactions on nearblocks.io (testnet.nearblocks.io for testnet) or pikespeak.ai. Every KYP action is an ordinary transaction you can verify there." },
+  { id: "faucet", title: "Testnet NEAR", tags: "faucet testnet near test tokens free fund", text: "Testnet NEAR comes from the NEAR faucet or the Test wallets page on kycabal.fun, which creates and funds throwaway testnet accounts in your browser." },
+  { id: "meme-playbook", title: "NEAR meme launch playbook", tags: "meme memecoin launch community growth hype marketing playbook strategy", text: "What tends to work for NEAR memes: one clear joke, an active chat from day one, small creative drops every day instead of one big push, and visible proof the team can't dump. KYP's milestone lock is that proof, so put it in every post." },
+  { id: "raids", title: "Raids and X growth", tags: "raid raids x twitter growth engagement post thread reply kol", text: "Raids work when they add something: a meme, a useful reply, a chart. Spam replies get muted. Rotate who posts, track which posts brought new holders, and keep KOL deals public to the caballeros." },
+  { id: "launch-day", title: "Launch-day checklist", tags: "launch day checklist go live open pool liquidity announce", text: "Launch day: confirm the launch tx finished all five steps, pin the pool link and the token contract, post the milestone ladder, have someone poke the TWAP observer, and keep a mod online for scam DMs." },
+  { id: "safety", title: "Scams and safety", tags: "scam safety security phishing fake contract dm impersonation", text: "Pin the one true token contract ID. Admins never DM first. Warn holders about look-alike tokens with the same symbol. Never share seed phrases or full-access keys; Cabal Corner sign-in only signs a message and cannot move funds." },
+  { id: "kyp", title: "What KYP is", tags: "kyp know your presalers caballero caballeros cabal presale invite", text: "KYP (Know Your Presalers) lets a launcher hand-pick presalers, the caballeros. Deposits are capped and locked, every fill settles at one price, the pool is seeded in one launch transaction, and unlocks follow TWAP market-cap milestones." },
+  { id: "corner", title: "Cabal Corner", tags: "cabal corner roster skills missions bounties agent record passengers", text: "Cabal Corner is where a launch's caballeros plan together: a roster with skills, a team-mix check that flags gaps, daily missions per skill, bounties and competitions agreed by vote, a no-passengers activity score, and a KYP record that travels across launches." },
+  { id: "passengers", title: "No passengers", tags: "passenger passengers inactive activity score lazy contribute", text: "Every caballero is expected to pull weight. The activity score counts missions done, bounties proposed and delivered, competition entries and votes over the last 7 days. Three quiet days flags a passenger, which launchers can see before the next invite." },
+  { id: "aurora", title: "Aurora", tags: "aurora evm ethereum solidity metamask", text: "Aurora is an EVM chain running on NEAR. It is separate from NEAR-native NEP-141 tokens; bridging is needed to move a token between them." },
+  { id: "staking", title: "Staking", tags: "staking stake validator apy linear meta pool liquid staking stnear", text: "NEAR can be staked with validators (about 9-10 percent nominal yield historically) or through liquid staking like LiNEAR or Meta Pool's stNEAR, which give a tradeable token." },
+];
+
+const STOP = new Set("a an and are as at be by can do does for from how i in is it me my of on or our should so tell the to us we get got what when where which who why will with you your about".split(" "));
+const processTerm = (t) => { const x = t.toLowerCase(); return STOP.has(x) ? null : x; };
+
+let mini = null;
+function index() {
+  if (mini) return mini;
+  mini = new MiniSearch({ fields: ["title", "tags", "text"], storeFields: ["title", "text"], processTerm, searchOptions: { boost: { title: 2, tags: 3 }, prefix: true, fuzzy: 0.15 } });
+  mini.addAll(KB);
+  return mini;
+}
+
+/** Top-k knowledge notes for a question. */
+export function retrieve(q, k = 3) {
+  const s = String(q ?? "").trim();
+  if (!s) return [];
+  return index().search(s, { combineWith: "OR" }).slice(0, k).map((r) => ({ id: r.id, title: r.title, text: r.text, score: r.score }));
+}

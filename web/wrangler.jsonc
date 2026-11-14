@@ -1,15 +1,39 @@
-// Cloudflare Workers static-assets deploy. Assets-only: no Worker script, no bindings,
-// no KV/R2/D1/DO. Static asset requests are free on the $5 Workers Paid plan and do not
-// count toward Worker request limits. Do not add bindings without checking cost first.
+// Cloudflare Workers deploy: static assets + a small Worker that ONLY runs for /api/* (Cabal Corner).
+// Cost notes (Workers Paid $5 plan): static asset requests stay free and never invoke the Worker
+// (run_worker_first is limited to /api/*). The Worker + D1 use the plan's included allowances
+// (10M Worker requests/month; D1 25B rows read, 50M rows written, 5 GB). Bodies are capped at 4 KB
+// and rows per launch are capped (src/lib/corner.mjs LIMITS). Workers AI is OFF (CORNER_AI = "off");
+// if switched on it is capped per day well under the 10k-neuron daily free allocation, which is
+// shared across the whole Cloudflare account. Do not add other bindings without checking cost first.
+//
+// One-time setup before the first deploy of this config (free):
+//   npx wrangler d1 create kyp-corner     -> paste the database_id below
+//   npx wrangler d1 migrations apply kyp-corner --remote
 {
   "$schema": "./node_modules/wrangler/config-schema.json",
   "name": "kyp-web",
+  "main": "worker/index.mjs",
   "compatibility_date": "2026-11-01",
   "assets": {
     "directory": "./dist",
+    "binding": "ASSETS",
     "html_handling": "auto-trailing-slash",
-    "not_found_handling": "404-page"
+    "not_found_handling": "404-page",
+    "run_worker_first": ["/api/*"]
   },
+  "d1_databases": [
+    { "binding": "CORNER_DB", "database_name": "kyp-corner", "database_id": "REPLACE_WITH_D1_DATABASE_ID", "migrations_dir": "migrations" }
+  ],
+  "vars": {
+    "CORNER_COORDINATORS": "testnet:kyp-sushmit-dcl.testnet,testnet:kyp-sushmit.testnet",
+    "CORNER_RECIPIENTS": "kycabal.fun,kyp-web.sushmitsarmah.workers.dev",
+    "CORNER_AI": "off",
+    "CORNER_AI_DAILY_CALLS": "150",
+    "CORNER_AI_DAILY_NEURONS": "3000"
+  },
+  // Uncomment only together with CORNER_AI = "on" (see cost notes above).
+  // "ai": { "binding": "AI" },
+  "observability": { "enabled": false },
   "workers_dev": true,
   "preview_urls": false,
   "routes": [

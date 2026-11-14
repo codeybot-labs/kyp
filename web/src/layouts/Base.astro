@@ -1,5 +1,10 @@
 ---
 import { TEST_WALLETS } from "../lib/config";
+import { resolveConfig } from "../lib/network.mjs";
+// Footer uses the build-time network + contract IDs (public account IDs from .env*).
+const FOOT = resolveConfig(import.meta.env as Record<string, string>);
+const EXPLORER = FOOT.network === "mainnet" ? "https://nearblocks.io/address/" : "https://testnet.nearblocks.io/address/";
+const NET_NAME = FOOT.network === "mainnet" ? "NEAR mainnet" : "NEAR testnet";
 import "../styles/global.css";
 import NetworkSwitch from "../components/NetworkSwitch.tsx";
 import ToastHost from "../components/ToastHost.tsx";
@@ -8,6 +13,7 @@ interface Props { title: string; active?: string; description?: string }
 const { title, active = "", description = "KYP — Know Your Presalers. Locked, public, milestone-unlocked presales for NEAR meme launches." } = Astro.props;
 const nav = [
   ["/", "Launches"],
+  ["/corner", "Cabal Corner"],
   ["/how-it-works", "How it works"],
   ...(TEST_WALLETS ? [["/test-wallets", "Test wallets"]] : []),
 ];
@@ -55,7 +61,27 @@ const nav = [
     </main>
 
     <footer>
-      <div class="wrap" />
+      <div class="wrap">
+        <div class="foot-col">
+          <b>KYP · Know Your Presalers</b>
+          <span><span class="pill violet foot-net">{NET_NAME}</span> No mainnet contracts. Testnet tokens have no value.</span>
+          <span>Built for the NEAR Hackathon · <a class="link" href="https://github.com/codeybot-labs/kyp" target="_blank" rel="noopener">GitHub</a> · MIT license</span>
+        </div>
+        {FOOT.coordinator && (
+          <div class="foot-col">
+            <b>Contracts</b>
+            <span>Coordinator <a class="link mono" href={EXPLORER + FOOT.coordinator} target="_blank" rel="noopener">{FOOT.coordinator}</a></span>
+            <span>Lock <a class="link mono" href={EXPLORER + FOOT.lock} target="_blank" rel="noopener">{FOOT.lock}</a></span>
+            {FOOT.pool && <span>Pool <a class="link mono" href={EXPLORER + FOOT.pool} target="_blank" rel="noopener">{FOOT.pool}</a></span>}
+          </div>
+        )}
+        <div class="foot-col">
+          <b>Explore</b>
+          <a href="/how-it-works">How it works</a>
+          <a href="/corner">Cabal Corner</a>
+          {TEST_WALLETS && <a href="/test-wallets">Test wallets</a>}
+        </div>
+      </div>
     </footer>
     <ToastHost client:only="solid-js" />
 

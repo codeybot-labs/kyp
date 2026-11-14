@@ -2,7 +2,7 @@
 
 Deployed 2026-11-10 (IST) with `scripts/deploy-testnet.sh` using free faucet accounts only. Testnet only: no mainnet accounts, no real funds. Keys live in `~/.near-credentials` on the deploy machine and are never committed or printed.
 
-## Live deployment (mock pool) — used by the site
+## Mock-pool deployment (alternate; selectable in the site header)
 
 | Role | Account | Explorer |
 | --- | --- | --- |
@@ -38,7 +38,7 @@ Not exercised on testnet: reserved slots, fee distribution, refunds/withdraw (al
 
 ## Real RHEA DCL (`dclv2.ref-dev.testnet`, v2.3.14): working
 
-A second, separate instance points at the real testnet DCL: coordinator `kyp-sushmit-dcl.testnet` ([explorer](https://testnet.nearblocks.io/address/kyp-sushmit-dcl.testnet)) and lock `kyp-sushmit-dcl-lock.testnet` ([explorer](https://testnet.nearblocks.io/address/kyp-sushmit-dcl-lock.testnet)). It was created with `PREFIX=kyp-sushmit-dcl POOL=dcl ./scripts/deploy-testnet.sh`. The site does not use it; it still reads the mock instance.
+A second, separate instance points at the real testnet DCL: coordinator `kyp-sushmit-dcl.testnet` ([explorer](https://testnet.nearblocks.io/address/kyp-sushmit-dcl.testnet)) and lock `kyp-sushmit-dcl-lock.testnet` ([explorer](https://testnet.nearblocks.io/address/kyp-sushmit-dcl-lock.testnet)). It was created with `PREFIX=kyp-sushmit-dcl POOL=dcl ./scripts/deploy-testnet.sh`. Since 2026-11-11 the site reads this instance by default (see below); the mock-pool instance stays selectable in the header.
 
 ### What the DCL needs (checked against the live contract)
 - `storage_deposit`: minimum is **0.5 NEAR**.
