@@ -1,4 +1,4 @@
-use kyp_common::{FeeSplit, MilestoneInput, TwapConfig};
+use kyp_common::{FeeExtra, FeeSplit, MilestoneInput, TwapConfig};
 use near_sdk::json_types::U128;
 use near_sdk::{near, AccountId, NearToken};
 
@@ -123,6 +123,9 @@ pub struct LaunchParams {
     pub twap: TwapConfig,
     pub reveal: RevealConfig,
     pub fee_split: FeeSplit,
+    /// Optional operations + NEAR AI credit legs. Omitted on existing launches.
+    #[serde(default)]
+    pub fee_extra: Option<FeeExtra>,
 }
 
 #[near(serializers = [borsh, json])]
@@ -253,6 +256,7 @@ pub struct LaunchView {
     pub twap: TwapConfig,
     pub reveal: RevealConfig,
     pub fee_split: FeeSplit,
+    pub fee_extra: Option<FeeExtra>,
     pub total_raised: U128,
     pub presale_tokens: U128,
     pub reserved_tokens: U128,

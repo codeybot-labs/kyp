@@ -26,7 +26,7 @@ pub use types::*;
 
 use kyp_common::{
     aligned_bounds, assert_valid_milestones, dcl_pool_id, dcl_safe_left, dcl_safe_right, init_point_for_fdv, mul_div,
-    tokens_for_quote, LockAddMsg, LockFundMsg, LockMsg, BPS_DENOM, DEFAULT_DECIMALS,
+    tokens_for_quote, FeeExtra, LockAddMsg, LockFundMsg, LockMsg, BPS_DENOM, DEFAULT_DECIMALS,
     DEFAULT_TOTAL_SUPPLY, MAX_POINT, MAX_PRESALE_CAP_BPS, MAX_PRESALERS, MAX_SALE_WINDOW_SEC,
 };
 use near_sdk::json_types::U128;
@@ -50,6 +50,18 @@ const GAS_CB_SMALL: Gas = Gas::from_tgas(5);
 /// Kept free when checking whether a split step fits in the remaining gas.
 const GAS_STEP_RESERVE: Gas = Gas::from_tgas(5);
 const STEP_GAS_KEY: &[u8] = b"step_gas";
+
+fn fee_extra_key(launch_id: u64) -> Vec<u8> {
+    format!("fee_x:{launch_id}").into_bytes()
+}
+
+fn write_fee_extra(launch_id: u64, extra: &FeeExtra) {
+    env::storage_write(&fee_extra_key(launch_id), &near_sdk::borsh::to_vec(extra).unwrap());
+}
+
+fn read_fee_extra(launch_id: u64) -> Option<FeeExtra> {
+    env::storage_read(&fee_extra_key(launch_id)).and_then(|b| near_sdk::borsh::from_slice(&b).ok())
+}
 const LIQ_TRY_PREFIX: &[u8] = b"lq_try";
 /// Far-end shrink per failed add_liquidity attempt, in point_delta units (7 x 200 = 1400 points).
 const NUDGE_STEPS: i32 = 7;
@@ -241,7 +253,8 @@ impl Contract {
         assert_valid_milestones(&p.milestones);
         require!(p.milestones[0].target_fdv_quote.0 > p.opening_fdv_quote.0, "first milestone must be above opening FDV");
         p.twap.assert_valid();
-        p.fee_split.assert_valid();
+        let fee_extra = p.fee_extra.clone().filter(|e| !e.is_empty());
+        p.fee_split.assert_valid_with_extra(fee_extra.as_ref());
         require!(p.reveal.waves >= 1 && p.reveal.waves <= 10, "reveal waves 1-10");
         let n_slots = p.allowlist.len() + p.reserved.len();
         require!(!p.allowlist.is_empty(), "allowlist empty");
@@ -276,6 +289,9 @@ impl Contract {
 
         let id = self.next_id;
         self.next_id += 1;
+        if let Some(e) = fee_extra {
+            write_fee_extra(id, &e);
+        }
         let token_id: AccountId = format!("{}-{}.{}", p.symbol.to_lowercase(), id, env::current_account_id())
             .parse()
             .expect("token account id too long");
@@ -874,10 +890,20 @@ impl Contract {
             l.fees_distributed_quote += amount;
         }
         let fs = l.fee_split.clone();
-        let (h, lq, c) = fs.split(amount);
+        let extra = read_fee_extra(launch_id);
+        let (h, lq, c, op, ai) = fs.split_with_extra(amount, extra.as_ref());
+        let mut destinations = vec![
+            (fs.holders_account, h),
+            (fs.liquidity_account, lq),
+            (fs.community_account, c),
+        ];
+        if let Some(e) = extra {
+            destinations.push((e.operations_account, op));
+            destinations.push((e.near_ai_account, ai));
+        }
         let mut p: Option<Promise> = None;
         let mut legs: Vec<(AccountId, U128)> = vec![];
-        for (to, a) in [(fs.holders_account, h), (fs.liquidity_account, lq), (fs.community_account, c)] {
+        for (to, a) in destinations {
             if a == 0 {
                 continue;
             }
@@ -1046,6 +1072,7 @@ impl Contract {
             twap: l.twap.clone(),
             reveal: l.reveal.clone(),
             fee_split: l.fee_split.clone(),
+            fee_extra: read_fee_extra(l.id),
             total_raised: U128(l.total_raised),
             presale_tokens: U128(l.presale_tokens),
             reserved_tokens: U128(l.reserved_tokens),

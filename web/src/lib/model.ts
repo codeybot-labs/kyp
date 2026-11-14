@@ -13,6 +13,12 @@ export interface FeeSplit {
   holders_bps: number; liquidity_bps: number; community_bps: number;
   holders_account: string; liquidity_account: string; community_account: string;
 }
+export interface FeeExtra {
+  operations_bps: number; near_ai_bps: number;
+  operations_account: string; near_ai_account: string;
+}
+export const MAX_OPERATIONS_BPS = 3000;
+export const MAX_NEAR_AI_BPS = 2000;
 export interface Progress {
   lock_funded: boolean; pool_created: boolean; token_deposited: boolean;
   quote_deposited: boolean; liquidity_added: boolean;
@@ -27,6 +33,7 @@ export interface LaunchView {
   open_slots: number; reserved_slots: number; filled_open_slots: number; filled_reserved_slots: number;
   reserved_quote_total: string; sale_start: number; sale_end: number;
   milestones: MilestoneInput[]; twap: TwapConfig; reveal: RevealConfig; fee_split: FeeSplit;
+  fee_extra?: FeeExtra | null;
   total_raised: string; presale_tokens: string; reserved_tokens: string; lp_tokens: string;
   pool_contract: string; pool_id: string; token_is_x: boolean; init_point: number;
   progress: Progress; launched_at: number | null; revealed_waves: number; next_wave_at: number | null;
@@ -56,7 +63,7 @@ export interface LaunchParams {
   opening_fdv_quote: string; presale_cap_bps: number; min_raise: string; wallet_min: string; wallet_max: string;
   allowlist: string[]; reserved: { hash: string; quote_amount: string }[];
   sale_start: number; sale_end: number; milestones: MilestoneInput[]; twap: TwapConfig;
-  reveal: RevealConfig; fee_split: FeeSplit;
+  reveal: RevealConfig; fee_split: FeeSplit; fee_extra?: FeeExtra | null;
 }
 
 export const isReserved = (k: SlotKind): k is { Reserved: { quote_amount: string } } => typeof k === "object";

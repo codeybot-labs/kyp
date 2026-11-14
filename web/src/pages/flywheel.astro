@@ -15,15 +15,15 @@ const destinations = [
   },
   {
     title: "Operations (default, capped)",
-    mark: "Planned",
-    kind: "planned",
-    body: "By default, a set percentage of fees is locked for running costs — DexScreener, listings, bots and hosting — and is paid straight to the supplier.",
+    mark: "Live",
+    kind: "live",
+    body: "A set percentage of fees, capped at 30%, is paid to the operations account the launcher names, for running costs such as DexScreener, listings, bots and hosting. Paid straight to that account. Default on a new launch is 0%; an example is 20%.",
   },
   {
     title: "NEAR AI credits",
-    mark: "Planned",
-    kind: "planned",
-    body: "A set percentage of fees buys NEAR AI credits the project uses, for example to power the Cabal Corner agent and the project's other AI tooling.",
+    mark: "Live",
+    kind: "live",
+    body: "A set percentage of fees, capped at 20%, is paid to the NEAR AI credits account the launcher names, to buy credits the project uses (for example the Cabal Corner agent and other AI tooling). Default on a new launch is 0%; an example is 10%.",
   },
   {
     title: "Content and creators",
@@ -71,7 +71,7 @@ const destinations = [
   <section class="fly" style="padding-top: 24px; padding-bottom: 96px">
     <div class="card reveal fly-now">
       <h3>What's live today, and what is planned</h3>
-      <p class="muted" style="margin-top: 8px">On testnet, reserved-slot proceeds and any fees sent to the coordinator are split on-chain three ways: holders, liquidity, and a community account for competitions and bounties. Anyone can trigger the payout. Cabal Corner lets the roster agree bounties against that community share, but the corner does not move funds. The coordinator owns the permanent liquidity position, but it cannot yet claim RHEA DCL trading fees on its own. The rest of this page is the planned design for how those fees get put back to work.</p>
+      <p class="muted" style="margin-top: 8px">On testnet, reserved-slot proceeds and any fees sent to the coordinator are split on-chain. The default split is 50% holders, 30% liquidity, 20% community (competitions and bounties). Each launch can also add two capped legs — operations (max 30%) and NEAR AI credits (max 20%) — paid to the accounts the launcher names. Anyone can trigger the payout. Cabal Corner lets the roster agree bounties against the community share, but the corner does not move funds. The coordinator owns the permanent liquidity position, but it cannot yet claim RHEA DCL trading fees on its own. The remaining destinations below are still planned.</p>
     </div>
 
     <figure class="fly-flow reveal" aria-label="Fee flow: trading fees and reserved slots feed a pool that splits to holders, liquidity and community, then to planned uses">
@@ -89,15 +89,15 @@ const destinations = [
       </div>
       <div class="fly-join" aria-hidden="true"></div>
       <div class="fly-row fly-plan">
-        <div class="fly-box dim">Operations</div>
-        <div class="fly-box dim">NEAR AI credits</div>
+        <div class="fly-box on">Operations<span>Live</span></div>
+        <div class="fly-box on">NEAR AI credits<span>Live</span></div>
         <div class="fly-box dim">Content</div>
         <div class="fly-box dim">The lock</div>
         <div class="fly-box dim">Smarter LP</div>
         <div class="fly-box dim">Partner pools</div>
         <div class="fly-box dim">Open bounties</div>
       </div>
-      <figcaption>The three-way split is live. The uses underneath are the planned fee design.</figcaption>
+      <figcaption>The holders, liquidity, community, operations and NEAR AI credit shares are live. The uses underneath are the planned fee design.</figcaption>
     </figure>
 
     <div class="head reveal" style="margin-top: 56px; margin-bottom: 24px">
@@ -114,7 +114,7 @@ const destinations = [
 
     <div class="head reveal" style="margin-top: 56px; margin-bottom: 24px">
       <h2>Where fees go</h2>
-      <p>Splits are configurable per launch. The live on-chain default is 50% holders, 30% liquidity, 20% community. Finer buckets such as 20% operations and 10% NEAR AI credits are example defaults only — each launch sets its own.</p>
+      <p>Splits are configurable per launch. The live on-chain default is 50% holders, 30% liquidity, 20% community, with operations and NEAR AI credits at 0%. An example is 20% operations and 10% NEAR AI credits, taken from the other slices. Operations are capped at 30%, NEAR AI credits at 20%.</p>
     </div>
     <div class="grid g2">
       {destinations.map((d) => (

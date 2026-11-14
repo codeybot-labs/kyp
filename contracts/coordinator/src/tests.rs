@@ -1,5 +1,5 @@
 use super::*;
-use kyp_common::{FeeSplit, MilestoneInput, TwapConfig};
+use kyp_common::{FeeExtra, FeeSplit, MilestoneInput, TwapConfig};
 use near_sdk::test_utils::VMContextBuilder;
 use near_sdk::{testing_env, PromiseResult};
 
@@ -89,6 +89,7 @@ fn params() -> LaunchParams {
             liquidity_account: acc("lp.kyp.testnet"),
             community_account: acc("bounties.kyp.testnet"),
         },
+        fee_extra: None,
     }
 }
 
@@ -500,6 +501,78 @@ fn fees_split_and_failed_legs_recredited() {
     let failed = c.on_fees_distributed(1, acc("wrap.testnet"), legs);
     assert_eq!(failed.0, 30 * NEAR);
     assert_eq!(c.get_launch(1).unwrap().fee_balances[0].1 .0, 30 * NEAR);
+}
+
+#[test]
+fn fee_extra_split_and_caps() {
+    let mut p = params();
+    p.fee_split.holders_bps = 4_000;
+    p.fee_split.liquidity_bps = 2_000;
+    p.fee_split.community_bps = 1_000;
+    p.fee_extra = Some(FeeExtra {
+        operations_bps: 2_000,
+        near_ai_bps: 1_000,
+        operations_account: acc("ops.kyp.testnet"),
+        near_ai_account: acc("ai.kyp.testnet"),
+    });
+    let mut c = new_contract();
+    set("launcher.testnet", T0, 8 * NEAR);
+    let launch = c.build_launch(acc("launcher.testnet"), p);
+    let id = launch.id;
+    c.launches.insert(id, launch);
+    let v = c.get_launch(id).unwrap();
+    assert_eq!(v.fee_split.holders_bps, 4_000);
+    let e = v.fee_extra.expect("fee_extra stored");
+    assert_eq!(e.operations_bps, 2_000);
+    assert_eq!(e.near_ai_bps, 1_000);
+
+    set("wrap.testnet", T0 + 1, 0);
+    // mark live so Fees deposits are accepted
+    let l = c.launches.get_mut(&id).unwrap();
+    l.status = LaunchStatus::Live;
+    let _ = c.ft_on_transfer(
+        acc("someone.testnet"),
+        U128(100 * NEAR),
+        serde_json::to_string(&CoordinatorMsg::Fees { launch_id: id }).unwrap(),
+    );
+    set("keeper.testnet", T0 + 2, 0);
+    let _ = c.distribute_fees(id, acc("wrap.testnet"));
+    // 40/20/10/20/10 of 100
+    let legs = vec![
+        (acc("holders.kyp.testnet"), U128(40 * NEAR)),
+        (acc("lp.kyp.testnet"), U128(20 * NEAR)),
+        (acc("bounties.kyp.testnet"), U128(10 * NEAR)),
+        (acc("ops.kyp.testnet"), U128(20 * NEAR)),
+        (acc("ai.kyp.testnet"), U128(10 * NEAR)),
+    ];
+    set_with_results(
+        "kyp.testnet",
+        T0 + 3,
+        vec![
+            PromiseResult::Successful(vec![]),
+            PromiseResult::Successful(vec![]),
+            PromiseResult::Successful(vec![]),
+            PromiseResult::Failed,
+            PromiseResult::Successful(vec![]),
+        ],
+    );
+    let failed = c.on_fees_distributed(id, acc("wrap.testnet"), legs);
+    assert_eq!(failed.0, 20 * NEAR);
+    assert_eq!(c.get_launch(id).unwrap().fee_balances[0].1 .0, 20 * NEAR);
+
+    let mut bad = params();
+    bad.fee_extra = Some(FeeExtra {
+        operations_bps: 3_001,
+        near_ai_bps: 0,
+        operations_account: acc("ops.kyp.testnet"),
+        near_ai_account: acc("ai.kyp.testnet"),
+    });
+    let mut c = new_contract();
+    set("launcher.testnet", T0, 8 * NEAR);
+    let panicked = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+        c.build_launch(acc("launcher.testnet"), bad);
+    }));
+    assert!(panicked.is_err(), "ops cap must reject");
 }
 
 #[test]

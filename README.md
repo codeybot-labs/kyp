@@ -32,7 +32,7 @@ An optional, invite-only presale layer for NEAR meme launches. Launchers sell a 
 - Milestones set by the launcher, e.g. $1m → 20%, $10m → 30%, $25m → 50%. **FDV = price × (minted − burned)**, fixed in wNEAR on-chain.
 - TWAP: 60 min window, ≥ 6 observations, ≥ 5 min apart, min liquidity, 60 min claim delay.
 - Reveal: 3 waves, 24 h apart, smallest first. Reserved slots stay reserved for their named wallets, same price and lock terms.
-- Fee split 50% holders / 30% liquidity / 20% competitions & bounties (the live on-chain default; finer flywheel destinations are planned, see below).
+- Fee split 50% holders / 30% liquidity / 20% competitions & bounties (the live on-chain default). Optional capped legs: operations (max 30%) and NEAR AI credits (max 20%), paid to named accounts. Example: 20% operations, 10% NEAR AI credits.
 
 ## Run it
 
@@ -91,12 +91,12 @@ Run locally: `cd web && npm run dev:worker` (builds, applies the D1 migration to
 
 Every trade earns fees, and KYP puts those fees back to work for the project. Site page: [kycabal.fun/flywheel](https://kycabal.fun/flywheel).
 
-**What's live today.** Trading fees that are deposited into the coordinator (`Fees` transfers) and reserved-slot proceeds are split on-chain by the launch's public bps — default 50% holders / 30% liquidity / 20% competitions & bounties. Anyone can call `distribute_fees`. Cabal Corner shows bounties against the community share, but it does not move funds; payouts are still sent by the community account. The coordinator owns the permanent LP, but it cannot yet claim RHEA DCL trading fees automatically.
+**What's live today.** Trading fees that are deposited into the coordinator (`Fees` transfers) and reserved-slot proceeds are split on-chain by the launch's public bps — default 50% holders / 30% liquidity / 20% competitions & bounties. A launch may also add capped operations (max 30%) and NEAR AI credits (max 20%) legs, paid to named accounts. Anyone can call `distribute_fees`. Cabal Corner shows bounties against the community share, but it does not move funds; payouts are still sent by the community account. The coordinator owns the permanent LP, but it cannot yet claim RHEA DCL trading fees automatically.
 
 **Planned fee design.** Later destinations, configurable per launch (example defaults only: 20% operations, 10% NEAR AI credits, with the rest following the public split):
 
-- **Operations (default, capped).** A set percentage is locked for running costs (DexScreener, listings, bots, hosting) and paid straight to the supplier.
-- **NEAR AI credits.** A set percentage buys NEAR AI credits the project uses, for example to power the Cabal Corner agent and other AI tooling. NEAR AI is not used to produce the project's content.
+- **Operations (default, capped).** Live: a capped share (max 30%) is paid to the operations account the launcher names, for running costs (DexScreener, listings, bots, hosting).
+- **NEAR AI credits.** Live: a capped share (max 20%) is paid to the NEAR AI credits account the launcher names, to buy credits for the project's tooling (for example the Cabal Corner agent). NEAR AI is not used to produce the project's content.
 - **Content and creators.** The locked presalers' fee share funds quality content. Caballeros agree bounties posted on [NEARN](https://nearn.io) that bring in artists and creators, who can use the best AI tools or none at all.
 - **The lock.** Presalers can send their share into buying the token for the permanent lock, which grows, earns more fees and buys more tokens.
 - **Smarter liquidity.** Fees fund liquidity in bands below the current price for support, and around it to earn more fees.

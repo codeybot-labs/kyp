@@ -4,6 +4,10 @@ use near_sdk::AccountId;
 
 /// Hard platform ceiling: presale + reserved slots can never exceed 50% of supply.
 pub const MAX_PRESALE_CAP_BPS: u16 = 5_000;
+/// Cap on the operations fee share (DexScreener, listings, bots, hosting).
+pub const MAX_OPERATIONS_BPS: u16 = 3_000;
+/// Cap on the NEAR AI credits fee share.
+pub const MAX_NEAR_AI_BPS: u16 = 2_000;
 /// Basis points denominator.
 pub const BPS_DENOM: u16 = 10_000;
 /// A presale window can be at most 7 days long (opens up to 7 days before launch).
@@ -99,14 +103,51 @@ pub struct FeeSplit {
 
 impl FeeSplit {
     pub fn assert_valid(&self) {
-        let s = self.holders_bps as u32 + self.liquidity_bps as u32 + self.community_bps as u32;
+        self.assert_valid_with_extra(None);
+    }
+    pub fn assert_valid_with_extra(&self, extra: Option<&FeeExtra>) {
+        if let Some(e) = extra {
+            e.assert_valid();
+        }
+        let (o, a) = extra.map(|e| (e.operations_bps as u32, e.near_ai_bps as u32)).unwrap_or((0, 0));
+        let s = self.holders_bps as u32 + self.liquidity_bps as u32 + self.community_bps as u32 + o + a;
         assert_eq!(s, BPS_DENOM as u32, "fee split must sum to 10000");
     }
     /// Returns (holders, liquidity, community) shares; rounding dust goes to community.
     pub fn split(&self, amount: u128) -> (u128, u128, u128) {
-        let h = amount * self.holders_bps as u128 / BPS_DENOM as u128;
-        let l = amount * self.liquidity_bps as u128 / BPS_DENOM as u128;
-        (h, l, amount - h - l)
+        let (h, l, c, _, _) = self.split_with_extra(amount, None);
+        (h, l, c)
+    }
+    /// Returns (holders, liquidity, community, operations, near_ai); rounding dust goes to community.
+    pub fn split_with_extra(&self, amount: u128, extra: Option<&FeeExtra>) -> (u128, u128, u128, u128, u128) {
+        let (ob, ab) = extra.map(|e| (e.operations_bps as u128, e.near_ai_bps as u128)).unwrap_or((0, 0));
+        let d = BPS_DENOM as u128;
+        let h = amount * self.holders_bps as u128 / d;
+        let l = amount * self.liquidity_bps as u128 / d;
+        let o = amount * ob / d;
+        let a = amount * ab / d;
+        (h, l, amount - h - l - o - a, o, a)
+    }
+}
+
+/// Optional extra fee legs, stored under a separate coordinator key so existing
+/// launches do not need a state migration. Both shares are capped.
+#[near(serializers = [borsh, json])]
+#[derive(Clone, Debug, PartialEq)]
+pub struct FeeExtra {
+    pub operations_bps: u16,
+    pub near_ai_bps: u16,
+    pub operations_account: AccountId,
+    pub near_ai_account: AccountId,
+}
+
+impl FeeExtra {
+    pub fn assert_valid(&self) {
+        assert!(self.operations_bps <= MAX_OPERATIONS_BPS, "operations share above the 30% cap");
+        assert!(self.near_ai_bps <= MAX_NEAR_AI_BPS, "NEAR AI credits share above the 20% cap");
+    }
+    pub fn is_empty(&self) -> bool {
+        self.operations_bps == 0 && self.near_ai_bps == 0
     }
 }
 

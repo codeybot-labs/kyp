@@ -53,8 +53,8 @@ export default function CreateLaunch() {
   const [delayMin, setDelayMin] = createSignal(60);
   const [waves, setWaves] = createSignal(3);
   const [waveH, setWaveH] = createSignal(24);
-  const [fees, setFees] = createSignal({ h: 50, l: 30, c: 20 });
-  const [feeAcc, setFeeAcc] = createSignal({ h: "holders.moth.testnet", l: "lp.moth.testnet", c: "bounties.moth.testnet" });
+  const [fees, setFees] = createSignal({ h: 50, l: 30, c: 20, o: 0, a: 0 });
+  const [feeAcc, setFeeAcc] = createSignal({ h: "holders.moth.testnet", l: "lp.moth.testnet", c: "bounties.moth.testnet", o: "ops.moth.testnet", a: "ai.moth.testnet" });
   const [invites, setInvites] = createSignal<Invite[]>([]);
   const salts = new Map<string, string>();
 
@@ -87,6 +87,7 @@ export default function CreateLaunch() {
       twap: { window_sec: twapMin() * 60, min_observations: minObs(), min_liquidity: minLiq() || "0", claim_delay_sec: delayMin() * 60, min_obs_interval_sec: spacingMin() * 60 },
       reveal: { waves: waves(), interval_sec: Math.round(waveH() * 3600) },
       fee_split: { holders_bps: fees().h * 100, liquidity_bps: fees().l * 100, community_bps: fees().c * 100, holders_account: feeAcc().h, liquidity_account: feeAcc().l, community_account: feeAcc().c },
+      fee_extra: (fees().o > 0 || fees().a > 0) ? { operations_bps: fees().o * 100, near_ai_bps: fees().a * 100, operations_account: feeAcc().o, near_ai_account: feeAcc().a } : null,
     };
   });
   const errors = createMemo(() => validateParams(params(), nowSec()));
@@ -227,6 +228,9 @@ export default function CreateLaunch() {
               <label class="field"><span>Holders <b>{fees().h}</b>%</span><input type="number" value={fees().h} onInput={(e) => setFees({ ...fees(), h: Number(e.currentTarget.value) })} /><input value={feeAcc().h} onInput={(e) => setFeeAcc({ ...feeAcc(), h: e.currentTarget.value })} spellcheck={false} autocapitalize="none" /></label>
               <label class="field"><span>Liquidity <b>{fees().l}</b>%</span><input type="number" value={fees().l} onInput={(e) => setFees({ ...fees(), l: Number(e.currentTarget.value) })} /><input value={feeAcc().l} onInput={(e) => setFeeAcc({ ...feeAcc(), l: e.currentTarget.value })} spellcheck={false} autocapitalize="none" /></label>
               <label class="field"><span>Competitions & bounties <b>{fees().c}</b>%</span><input type="number" value={fees().c} onInput={(e) => setFees({ ...fees(), c: Number(e.currentTarget.value) })} /><input value={feeAcc().c} onInput={(e) => setFeeAcc({ ...feeAcc(), c: e.currentTarget.value })} spellcheck={false} autocapitalize="none" /></label>
+              <label class="field"><span>Operations (capped 30%) <b>{fees().o}</b>%</span><input type="number" min="0" max="30" value={fees().o} onInput={(e) => setFees({ ...fees(), o: Number(e.currentTarget.value) })} /><input value={feeAcc().o} onInput={(e) => setFeeAcc({ ...feeAcc(), o: e.currentTarget.value })} spellcheck={false} autocapitalize="none" /></label>
+              <label class="field"><span>NEAR AI credits (capped 20%) <b>{fees().a}</b>%</span><input type="number" min="0" max="20" value={fees().a} onInput={(e) => setFees({ ...fees(), a: Number(e.currentTarget.value) })} /><input value={feeAcc().a} onInput={(e) => setFeeAcc({ ...feeAcc(), a: e.currentTarget.value })} spellcheck={false} autocapitalize="none" /></label>
+              <p class="muted" style="grid-column:1/-1;margin:0">Must add up to 100%. Operations and NEAR AI credits default to 0; an example is 20% operations and 10% NEAR AI credits, taken from the other slices. Paid to the accounts you name.</p>
             </div>
           </section>
 
@@ -266,7 +270,7 @@ export default function CreateLaunch() {
               <span>Window</span><span>{days()} days</span>
               <span>Milestones</span><span>{ms().filter((m) => m.usd > 0 && m.pct > 0).map((m) => `$${(m.usd / 1e6).toLocaleString()}m · ${m.pct}%`).join("  ") || "—"}</span>
               <span>Reveal</span><span>{waves()} waves · every {waveH()}h</span>
-              <span>Fees</span><span>{fees().h}/{fees().l}/{fees().c}</span>
+              <span>Fees</span><span>{fees().h}/{fees().l}/{fees().c}{fees().o || fees().a ? `/${fees().o}/${fees().a}` : ""}</span>
             </div>
             <label class="field"><span>Launcher account</span><input value={launcher()} disabled={!isDemo && !!wallet()} onInput={(e) => setLauncher(e.currentTarget.value)} />
               <Show when={!isDemo && wallet()}><small>Your connected wallet signs and becomes the launcher.</small></Show>

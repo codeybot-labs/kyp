@@ -77,7 +77,14 @@ export function validateParams(p: LaunchParams, now: number): string[] {
   }
   if (p.milestones[0] && BigInt(p.milestones[0].target_fdv_quote) <= BigInt(p.opening_fdv_quote)) e.push("First milestone must be above the opening FDV.");
   const fs = p.fee_split;
-  if (fs.holders_bps + fs.liquidity_bps + fs.community_bps !== 10000) e.push("Fee split must add up to 100%.");
+  const fe = p.fee_extra;
+  const extra = fe && ((fe.operations_bps || 0) + (fe.near_ai_bps || 0) > 0) ? fe : null;
+  if (extra) {
+    if (extra.operations_bps > 3000) e.push("Operations share is capped at 30%.");
+    if (extra.near_ai_bps > 2000) e.push("NEAR AI credits share is capped at 20%.");
+  }
+  const feeSum = fs.holders_bps + fs.liquidity_bps + fs.community_bps + (extra?.operations_bps || 0) + (extra?.near_ai_bps || 0);
+  if (feeSum !== 10000) e.push("Fee split must add up to 100%.");
   if (p.twap.window_sec < 60) e.push("TWAP window must be at least 60 seconds.");
   if (p.twap.min_observations < 2) e.push("Need at least 2 observations.");
   if ((p.twap.min_observations - 1) * p.twap.min_obs_interval_sec > p.twap.window_sec) e.push("Observations × spacing must fit in the TWAP window.");
@@ -108,7 +115,7 @@ function buildView(id: number, launcher: string, p: LaunchParams, now: number): 
     wallet_min: p.wallet_min, wallet_max: p.wallet_max, open_cap_quote: computeOpenCap(p).toString(),
     open_slots: p.allowlist.length, reserved_slots: p.reserved.length, filled_open_slots: 0, filled_reserved_slots: 0,
     reserved_quote_total: reservedTotal.toString(), sale_start: p.sale_start, sale_end: p.sale_end,
-    milestones: p.milestones, twap: p.twap, reveal: p.reveal, fee_split: p.fee_split,
+    milestones: p.milestones, twap: p.twap, reveal: p.reveal, fee_split: p.fee_split, fee_extra: p.fee_extra ?? null,
     total_raised: "0", presale_tokens: "0", reserved_tokens: reservedTokens.toString(), lp_tokens: "0",
     pool_contract: CONFIG.pool || "dclv2.ref-dev.testnet", pool_id, token_is_x: tokenIsX, init_point,
     progress: { lock_funded: false, pool_created: false, token_deposited: false, quote_deposited: false, liquidity_added: false },

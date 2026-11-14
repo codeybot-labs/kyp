@@ -112,6 +112,10 @@ function TermsBody(p: { l: LaunchView }) {
                   <span>Holders</span><span>{pct(l.fee_split.holders_bps)} → <code>{l.fee_split.holders_account}</code></span>
                   <span>Liquidity</span><span>{pct(l.fee_split.liquidity_bps)} → <code>{l.fee_split.liquidity_account}</code></span>
                   <span>Competitions & bounties</span><span>{pct(l.fee_split.community_bps)} → <code>{l.fee_split.community_account}</code></span>
+                  <Show when={l.fee_extra && (l.fee_extra.operations_bps > 0 || l.fee_extra.near_ai_bps > 0)}>
+                    <span>Operations (capped 30%)</span><span>{pct(l.fee_extra?.operations_bps ?? 0)} → <code>{l.fee_extra?.operations_account}</code></span>
+                    <span>NEAR AI credits (capped 20%)</span><span>{pct(l.fee_extra?.near_ai_bps ?? 0)} → <code>{l.fee_extra?.near_ai_account}</code></span>
+                  </Show>
                   <span>Launch LP</span><span>Owned by coordinator, no remove method</span>
                 </div>
               </div>
