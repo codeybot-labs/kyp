@@ -135,6 +135,16 @@ test("caps and validation", () => {
   assert.equal(s.bounties[0].title.length, 80);
 });
 
+test("link_nearn stores a nearn.io listing and rejects other hosts", () => {
+  let s = team();
+  s = applyAction(s, A, { type: "propose", title: "Launch meme pack", kind: "bounty" }, T0);
+  const id = s.bounties[0].id;
+  assert.equal(s.bounties[0].nearn_url, null);
+  s = applyAction(s, A, { type: "link_nearn", id, url: "https://nearn.io/listing/launch-meme-pack" }, T0 + 1);
+  assert.equal(s.bounties[0].nearn_url, "https://nearn.io/listing/launch-meme-pack");
+  assert.throws(() => applyAction(s, A, { type: "link_nearn", id, url: "https://example.com/bounty" }, T0 + 2), /nearn\.io/);
+});
+
 test("knowledge retrieval finds the right notes", () => {
   assert.ok(KB.length >= 20);
   assert.equal(retrieve("how does the twap unlock work")[0].id, "twap");

@@ -173,7 +173,7 @@ export function applyAction(state, actor, a, now = Date.now()) {
         id: `b${now.toString(36)}${hash(actor.id + title).toString(36).slice(0, 4)}`, kind, title,
         details: clip(a.details, LIMITS.text), skill: SKILL_IDS.includes(a.skill) ? a.skill : "community",
         reward: clip(a.reward, 60) || "to be agreed", by: actor.id, votes: [actor.id], createdAt: now,
-        status: "proposed", claimant: null, submission: null, approvals: [], entries: [], winner: null,
+        status: "proposed", claimant: null, submission: null, approvals: [], entries: [], winner: null, nearn_url: null,
       };
       s.bounties.unshift(b);
       log("propose", `proposed ${kind} "${title}"`, b.id);
@@ -240,6 +240,18 @@ export function applyAction(state, actor, a, now = Date.now()) {
       const top = [...b.entries].sort((x, y) => y.votes.length - x.votes.length || x.at - y.at)[0];
       b.status = "done"; b.winner = top ? top.id : null;
       log("done", top ? `"${b.title}" closed, winner picked by votes` : `"${b.title}" closed with no entries`, b.id);
+      return s;
+    }
+    case "link_nearn": {
+      const b = bounty();
+      const link = okLink(a.url ?? a.link);
+      if (!link) err("Add the NEARN listing URL (https://…)");
+      try {
+        const u = new URL(link);
+        if (!/^([a-z0-9-]+\.)?nearn\.io$/i.test(u.hostname)) err("That doesn't look like a nearn.io link");
+      } catch { err("That doesn't look like a nearn.io link"); }
+      b.nearn_url = link;
+      log("nearn", `linked NEARN listing for "${b.title}"`, b.id);
       return s;
     }
     default: err("Unknown action");

@@ -279,7 +279,7 @@ function Bounties(p: { l: LaunchView; st: () => any; act: (a: any, ok?: string) 
         <h3>Bounties & competitions</h3>
         <span class="sub">Funded from the fee pool · community share {share()}% → <span class="mono">{short(p.l.fee_split.community_account)}</span>{pool() ? ` · fees waiting ${pool()}` : ""}</span>
       </div>
-      <p class="sub">Propose → a majority ({majority(p.rosterSize)} of {p.rosterSize}) agrees → bounties are claimed, delivered and approved by majority; competitions take entries and close on votes. Rewards are tracked here and paid by the community account; v1 moves no funds.</p>
+      <p class="sub">Propose → a majority ({majority(p.rosterSize)} of {p.rosterSize}) agrees → bounties are claimed, delivered and approved by majority; competitions take entries and close on votes. Rewards are tracked here and paid by the community account; v1 moves no funds. Caballeros can post the same bounty on NEARN and paste the listing link here.</p>
       <Show when={joined()} fallback={<p class="sub" style={{ "margin-top": "8px" }}>{wallet() && !store.session() && p.synced ? `Sign in as ${short(wallet()!)} above to propose and vote (if this wallet already joined, signing in brings your profile back).` : "Join the roster to propose and vote."}</p>}>
         <form class="cc-form" onSubmit={propose}>
           <div class="cc-seg" role="tablist">
@@ -326,6 +326,20 @@ function BountyItem(p: { b: any; act: (a: any, ok?: string) => Promise<boolean>;
       </div>
       <Show when={b().details}><div class="sub">{b().details}</div></Show>
       <div class="sub">Reward: {b().reward} · proposed by {p.W({ id: b().by })}</div>
+      <div class="cc-rowtop" style={{ "flex-wrap": "wrap", gap: "8px" }}>
+        <Show when={b().nearn_url}>
+          <a class="link" href={b().nearn_url} target="_blank" rel="noopener noreferrer">NEARN listing</a>
+        </Show>
+        <Show when={!b().nearn_url && p.joined}>
+          <a class="btn sm ghost" href={`https://nearn.io/sponsor/create?type=${b().kind === "competition" ? "bounty" : "bounty"}`} target="_blank" rel="noopener">Post on NEARN</a>
+        </Show>
+        <Show when={p.joined}>
+          <form class="cc-inline" onSubmit={async (e) => { e.preventDefault(); if (await p.act({ type: "link_nearn", id: b().id, url: link() }, "NEARN listing linked.")) setLink(""); }}>
+            <input placeholder="https://nearn.io/…" value={link()} onInput={(e) => setLink(e.currentTarget.value)} aria-label="NEARN listing URL" />
+            <button class="btn sm ghost" type="submit">{b().nearn_url ? "Update link" : "Save link"}</button>
+          </form>
+        </Show>
+      </div>
 
       <Show when={b().status === "proposed"}>
         <div class="cc-rowtop">
