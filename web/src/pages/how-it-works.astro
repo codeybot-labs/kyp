@@ -6,7 +6,7 @@ const steps = [
   ["One launch transaction", "The launcher calls launch. In one promise chain the coordinator prices every fill at the same opening price, sends all presale tokens into the lock, creates the RHEA DCL pool at that price, and seeds it with the remaining supply and all presale proceeds."],
   ["Market-cap milestones", "Anyone can poke the lock to record the pool price and token supply. A tranche qualifies only when the time-weighted FDV over the public window stays above its target, with enough observations and liquidity. Then, after a short delay, every presaler can claim that tranche."],
   ["Reveal waves", "After launch, presaler accounts are revealed on a fixed schedule, smallest first. Reserved slots for bigger names can be bought after launch at the same price and lock on the same terms."],
-  ["Fees flow back", "LP positions are owned by the coordinator and can't be removed. Fees and reserved-slot proceeds are split on-chain between holders, liquidity and competitions/bounties."],
+  ["Fees flow back", "LP positions are owned by the coordinator and can't be removed. Fees that are sent in, and reserved-slot proceeds, are split on-chain between holders, liquidity and competitions/bounties. Claiming RHEA DCL trading fees automatically, and putting those shares to work as a flywheel, is planned."],
 ];
 ---
 <Base title="How it works" active="/how-it-works">
@@ -25,6 +25,13 @@ const steps = [
         <p class="muted">{d}</p>
       </div>
     ))}
+  </section>
+
+  <section class="grid g2" style="padding: 8px 0 32px">
+    <div class="card reveal" style="grid-column: 1 / -1">
+      <h3>The flywheel</h3>
+      <p class="muted" style="margin-top: 8px">Every trade earns fees, and KYP puts those fees back to work for the project. The three-way on-chain split is live on testnet; operations, NEAR AI credits, creator bounties on NEARN, lock buybacks and the rest are the planned design. <a class="link" href="/flywheel">How fees flow →</a></p>
+    </div>
   </section>
 
   <section class="grid g2" style="padding: 0 0 96px">

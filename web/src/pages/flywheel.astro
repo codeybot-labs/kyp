@@ -1,0 +1,131 @@
+---
+import Base from "../layouts/Base.astro";
+
+const sources = [
+  ["Trading fees", "Every trade in the KYP pool (RHEA DCL) pays a fee to a permanent liquidity position the coordinator owns and cannot remove."],
+  ["Reserved slots", "Money from reserved slots bought after launch goes into the same split."],
+];
+
+const destinations = [
+  {
+    title: "Holders",
+    mark: "Live",
+    kind: "live",
+    body: "A share goes to holders outside the presale group. Today this is paid to the holders account the launcher names. Paying each holder on-chain is not built yet.",
+  },
+  {
+    title: "Operations (default, capped)",
+    mark: "Planned",
+    kind: "planned",
+    body: "By default, a set percentage of fees is locked for running costs — DexScreener, listings, bots and hosting — and is paid straight to the supplier.",
+  },
+  {
+    title: "NEAR AI credits",
+    mark: "Planned",
+    kind: "planned",
+    body: "A set percentage of fees buys NEAR AI credits the project uses, for example to power the Cabal Corner agent and the project's other AI tooling.",
+  },
+  {
+    title: "Content and creators",
+    mark: "Planned",
+    kind: "planned",
+    body: "The locked presalers' fee share funds quality content. The caballeros agree among themselves on bounties posted on NEARN that bring in artists and creators, who can use the best AI tools or none at all. Today, Cabal Corner already lets the roster vote on bounties against the community share; those payouts are still sent by the community account, and are not yet listed on NEARN.",
+  },
+  {
+    title: "The lock",
+    mark: "Planned",
+    kind: "planned",
+    body: "Presalers can send their share into buying the token for the permanent lock. The lock grows, earns more fees and buys more tokens.",
+  },
+  {
+    title: "Smarter liquidity",
+    mark: "Planned",
+    kind: "planned",
+    body: "Fees fund liquidity in price bands below the current price for support, and around the current price to earn more fees. Today the liquidity share is paid to the liquidity account the launcher names.",
+  },
+  {
+    title: "Partner pools",
+    mark: "Planned",
+    kind: "planned",
+    body: "Fees seed shared pools with other NEAR communities, building friendships and volume together.",
+  },
+  {
+    title: "Bounties and competitions",
+    mark: "Partly live",
+    kind: "part",
+    body: "Fees fund open NEARN bounties for memes, campaigns, dev work and translations, open to everyone. Cabal Corner already has voted bounties and competitions sized against the community fee share. Open listings on NEARN and on-chain payouts are planned.",
+  },
+];
+---
+<Base title="The flywheel" active="/flywheel" description="How KYP puts trading fees and reserved-slot proceeds back to work for the project. The on-chain split is live on testnet; the finer destinations are the planned fee design.">
+  <section class="hero full-bleed" style="padding-bottom: 20px">
+    <div class="wrap">
+      <span class="pill planned">Planned fee design</span>
+      <h1>The flywheel</h1>
+      <p class="lead">Every trade earns fees, and KYP puts those fees back to work for the project.</p>
+    </div>
+  </section>
+
+  <section class="fly" style="padding-top: 24px; padding-bottom: 96px">
+    <div class="card reveal fly-now">
+      <h3>What's live today, and what is planned</h3>
+      <p class="muted" style="margin-top: 8px">On testnet, reserved-slot proceeds and any fees sent to the coordinator are split on-chain three ways: holders, liquidity, and a community account for competitions and bounties. Anyone can trigger the payout. Cabal Corner lets the roster agree bounties against that community share, but the corner does not move funds. The coordinator owns the permanent liquidity position, but it cannot yet claim RHEA DCL trading fees on its own. The rest of this page is the planned design for how those fees get put back to work.</p>
+    </div>
+
+    <figure class="fly-flow reveal" aria-label="Fee flow: trading fees and reserved slots feed a pool that splits to holders, liquidity and community, then to planned uses">
+      <div class="fly-row">
+        <div class="fly-box">Trading fees<span>RHEA DCL pool</span></div>
+        <div class="fly-box">Reserved slots<span>bought after launch</span></div>
+      </div>
+      <div class="fly-join" aria-hidden="true"></div>
+      <div class="fly-box fly-pool">Fee pool<span>split on-chain, per launch</span></div>
+      <div class="fly-join" aria-hidden="true"></div>
+      <div class="fly-row fly-three">
+        <div class="fly-box on">Holders<span>Live</span></div>
+        <div class="fly-box on">Liquidity<span>Live</span></div>
+        <div class="fly-box on">Community<span>Live</span></div>
+      </div>
+      <div class="fly-join" aria-hidden="true"></div>
+      <div class="fly-row fly-plan">
+        <div class="fly-box dim">Operations</div>
+        <div class="fly-box dim">NEAR AI credits</div>
+        <div class="fly-box dim">Content</div>
+        <div class="fly-box dim">The lock</div>
+        <div class="fly-box dim">Smarter LP</div>
+        <div class="fly-box dim">Partner pools</div>
+        <div class="fly-box dim">Open bounties</div>
+      </div>
+      <figcaption>The three-way split is live. The uses underneath are the planned fee design.</figcaption>
+    </figure>
+
+    <div class="head reveal" style="margin-top: 56px; margin-bottom: 24px">
+      <h2>Where fees come from</h2>
+    </div>
+    <div class="grid g2">
+      {sources.map(([t, d]) => (
+        <div class="card reveal">
+          <h3 style="margin-bottom: 8px">{t}</h3>
+          <p class="muted">{d}</p>
+        </div>
+      ))}
+    </div>
+
+    <div class="head reveal" style="margin-top: 56px; margin-bottom: 24px">
+      <h2>Where fees go</h2>
+      <p>Splits are configurable per launch. The live on-chain default is 50% holders, 30% liquidity, 20% community. Finer buckets such as 20% operations and 10% NEAR AI credits are example defaults only — each launch sets its own.</p>
+    </div>
+    <div class="grid g2">
+      {destinations.map((d) => (
+        <div class="card reveal">
+          <div class="fly-card-head">
+            <h3>{d.title}</h3>
+            <span class={`mark ${d.kind}`}>{d.mark}</span>
+          </div>
+          <p class="muted">{d.body}</p>
+        </div>
+      ))}
+    </div>
+
+    <p class="note reveal" style="margin-top: 28px">NEARN is at <a class="link" href="https://nearn.io" target="_blank" rel="noopener">nearn.io</a>. See also <a class="link" href="/how-it-works">How it works</a> and <a class="link" href="/corner">Cabal Corner</a>.</p>
+  </section>
+</Base>

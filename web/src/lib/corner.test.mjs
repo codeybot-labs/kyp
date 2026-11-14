@@ -140,6 +140,7 @@ test("knowledge retrieval finds the right notes", () => {
   assert.equal(retrieve("how does the twap unlock work")[0].id, "twap");
   assert.equal(retrieve("what is wNEAR")[0].id, "wnear");
   assert.equal(retrieve("how do bounties get paid")[0].id, "fees");
+  assert.equal(retrieve("how do fees flow")[0].id, "flywheel");
   assert.deepEqual(retrieve(""), []);
 });
 

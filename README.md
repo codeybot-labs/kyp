@@ -21,7 +21,7 @@ An optional, invite-only presale layer for NEAR meme launches. Launchers sell a 
 | `contracts/lock` | Market-cap lock: milestone tranches, pokeable TWAP observer, claims; no admin |
 | `contracts/mock-pool` | **Mock** of the RHEA DCL methods KYP calls (tests + demo only) |
 | `integration-tests` | near-workspaces sandbox test of the whole flow |
-| `web` | Astro + Solid site: launches, create, status, terms, deposit, reveal, claim, Cabal Corner (`/corner`) |
+| `web` | Astro + Solid site: launches, create, status, terms, deposit, reveal, claim, Cabal Corner (`/corner`), flywheel (`/flywheel`) |
 | `web/worker`, `web/migrations` | Cabal Corner API: a small Worker that only runs for `/api/*`, backed by Cloudflare D1 |
 | `scripts` | `build.sh` (wasm), `test.sh` (everything), `deploy-testnet.sh`, `smoke-testnet.sh` (testnet) |
 
@@ -32,7 +32,7 @@ An optional, invite-only presale layer for NEAR meme launches. Launchers sell a 
 - Milestones set by the launcher, e.g. $1m → 20%, $10m → 30%, $25m → 50%. **FDV = price × (minted − burned)**, fixed in wNEAR on-chain.
 - TWAP: 60 min window, ≥ 6 observations, ≥ 5 min apart, min liquidity, 60 min claim delay.
 - Reveal: 3 waves, 24 h apart, smallest first. Reserved slots stay reserved for their named wallets, same price and lock terms.
-- Fee split 50% holders / 30% liquidity / 20% competitions & bounties.
+- Fee split 50% holders / 30% liquidity / 20% competitions & bounties (the live on-chain default; finer flywheel destinations are planned, see below).
 
 ## Run it
 
@@ -73,10 +73,10 @@ If `openssl-sys` can't find OpenSSL (no `pkg-config`), set `OPENSSL_LIB_DIR=/usr
 - **Roster and skills.** Caballeros join and tag their skills (dev, creator, designer, community, trader, partnerships). Revealed presalers are tagged from the coordinator's `get_presalers` with their reveal wave.
 - **Team mix.** Counts each skill against what a launch needs and flags missing or thin skills before launch.
 - **Daily missions.** Three tasks a day per caballero, picked from their skills (stable per UTC day), ticked off for points.
-- **Bounties and competitions.** Propose → a majority of the roster agrees → bounties are claimed, delivered (a link) and approved by majority; competitions take one entry each, one vote per caballero, and the proposer closes them on votes. Rewards are shown against the launch's on-chain community fee share (`fee_split.community_bps` and fees waiting). **No funds move**: payouts are still sent by the community account.
+- **Bounties and competitions.** Propose → a majority of the roster agrees → bounties are claimed, delivered (a link) and approved by majority; competitions take one entry each, one vote per caballero, and the proposer closes them on votes. Rewards are shown against the launch's on-chain community fee share (`fee_split.community_bps` and fees waiting). **No funds move**: payouts are still sent by the community account. Posting those bounties on [NEARN](https://nearn.io), and paying them on-chain from the fee pool, is planned (see the flywheel).
 - **No passengers.** Points over 7 days (mission 1, vote 1, proposal 2, entry 2, delivery 3, win 5). Three quiet days after joining flags a passenger.
 - **Built in the open.** An activity feed logs every action. A presaler whose wave isn't revealed yet appears as an alias (`Caballero 3F2A`, salted per corner, server-side); once the chain reveals their wave, their wallet is tagged on everything they did.
-- **AI agent.** A chat panel built on [assistant-ui](https://github.com/assistant-ui/assistant-ui) primitives (MIT). It answers from this launch's live data (status, raise, team mix, passengers, bounties) and from 22 curated NEAR ecosystem notes retrieved with [MiniSearch](https://github.com/lucaong/minisearch) (MIT), and cites the notes it used. **No LLM is called by default.** The Worker can use Workers AI (`@cf/meta/llama-3.2-3b-instruct`) to phrase the answer from the same notes, but it is off (`CORNER_AI = "off"`) and, if switched on, capped per day (150 calls / ~3,000 neurons, under the account's 10k-neuron free daily allocation).
+- **AI agent.** A chat panel built on [assistant-ui](https://github.com/assistant-ui/assistant-ui) primitives (MIT). It answers from this launch's live data (status, raise, team mix, passengers, bounties) and from 23 curated NEAR ecosystem notes retrieved with [MiniSearch](https://github.com/lucaong/minisearch) (MIT), and cites the notes it used. **No LLM is called by default.** The Worker can use Workers AI (`@cf/meta/llama-3.2-3b-instruct`) to phrase the answer from the same notes, but it is off (`CORNER_AI = "off"`) and, if switched on, capped per day (150 calls / ~3,000 neurons, under the account's 10k-neuron free daily allocation).
 - **KYP record.** For any account: every launch it led or presold in (coordinator + lock views: role, deposit, wave, locked/claimed), plus its corner points, missions and wins on launches where it is public. Hidden presalers' corner work stays off other people's view until reveal.
 
 Storage and identity:
@@ -87,7 +87,23 @@ Storage and identity:
 
 Run locally: `cd web && npm run dev:worker` (builds, applies the D1 migration to a local database, serves site + API on http://localhost:8787). `npm run test:corner-api` (with `BASE=http://127.0.0.1:8787`) drives the API end to end with a throwaway faucet testnet wallet.
 
-**Roadmap: the memecoin management system.** Cabal Corner is the first piece of a bigger idea: one place that brings together everything a team needs to run a meme project after launch, without the usual friction. Next steps, not built yet: on-chain bounty payouts from the community fee account, invites that read the KYP record directly, an agent with live NEAR market data, and per-launch channels for the caballeros.
+### The flywheel: how fees go back into the project
+
+Every trade earns fees, and KYP puts those fees back to work for the project. Site page: [kycabal.fun/flywheel](https://kycabal.fun/flywheel).
+
+**What's live today.** Trading fees that are deposited into the coordinator (`Fees` transfers) and reserved-slot proceeds are split on-chain by the launch's public bps — default 50% holders / 30% liquidity / 20% competitions & bounties. Anyone can call `distribute_fees`. Cabal Corner shows bounties against the community share, but it does not move funds; payouts are still sent by the community account. The coordinator owns the permanent LP, but it cannot yet claim RHEA DCL trading fees automatically.
+
+**Planned fee design.** Later destinations, configurable per launch (example defaults only: 20% operations, 10% NEAR AI credits, with the rest following the public split):
+
+- **Operations (default, capped).** A set percentage is locked for running costs (DexScreener, listings, bots, hosting) and paid straight to the supplier.
+- **NEAR AI credits.** A set percentage buys NEAR AI credits the project uses, for example to power the Cabal Corner agent and other AI tooling. NEAR AI is not used to produce the project's content.
+- **Content and creators.** The locked presalers' fee share funds quality content. Caballeros agree bounties posted on [NEARN](https://nearn.io) that bring in artists and creators, who can use the best AI tools or none at all.
+- **The lock.** Presalers can send their share into buying the token for the permanent lock, which grows, earns more fees and buys more tokens.
+- **Smarter liquidity.** Fees fund liquidity in bands below the current price for support, and around it to earn more fees.
+- **Partner pools.** Fees seed shared pools with other NEAR communities.
+- **Open bounties.** Fees fund open NEARN bounties for memes, campaigns, dev work and translations, open to everyone.
+
+**Roadmap: the memecoin management system.** Cabal Corner is the first piece of a bigger idea: one place that brings together everything a team needs to run a meme project after launch, without the usual friction. Next steps, not built yet: the flywheel destinations above (operations, NEAR AI credits, creator bounties on NEARN, lock buybacks, smarter liquidity, partner pools), on-chain bounty payouts from the community fee account, automatic claiming of RHEA DCL trading fees, invites that read the KYP record directly, an agent with live NEAR market data, and per-launch channels for the caballeros.
 
 ### Network
 

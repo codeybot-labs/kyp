@@ -1060,3 +1060,106 @@ button.cc-skill { cursor: pointer; }
 .foot-net { font-size: 0.75rem; padding: 2px 10px; margin-right: 6px; }
 footer .mono { font-family: var(--mono); font-size: 0.85em; }
 .warn-text { display: block; color: #b45309; font-weight: 600; margin-top: 4px; }
+
+/* ---------- Flywheel ---------- */
+.pill.planned {
+  background: rgba(255, 210, 63, 0.16);
+  box-shadow: inset 0 0 0 2px var(--butter);
+  color: var(--butter);
+}
+.fly .fly-now { margin-bottom: 36px; }
+.fly .fly-now h3 { margin-bottom: 0; }
+.fly-card-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.fly-card-head h3 { margin: 0; }
+.mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 10px;
+  border-radius: 99px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+.mark.live { background: rgba(77, 240, 187, 0.16); color: var(--mint); }
+.mark.planned { background: rgba(255, 210, 63, 0.16); color: var(--butter); }
+.mark.part { background: rgba(185, 168, 255, 0.18); color: var(--lilac); }
+.fly-flow {
+  margin: 0;
+  padding: 28px 24px 22px;
+  border: 1px solid var(--border);
+  border-radius: 28px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 8px;
+}
+.fly-flow figcaption {
+  margin-top: 10px;
+  text-align: center;
+  font-size: 0.88rem;
+  color: var(--dim);
+}
+.fly-row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.fly-row.fly-three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.fly-row.fly-plan { grid-template-columns: repeat(auto-fit, minmax(110px, 1fr)); }
+.fly-box {
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  padding: 14px 12px;
+  text-align: center;
+  font-family: var(--display);
+  font-weight: 800;
+  color: var(--white);
+  line-height: 1.2;
+}
+.fly-box span {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--body);
+  font-weight: 600;
+  font-size: 0.78rem;
+  color: var(--muted);
+}
+.fly-box.on {
+  background: rgba(77, 240, 187, 0.14);
+  border-color: rgba(77, 240, 187, 0.35);
+}
+.fly-box.on span { color: var(--mint); }
+.fly-box.dim {
+  font-size: 0.95rem;
+  background: rgba(255, 210, 63, 0.08);
+  border-color: rgba(255, 210, 63, 0.22);
+  color: var(--butter);
+}
+.fly-box.fly-pool {
+  width: min(420px, 100%);
+  margin: 0 auto;
+  background: rgba(185, 168, 255, 0.16);
+  border-color: rgba(185, 168, 255, 0.4);
+}
+.fly-join {
+  width: 2px;
+  height: 18px;
+  margin: 0 auto;
+  background: var(--lilac);
+  opacity: 0.7;
+}
+@media (max-width: 700px) {
+  .fly-row, .fly-row.fly-three { grid-template-columns: minmax(0, 1fr); }
+}
+.fly .card:hover { transform: translateY(-6px); }
